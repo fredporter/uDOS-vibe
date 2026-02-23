@@ -1,0 +1,78 @@
+# uDOS-vibe Configuration
+# This file holds all application settings that were previously scattered in .env
+# Copy to config.toml and customize as needed
+#
+# SECURITY: This file contains NO secrets. API keys/tokens go in wizard/secrets.tomb
+
+[locale]
+timezone = "UTC"
+location = "grid-code"
+location_name = "Greenwich"
+grid_id = ""
+
+[logging]
+level = "INFO"              # DEBUG, INFO, WARNING, ERROR, CRITICAL
+destination = "file"        # file, syslog, console
+format = "json"            # json, text
+payloads = false           # Log request/response bodies
+redact = true              # Mask sensitive data
+root = "${UDOS_ROOT}/memory/logs"
+
+# Advanced logging (usually disabled)
+ring_buffer = false        # Keep rolling in-memory log
+sampling = false           # Random sampling of high-volume logs
+categories = []            # Empty = all categories; specify to limit
+
+[ui.tui]
+# Text User Interface rendering
+quiet = false              # Suppress informational output
+no_ansi = false            # Disable ANSI color codes
+emoji_render = true        # Use emoji in TUI
+clean_startup = true       # Don't show splash screen
+show_banner = true         # Show startup banner
+form_tui = true            # Use TUI forms vs text prompts
+
+[ui.tui.display]
+startup_extras = false     # Show extra info at startup
+full_meters = false        # Show full progress bars
+invert_headers = false     # Invert header colors
+map_level = 1              # Universe map detail level (1-5)
+force_status = false       # Always show status line
+keymap_profile = "auto"    # auto, vim, emacs, default
+
+[app]
+os_type = "mac"            # mac, ubuntu, alpine, windows (auto-detected if not set)
+viewport_cols = 0          # Leave empty for auto-detect
+viewport_rows = 0          # Leave empty for auto-detect
+
+[app.cleanup]
+compost_max_bytes = 0      # Leave empty for unlimited
+compost_max_mb = 0         # Leave empty for unlimited
+compost_reserve_mb = 100   # Space to reserve
+
+[app.services]
+ollama_host = "http://localhost:11434"
+stream_delay_ms = 0        # Vibe-cli streaming delay
+
+[dev]
+# Development and automation flags (for CI/testing)
+automation = false         # Suppress interactive prompts in CI
+dev_mode = false           # Enable development features
+test_mode = false          # Enable test mode
+home_root_enforce = false  # Enforce UDOS_ROOT = ~
+skip_dep_check = false     # Skip dependency validation
+disable_warning_monitor = false  # Disable dependency warnings
+ollama_autostart = false   # Auto-start Ollama service
+
+# Session/identity (runtime-generated, leave empty)
+session_id = ""
+default_user = ""
+
+[providers]
+# Primary and secondary AI providers (optional overrides)
+# primary = "cloud"
+# secondary = "cloud"
+
+# Version tracking
+[version]
+ucode = "1.0.1"
