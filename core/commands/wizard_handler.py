@@ -1,32 +1,43 @@
 """WIZARD command handler - Wizard server maintenance tasks."""
 
-from typing import List, Dict, Optional, Any, Tuple
+from __future__ import annotations
+
 from datetime import datetime
 import json
 import os
+from pathlib import Path
 import secrets
 import subprocess
+from typing import Any
 import webbrowser
-from pathlib import Path
+
 from core.commands.base import BaseCommandHandler
 from core.commands.interactive_menu_mixin import InteractiveMenuMixin
-from core.tui.output import OutputToolkit
-from core.services.logging_manager import get_logger
-from core.services.logging_api import get_repo_root
 from core.services.background_service_manager import get_wizard_process_manager
-from core.services.destructive_ops import remove_path, resolve_vault_root, scrub_directory
+from core.services.destructive_ops import (
+    remove_path,
+    resolve_vault_root,
+    scrub_directory,
+)
 from core.services.error_contract import CommandError
+from core.services.logging_api import get_repo_root
+from core.services.logging_manager import get_logger
 from core.services.user_service import Permission, get_user_manager
-from core.services.wizard_mode_state import get_wizard_mode_active, set_wizard_mode_active
+from core.services.wizard_mode_state import (
+    get_wizard_mode_active,
+    set_wizard_mode_active,
+)
+from core.tui.output import OutputToolkit
 
 logger = get_logger("wizard-handler")
 
 
 class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
     """Handler for WIZARD command - maintenance and rebuild."""
+
     _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
         if not params:
             base_url, dashboard_url = self._wizard_urls()
             choice = self.show_menu(
@@ -35,7 +46,11 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                     ("Start server", "start", "Launch Wizard server"),
                     ("Stop server", "stop", "Stop Wizard server"),
                     ("Status", "status", "Check Wizard health"),
-                    ("Reset keystore", "reset", "Wipe Wizard secret store + admin token"),
+                    (
+                        "Reset keystore",
+                        "reset",
+                        "Wipe Wizard secret store + admin token",
+                    ),
                     ("Rebuild dashboard", "rebuild", "Rebuild dashboard assets"),
                     ("Open dashboard", "open", f"Open {dashboard_url}"),
                     ("Help", "help", "Show WIZARD help"),
@@ -53,12 +68,24 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
 
         from core.services.user_service import is_ghost_mode
 
-        if is_ghost_mode() and action in {"rebuild", "--rebuild", "start", "--start", "stop", "--stop", "reset", "--reset"}:
-            return {
-                "status": "warning",
-                "message": "Ghost Mode is read-only (Wizard control blocked)",
-                "output": self._help_text(),
-            }
+        if is_ghost_mode() and action in {
+            "rebuild",
+            "--rebuild",
+            "start",
+            "--start",
+            "stop",
+            "--stop",
+            "reset",
+            "--reset",
+        }:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "[TESTING ALERT] Ghost Mode active: WIZARD %s in demo mode. "
+                "Enforcement will be added before v1.5 release.",
+                action,
+            )
 
         if action in {"rebuild", "--rebuild"}:
             return self._rebuild_wizard()
@@ -92,7 +119,7 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
             level="INFO",
         )
 
-    def _rebuild_wizard(self) -> Dict:
+    def _rebuild_wizard(self) -> dict:
         """Rebuild wizard dashboard artifacts."""
         repo_root = get_repo_root()
         banner = OutputToolkit.banner("WIZARD REBUILD")
@@ -121,7 +148,7 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
 
         try:
             rebuild_cmd = (
-                f"source \"{repo_root}/bin/udos-common.sh\" "
+                f'source "{repo_root}/bin/udos-common.sh" '
                 "&& export UDOS_FORCE_REBUILD=1 "
                 "&& rebuild_wizard_dashboard"
             )
@@ -137,7 +164,9 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
             )
 
             if result.returncode != 0:
-                logger.error(f"[LOCAL] Wizard rebuild failed with code {result.returncode}")
+                logger.error(
+                    f"[LOCAL] Wizard rebuild failed with code {result.returncode}"
+                )
                 raise CommandError(
                     code="ERR_RUNTIME_UNEXPECTED",
                     message=f"Rebuild failed (exit {result.returncode})",
@@ -169,27 +198,25 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
             )
 
     def _help_text(self) -> str:
-        return "\n".join(
-            [
-                OutputToolkit.banner("WIZARD"),
-                "WIZARD START      Start Wizard server",
-                "WIZARD STOP       Stop Wizard server (graceful)",
-                "WIZARD KILL       Force kill Wizard process (port conflict fix)",
-                "WIZARD RESTART    Kill and restart Wizard",
-                "WIZARD STATUS     Check Wizard server status",
-                "WIZARD PROV ...   Provider operations (LIST|STATUS|ENABLE|DISABLE|SETUP|GENSECRET)",
-                "WIZARD INTEG ...  Integration wiring checks (status|github|mistral|ollama)",
-                "WIZARD CHECK      Full Wizard-side shakedown",
-                "WIZARD MODE ...   Toggle wizard-admin mode (on|off|status)",
-                "WIZARD RESET      Wipe Wizard keystore + admin token (destructive)",
-                "  --wipe-profile  Also delete memory/user/profile.json",
-                "  --scrub-vault   Also delete VAULT_ROOT contents",
-                "WIZARD REBUILD    Rebuild Wizard dashboard artifacts",
-                "WIZARD HELP       Show this help",
-            ]
-        )
+        return "\n".join([
+            OutputToolkit.banner("WIZARD"),
+            "WIZARD START      Start Wizard server",
+            "WIZARD STOP       Stop Wizard server (graceful)",
+            "WIZARD KILL       Force kill Wizard process (port conflict fix)",
+            "WIZARD RESTART    Kill and restart Wizard",
+            "WIZARD STATUS     Check Wizard server status",
+            "WIZARD PROV ...   Provider operations (LIST|STATUS|ENABLE|DISABLE|SETUP|GENSECRET)",
+            "WIZARD INTEG ...  Integration wiring checks (status|github|mistral|ollama)",
+            "WIZARD CHECK      Full Wizard-side shakedown",
+            "WIZARD MODE ...   Toggle wizard-admin mode (on|off|status)",
+            "WIZARD RESET      Wipe Wizard keystore + admin token (destructive)",
+            "  --wipe-profile  Also delete memory/user/profile.json",
+            "  --scrub-vault   Also delete VAULT_ROOT contents",
+            "WIZARD REBUILD    Rebuild Wizard dashboard artifacts",
+            "WIZARD HELP       Show this help",
+        ])
 
-    def _wizard_mode(self, params: List[str]) -> Dict:
+    def _wizard_mode(self, params: list[str]) -> dict:
         sub = params[0].lower() if params else "status"
         match sub:
             case "status" | "show":
@@ -197,14 +224,12 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                 return {
                     "status": "success",
                     "message": f"Wizard mode {'on' if active else 'off'}",
-                    "output": "\n".join(
-                        [
-                            OutputToolkit.banner("WIZARD MODE"),
-                            f"Active: {'on' if active else 'off'}",
-                            "Scope: admin packaging/distribution operations",
-                            "Boundary: core/extension source contribution still requires DEV mode",
-                        ]
-                    ),
+                    "output": "\n".join([
+                        OutputToolkit.banner("WIZARD MODE"),
+                        f"Active: {'on' if active else 'off'}",
+                        "Scope: admin packaging/distribution operations",
+                        "Boundary: core/extension source contribution still requires DEV mode",
+                    ]),
                 }
             case "on" | "enable":
                 self._require_admin()
@@ -241,12 +266,12 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
             level="INFO",
         )
 
-    def _show_help(self) -> Dict:
+    def _show_help(self) -> dict:
         return {"status": "success", "output": self._help_text()}
 
-    def _wizard_provider(self, params: List[str]) -> Dict:
+    def _wizard_provider(self, params: list[str]) -> dict:
         """Route provider operations through Wizard API surface."""
-        sub = (params[0].upper() if params else "LIST")
+        sub = params[0].upper() if params else "LIST"
         args = params[1:] if len(params) > 1 else []
 
         if sub == "LIST":
@@ -268,8 +293,14 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                 available = "OK" if status.get("available") else "X"
                 enabled = "OK" if provider.get("enabled") else "X"
                 lines.append(f"{name} ({pid})")
-                lines.append(f"  Config: {configured}  Available: {available}  Enabled: {enabled}")
-            return {"status": "success", "message": "Provider list loaded", "output": "\n".join(lines)}
+                lines.append(
+                    f"  Config: {configured}  Available: {available}  Enabled: {enabled}"
+                )
+            return {
+                "status": "success",
+                "message": "Provider list loaded",
+                "output": "\n".join(lines),
+            }
 
         if sub == "STATUS":
             if not args:
@@ -280,7 +311,9 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                     level="INFO",
                 )
             provider_id = args[0]
-            ok, payload, err = self._wizard_api_json("GET", f"/api/providers/{provider_id}/status")
+            ok, payload, err = self._wizard_api_json(
+                "GET", f"/api/providers/{provider_id}/status"
+            )
             if not ok:
                 raise CommandError(
                     code="ERR_RUNTIME_DEPENDENCY_MISSING",
@@ -289,13 +322,20 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                     level="ERROR",
                 )
             provider = payload.get("provider", {})
-            lines = [OutputToolkit.banner(f"WIZARD PROV STATUS {provider_id.upper()}"), ""]
+            lines = [
+                OutputToolkit.banner(f"WIZARD PROV STATUS {provider_id.upper()}"),
+                "",
+            ]
             lines.append(f"ID: {provider.get('id', provider_id)}")
             lines.append(f"Name: {provider.get('name', provider_id)}")
             lines.append(f"Configured: {'yes' if provider.get('configured') else 'no'}")
             lines.append(f"Available: {'yes' if provider.get('available') else 'no'}")
             lines.append(f"Enabled: {'yes' if provider.get('enabled') else 'no'}")
-            return {"status": "success", "message": "Provider status loaded", "output": "\n".join(lines)}
+            return {
+                "status": "success",
+                "message": "Provider status loaded",
+                "output": "\n".join(lines),
+            }
 
         if sub in {"ENABLE", "DISABLE"}:
             if not args:
@@ -316,7 +356,10 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                     recovery_hint="Check if Wizard server is running (WIZARD STATUS)",
                     level="ERROR",
                 )
-            return {"status": "success", "message": payload.get("message", f"{sub} complete")}
+            return {
+                "status": "success",
+                "message": payload.get("message", f"{sub} complete"),
+            }
 
         if sub == "SETUP":
             if not args:
@@ -327,7 +370,9 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                     level="INFO",
                 )
             provider_id = args[0]
-            ok, payload, err = self._wizard_api_json("POST", "/api/providers/setup/run", {"provider_id": provider_id})
+            ok, payload, err = self._wizard_api_json(
+                "POST", "/api/providers/setup/run", {"provider_id": provider_id}
+            )
             if not ok:
                 raise CommandError(
                     code="ERR_RUNTIME_DEPENDENCY_MISSING",
@@ -335,13 +380,20 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                     recovery_hint="Check if Wizard server is running (WIZARD STATUS)",
                     level="ERROR",
                 )
-            lines = [OutputToolkit.banner(f"WIZARD PROV SETUP {provider_id.upper()}"), ""]
+            lines = [
+                OutputToolkit.banner(f"WIZARD PROV SETUP {provider_id.upper()}"),
+                "",
+            ]
             lines.append(payload.get("message", "Setup payload ready"))
             for cmd in payload.get("commands", []):
                 ctype = cmd.get("type", "cmd")
                 cval = cmd.get("cmd", "")
                 lines.append(f"  {ctype}: {cval}")
-            return {"status": "success", "message": "Provider setup instructions loaded", "output": "\n".join(lines)}
+            return {
+                "status": "success",
+                "message": "Provider setup instructions loaded",
+                "output": "\n".join(lines),
+            }
 
         if sub == "GENSECRET":
             length = 48
@@ -367,9 +419,9 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
             level="INFO",
         )
 
-    def _wizard_integration(self, params: List[str]) -> Dict:
+    def _wizard_integration(self, params: list[str]) -> dict:
         """Route integration checks through Wizard API/system surfaces."""
-        sub = (params[0].lower() if params else "status")
+        sub = params[0].lower() if params else "status"
         if sub == "status":
             ok, payload, err = self._wizard_api_json("GET", "/api/system/library")
             if not ok:
@@ -384,10 +436,18 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
             enabled = payload.get("enabled_integrations")
             installed = payload.get("installed_integrations")
             if total is not None:
-                lines.append(f"Integrations: total={total} installed={installed} enabled={enabled}")
-            return {"status": "success", "message": "Integration status loaded", "output": "\n".join(lines)}
+                lines.append(
+                    f"Integrations: total={total} installed={installed} enabled={enabled}"
+                )
+            return {
+                "status": "success",
+                "message": "Integration status loaded",
+                "output": "\n".join(lines),
+            }
         if sub in {"github", "mistral", "ollama"}:
-            ok, payload, err = self._wizard_api_json("GET", f"/api/providers/{sub}/status")
+            ok, payload, err = self._wizard_api_json(
+                "GET", f"/api/providers/{sub}/status"
+            )
             if not ok:
                 raise CommandError(
                     code="ERR_RUNTIME_DEPENDENCY_MISSING",
@@ -400,7 +460,11 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
             lines.append(f"Configured: {'yes' if provider.get('configured') else 'no'}")
             lines.append(f"Available: {'yes' if provider.get('available') else 'no'}")
             lines.append(f"Enabled: {'yes' if provider.get('enabled') else 'no'}")
-            return {"status": "success", "message": "Integration provider status loaded", "output": "\n".join(lines)}
+            return {
+                "status": "success",
+                "message": "Integration provider status loaded",
+                "output": "\n".join(lines),
+            }
         raise CommandError(
             code="ERR_COMMAND_INVALID_ARG",
             message="Usage: WIZARD INTEG [status|github|mistral|ollama]",
@@ -408,7 +472,7 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
             level="INFO",
         )
 
-    def _wizard_full_check(self, params: List[str]) -> Dict:
+    def _wizard_full_check(self, params: list[str]) -> dict:
         """Run full Wizard-side checks via monitoring diagnostics."""
         ok, payload, err = self._wizard_api_json("GET", "/api/monitoring/diagnostics")
         if not ok:
@@ -418,7 +482,7 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                 recovery_hint="Check if Wizard server is running (WIZARD STATUS)",
                 level="ERROR",
             )
-        health = (payload.get("health") or {})
+        health = payload.get("health") or {}
         summary = health.get("summary") or {}
         lines = [OutputToolkit.banner("WIZARD CHECK"), ""]
         if summary:
@@ -428,19 +492,38 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
             lines.append(f"Unhealthy: {summary.get('unhealthy', '?')}")
         else:
             lines.append("Diagnostics fetched; no summary data returned.")
-        return {"status": "success", "message": "Wizard diagnostics complete", "output": "\n".join(lines), "payload": payload}
+        return {
+            "status": "success",
+            "message": "Wizard diagnostics complete",
+            "output": "\n".join(lines),
+            "payload": payload,
+        }
 
-    def _wizard_api_json(self, method: str, path: str, body: Optional[Dict[str, Any]] = None) -> Tuple[bool, Dict[str, Any], str]:
+    def _wizard_api_json(
+        self, method: str, path: str, body: dict[str, Any] | None = None
+    ) -> tuple[bool, dict[str, Any], str]:
         """Call Wizard API using curl subprocess to avoid direct HTTP client imports."""
         base_url, _ = self._wizard_urls()
         try:
-            status = get_wizard_process_manager().ensure_running(base_url=base_url, wait_seconds=30)
+            status = get_wizard_process_manager().ensure_running(
+                base_url=base_url, wait_seconds=30
+            )
             if not status.connected:
                 return False, {}, f"Wizard unavailable: {status.message}"
         except Exception as exc:
             return False, {}, f"Wizard startup failed: {exc}"
         url = f"{base_url}{path}"
-        cmd = ["curl", "-sS", "-m", "10", "-X", method.upper(), "-H", "Accept: application/json", url]
+        cmd = [
+            "curl",
+            "-sS",
+            "-m",
+            "10",
+            "-X",
+            method.upper(),
+            "-H",
+            "Accept: application/json",
+            url,
+        ]
         if body is not None:
             cmd.extend(["-H", "Content-Type: application/json", "-d", json.dumps(body)])
         token = os.environ.get("WIZARD_ADMIN_TOKEN", "").strip()
@@ -449,7 +532,11 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=12)
             if result.returncode != 0:
-                return False, {}, f"Wizard API call failed ({path}): {result.stderr.strip() or result.stdout.strip()}"
+                return (
+                    False,
+                    {},
+                    f"Wizard API call failed ({path}): {result.stderr.strip() or result.stdout.strip()}",
+                )
             text = (result.stdout or "").strip()
             if not text:
                 return True, {}, ""
@@ -460,12 +547,15 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
         except Exception as exc:
             return False, {}, f"Wizard API call error ({path}): {exc}"
 
-    def _open_dashboard(self) -> Dict:
+    def _open_dashboard(self) -> dict:
         banner = OutputToolkit.banner("WIZARD DASHBOARD")
         _, dashboard_url = self._wizard_urls()
         try:
             webbrowser.open(dashboard_url)
-            return {"status": "success", "output": banner + "\n✅ Opened Wizard Dashboard"}
+            return {
+                "status": "success",
+                "output": banner + "\n✅ Opened Wizard Dashboard",
+            }
         except Exception as exc:
             raise CommandError(
                 code="ERR_RUNTIME_UNEXPECTED",
@@ -475,7 +565,7 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                 cause=exc,
             )
 
-    def _start_wizard(self) -> Dict:
+    def _start_wizard(self) -> dict:
         """Start Wizard server."""
         banner = OutputToolkit.banner("WIZARD START")
         output_lines = [banner, ""]
@@ -507,7 +597,7 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                 cause=exc,
             )
 
-    def _maybe_open_dashboard(self, output_lines: List[str]) -> None:
+    def _maybe_open_dashboard(self, output_lines: list[str]) -> None:
         _, dashboard_url = self._wizard_urls()
         try:
             response = input("Open Wizard Dashboard...? [Yes|No|OK] ").strip().lower()
@@ -526,7 +616,7 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
         else:
             output_lines.append("No response; Wizard Dashboard not opened")
 
-    def _stop_wizard(self) -> Dict:
+    def _stop_wizard(self) -> dict:
         """Stop Wizard server."""
         banner = OutputToolkit.banner("WIZARD STOP")
         output_lines = [banner, ""]
@@ -549,17 +639,18 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                 "output": "\n".join(output_lines) + f"\n❌ Error: {exc}",
             }
 
-    def _kill_wizard(self) -> Dict:
+    def _kill_wizard(self) -> dict:
         """Force kill Wizard server using port manager."""
         banner = OutputToolkit.banner("WIZARD KILL")
         output_lines = [banner, ""]
 
         try:
             from core.services.provider_registry import (
-                get_provider,
-                ProviderType,
                 ProviderNotAvailableError,
+                ProviderType,
+                get_provider,
             )
+
             pm = get_provider(ProviderType.PORT_MANAGER)
 
             host, port = self._wizard_host_port()
@@ -601,7 +692,7 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                 "output": "\n".join(output_lines) + f"\n❌ Error: {exc}",
             }
 
-    def _restart_wizard(self) -> Dict:
+    def _restart_wizard(self) -> dict:
         """Kill and restart Wizard server."""
         banner = OutputToolkit.banner("WIZARD RESTART")
         output_lines = [banner, ""]
@@ -620,18 +711,16 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
 
         # Brief pause
         import time
+
         time.sleep(1)
 
         # Start
         start_result = self._start_wizard()
         output_lines.extend(start_result["output"].split("\n")[2:])  # Skip banner
 
-        return {
-            "status": start_result["status"],
-            "output": "\n".join(output_lines),
-        }
+        return {"status": start_result["status"], "output": "\n".join(output_lines)}
 
-    def _wizard_status(self) -> Dict:
+    def _wizard_status(self) -> dict:
         """Check Wizard server status."""
         banner = OutputToolkit.banner("WIZARD STATUS")
         output_lines = [banner, ""]
@@ -648,16 +737,13 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                         output_lines.append(f"📦 Version: {data['version']}")
                     if "services" in data:
                         services = data["services"]
-                        output_lines.append(f"🔌 Services:")
+                        output_lines.append("🔌 Services:")
                         for service, enabled in services.items():
                             status = "✓" if enabled else "✗"
                             output_lines.append(f"   {status} {service}")
                 except Exception:
                     pass
-                return {
-                    "status": "success",
-                    "output": "\n".join(output_lines),
-                }
+                return {"status": "success", "output": "\n".join(output_lines)}
             output_lines.append("❌ Wizard not running")
             output_lines.append("Run: WIZARD START")
             if status.pid:
@@ -714,7 +800,7 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
         dashboard_url = f"{base_url}/dashboard"
         return base_url, dashboard_url
 
-    def _reset_wizard(self, args: List[str]) -> Dict:
+    def _reset_wizard(self, args: list[str]) -> dict:
         """Reset Wizard keystore and admin token (destructive)."""
         banner = OutputToolkit.banner("WIZARD RESET")
         output_lines = [banner, ""]

@@ -1,15 +1,15 @@
-"""
-SEED command handler - Install or reset framework seed data.
+"""SEED command handler - Install or reset framework seed data.
 
 Allows users to bootstrap or refresh seed data in memory/bank/ directory.
 Useful for first-run initialization or REPAIR operations.
 """
 
-from typing import Dict, List
+from __future__ import annotations
+
 from core.commands.base import BaseCommandHandler
 from core.framework.seed_installer import SeedInstaller
-from core.services.logging_api import get_logger
 from core.services.error_contract import CommandError
+from core.services.logging_api import get_logger
 
 logger = get_logger("seed_handler")
 
@@ -17,9 +17,8 @@ logger = get_logger("seed_handler")
 class SeedHandler(BaseCommandHandler):
     """Install framework seed data."""
 
-    def handle(self, command: str, params: List[str], grid, parser) -> Dict:
-        """
-        Handle SEED command.
+    def handle(self, command: str, params: list[str], grid, parser) -> dict:
+        """Handle SEED command.
 
         Usage:
             SEED                    # Check status
@@ -43,11 +42,13 @@ class SeedHandler(BaseCommandHandler):
         from core.services.user_service import is_ghost_mode
 
         if subcommand == "INSTALL" and is_ghost_mode():
-            return {
-                "status": "warning",
-                "output": "Ghost Mode active: SEED INSTALL is disabled (read-only).",
-                "type": "text",
-            }
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "[TESTING ALERT] Ghost Mode active: SEED INSTALL in demo mode. "
+                "Enforcement will be added before v1.5 release."
+            )
 
         installer = SeedInstaller()
 
@@ -63,17 +64,21 @@ class SeedHandler(BaseCommandHandler):
             status = installer.status()
             output = "Seed Installation Status:\n"
             output += "-" * 40 + "\n"
-            output += f"Directories:       {'✅' if status['directories_exist'] else '❌'}\n"
-            output += f"Locations seeded:  {'✅' if status['locations_seeded'] else '❌'}\n"
-            output += f"Timezones seeded:  {'✅' if status['timezones_seeded'] else '❌'}\n"
-            output += f"System seeds:     {'✅' if status.get('system_seeds') else '❌'}\n"
+            output += (
+                f"Directories:       {'✅' if status['directories_exist'] else '❌'}\n"
+            )
+            output += (
+                f"Locations seeded:  {'✅' if status['locations_seeded'] else '❌'}\n"
+            )
+            output += (
+                f"Timezones seeded:  {'✅' if status['timezones_seeded'] else '❌'}\n"
+            )
+            output += (
+                f"System seeds:     {'✅' if status.get('system_seeds') else '❌'}\n"
+            )
             output += f"Framework seed dir: {'✅' if status['framework_seed_dir_exists'] else '❌'}\n"
 
-            return {
-                "status": "ok",
-                "output": output,
-                "type": "text",
-            }
+            return {"status": "ok", "output": output, "type": "text"}
 
         elif subcommand == "HELP":
             output = """SEED - Install Framework Seed Data
@@ -93,11 +98,7 @@ Seed data includes:
 First run automatically bootstraps seed data.
 Use SEED INSTALL to manually bootstrap if needed.
 """
-            return {
-                "status": "ok",
-                "output": output,
-                "type": "text",
-            }
+            return {"status": "ok", "output": output, "type": "text"}
 
         else:
             raise CommandError(

@@ -1,5 +1,4 @@
-"""
-Enhanced DESTROY Handler - System cleanup with user management options
+"""Enhanced DESTROY Handler - System cleanup with user management options
 
 Commands:
     DESTROY                         # Show options
@@ -36,6 +35,18 @@ Version: v1.0.0
 Date: 2026-01-28
 """
 
+from __future__ import annotations
+
+from datetime import datetime
+from pathlib import Path
+
+from core.services.destructive_ops import (
+    remove_path,
+    scrub_directory,
+    wipe_json_config_dir,
+)
+from core.services.path_service import get_repo_root
+
 from .base import BaseCommandHandler
 from .destroy_handler_helpers import (
     archive_memory_to_compost,
@@ -47,10 +58,7 @@ from .destroy_handler_helpers import (
     reset_wizard_keystore,
     resolve_vault_root,
 )
-from pathlib import Path
-from datetime import datetime
-from core.services.destructive_ops import remove_path, scrub_directory, wipe_json_config_dir
-from core.services.path_service import get_repo_root
+
 
 # Import utility functions (not logger/manager to avoid circular deps)
 def get_repo_root_safe():
@@ -95,7 +103,7 @@ class DestroyHandler(BaseCommandHandler):
 
         # Import here to avoid circular deps
         from core.services.logging_api import get_logger
-        from core.services.user_service import get_user_manager, Permission
+        from core.services.user_service import Permission, get_user_manager
         from core.tui.output import OutputToolkit
 
         logger = get_logger("core", category="destroy", name="destroy-handler")
@@ -104,18 +112,25 @@ class DestroyHandler(BaseCommandHandler):
         # Check permissions
         user_mgr = get_user_manager()
         user = user_mgr.current()
+        import logging
+
         from core.services.user_service import is_ghost_mode
 
         if is_ghost_mode():
-            return {
-                'output': '❌ DESTROY is disabled in Ghost Mode (read-only demo mode).',
-                'status': 'error'
-            }
+            warn_logger = logging.getLogger(__name__)
+            warn_logger.warning(
+                "[TESTING ALERT] Ghost Mode active: DESTROY in demo mode. "
+                "Enforcement will be added before v1.5 release."
+            )
 
-        if user and user.username != 'ghost' and not user_mgr.has_permission(Permission.DESTROY):
+        if (
+            user
+            and user.username != "ghost"
+            and not user_mgr.has_permission(Permission.DESTROY)
+        ):
             return {
-                'output': f'❌ DESTROY permission denied for user {user.username if user else "unknown"}',
-                'status': 'error'
+                "output": f"❌ DESTROY permission denied for user {user.username if user else 'unknown'}",
+                "status": "error",
             }
 
         # Parse parameters - support both numeric menu and legacy flags
@@ -134,27 +149,31 @@ class DestroyHandler(BaseCommandHandler):
             first_param = params[0].lower()
 
             # Check for numeric choice (0-4)
-            if first_param in ['0', '1', '2', '3', '4']:
+            if first_param in ["0", "1", "2", "3", "4"]:
                 choice = int(first_param)
             else:
                 # Legacy flag support
                 for param in params:
                     param_lower = param.lower()
-                    if param_lower in ['--wipe-user', '-w']:
+                    if param_lower in ["--wipe-user", "-w"]:
                         wipe_user = True
-                    elif param_lower in ['--compost', '-c']:
+                    elif param_lower in ["--compost", "-c"]:
                         compost = True
-                    elif param_lower in ['--reload-repair', '-r']:
+                    elif param_lower in ["--reload-repair", "-r"]:
                         reload_repair = True
-                    elif param_lower in ['--reset-all', '-a']:
+                    elif param_lower in ["--reset-all", "-a"]:
                         reset_all = True
-                    elif param_lower in ['--scrub-memory', '--scrub-mem']:
+                    elif param_lower in ["--scrub-memory", "--scrub-mem"]:
                         scrub_memory = True
-                    elif param_lower in ['--scrub-vault', '--scrub-vault-md', '--scrub-vaultmd']:
+                    elif param_lower in [
+                        "--scrub-vault",
+                        "--scrub-vault-md",
+                        "--scrub-vaultmd",
+                    ]:
                         scrub_vault = True
-                    elif param_lower in ['--confirm', '-y']:
+                    elif param_lower in ["--confirm", "-y"]:
                         skip_confirm = True
-                    elif param_lower in ['--help', '-h']:
+                    elif param_lower in ["--help", "-h"]:
                         show_help = True
 
         # Handle numeric choices
@@ -223,7 +242,7 @@ class DestroyHandler(BaseCommandHandler):
             scrub_vault=scrub_vault,
             reload_repair=reload_repair,
             skip_confirm=skip_confirm,
-            plan=plan
+            plan=plan,
         )
 
     def _show_menu(self):
@@ -243,7 +262,9 @@ Choose a cleanup option (type number + Enter):
 
         menu = menu + "\n" + self._format_numeric_options()
 
-        menu = menu + """
+        menu = (
+            menu
+            + """
 
 EXAMPLES:
   DESTROY 1                    # Clear users
@@ -254,11 +275,8 @@ EXAMPLES:
   DESTROY --scrub-memory --confirm
   DESTROY --scrub-vault --confirm
 """
-        return {
-            'output': menu.strip(),
-            'status': 'info',
-            'command': 'DESTROY'
-        }
+        )
+        return {"output": menu.strip(), "status": "info", "command": "DESTROY"}
 
     def _menu_options(self):
         return destroy_menu_options()
@@ -276,7 +294,7 @@ EXAMPLES:
             Output dict (either menu display or action result)
         """
         # Check if we have a prompt available
-        if not self.prompt or not hasattr(self.prompt, 'ask_menu_choice'):
+        if not self.prompt or not hasattr(self.prompt, "ask_menu_choice"):
             # Fallback to static menu if no prompt available
             return self._show_menu()
 
@@ -294,9 +312,7 @@ EXAMPLES:
 
         # Ask user to choose
         choice = self.prompt.ask_menu_choice(
-            "Choose an option",
-            num_options=4,
-            allow_zero=True
+            "Choose an option", num_options=4, allow_zero=True
         )
 
         if choice is None:
@@ -304,6 +320,7 @@ EXAMPLES:
 
         # Recursively handle the choice by calling handle with the choice as param
         from core.services.user_service import get_user_manager
+
         user_mgr = get_user_manager()
         user = user_mgr.current()
 
@@ -338,11 +355,7 @@ EXAMPLES:
             Output dict
         """
         help_text = build_destroy_help_text(self._format_numeric_options())
-        return {
-            'output': help_text.strip(),
-            'status': 'info',
-            'command': 'DESTROY'
-        }
+        return {"output": help_text.strip(), "status": "info", "command": "DESTROY"}
 
     def _confirm_nuclear(self):
         """Confirm nuclear reset - prompt for confirmation.
@@ -354,41 +367,43 @@ EXAMPLES:
         print("\n" + msg.strip() + "\n")
 
         # Prompt for confirmation
-        if self.prompt and hasattr(self.prompt, '_ask_confirm'):
+        if self.prompt and hasattr(self.prompt, "_ask_confirm"):
             choice = self.prompt._ask_confirm(
-                "Are you absolutely sure",
-                default=False,
-                variant="skip",
+                "Are you absolutely sure", default=False, variant="skip"
             )
             confirmed = choice == "yes"
             if choice == "skip":
                 return {
-                    'output': "⏭️  Nuclear reset skipped.",
-                    'status': 'cancelled',
-                    'command': 'DESTROY'
+                    "output": "⏭️  Nuclear reset skipped.",
+                    "status": "cancelled",
+                    "command": "DESTROY",
                 }
-        elif self.prompt and hasattr(self.prompt, '_ask_yes_no'):
-            confirmed = self.prompt._ask_yes_no("Are you absolutely sure", default=False)
+        elif self.prompt and hasattr(self.prompt, "_ask_yes_no"):
+            confirmed = self.prompt._ask_yes_no(
+                "Are you absolutely sure", default=False
+            )
         else:
             # Fallback: ask for explicit confirmation text
             print("To proceed, type: DESTROY --reset-all --confirm")
             return {
-                'output': msg.strip() + "\n\nTo proceed, type: DESTROY --reset-all --confirm",
-                'status': 'warning',
-                'needs_confirm': True,
-                'action': 'nuclear_reset'
+                "output": msg.strip()
+                + "\n\nTo proceed, type: DESTROY --reset-all --confirm",
+                "status": "warning",
+                "needs_confirm": True,
+                "action": "nuclear_reset",
             }
 
         # If confirmed, proceed with nuclear reset
         if confirmed:
             from core.services.user_service import get_user_manager
+
             user = get_user_manager().current()
             return self._perform_nuclear(user)
         else:
             return {
-                'output': "❌ Nuclear reset cancelled.",
-                'status': 'cancelled',
-                'command': 'DESTROY'
+                "output": "❌ Nuclear reset cancelled.",
+                "status": "cancelled",
+                "command": "DESTROY",
             }
 
     def _perform_nuclear(self, user):
@@ -412,7 +427,7 @@ EXAMPLES:
         Returns:
             Output dict
         """
-        from core.services.logging_api import get_repo_root, get_logger
+        from core.services.logging_api import get_logger, get_repo_root
 
         logger = get_logger("core", category="destroy", name="destroy-handler")
         repo_root = Path(get_repo_root())
@@ -421,18 +436,19 @@ EXAMPLES:
         try:
             # 1. Wipe users and variables
             from core.services.user_service import get_user_manager
+
             user_mgr = get_user_manager()
             results.append("🗑️  Wiping user profiles and variables...")
 
             # Reset to factory: delete all except admin
-            users_to_delete = [u for u in user_mgr.users.keys() if u != 'admin']
+            users_to_delete = [u for u in user_mgr.users.keys() if u != "admin"]
             for username in users_to_delete:
                 user_mgr.delete_user(username)
             results.append(f"   ✓ Deleted {len(users_to_delete)} users")
 
             # Reset admin variables completely
             admin = user_mgr.current()
-            if admin and admin.username == 'admin':
+            if admin and admin.username == "admin":
                 # Clear user state file
                 admin_file = user_mgr.state_dir / "admin.json"
                 try:
@@ -441,11 +457,11 @@ EXAMPLES:
                     pass
 
                 # Clear in-memory variables
-                if hasattr(admin, 'variables'):
+                if hasattr(admin, "variables"):
                     admin.variables.clear()
-                if hasattr(admin, 'environment'):
+                if hasattr(admin, "environment"):
                     admin.environment.clear()
-                if hasattr(admin, 'config'):
+                if hasattr(admin, "config"):
                     admin.config.clear()
 
                 results.append("   ✓ Reset admin user variables and environment")
@@ -469,10 +485,7 @@ EXAMPLES:
             config_path = repo_root / "core" / "config"
             if config_path.exists():
                 results.append("⚙️  Resetting configuration...")
-                removed = wipe_json_config_dir(
-                    config_path,
-                    keep_files={"version.json"},
-                )
+                removed = wipe_json_config_dir(config_path, keep_files={"version.json"})
                 results.append(f"   ✓ Cleared custom configuration ({removed} files)")
 
             # 4. Log the nuclear event
@@ -507,9 +520,9 @@ EXAMPLES:
             results.append("  4. WIZARD start              (start Wizard Server)")
 
             return {
-                'output': '\n'.join(results),
-                'status': 'success',
-                'action': 'nuclear_reset_complete'
+                "output": "\n".join(results),
+                "status": "success",
+                "action": "nuclear_reset_complete",
             }
 
         except Exception as e:
@@ -522,12 +535,19 @@ EXAMPLES:
                 err=e,
             )
             results.append(error_msg)
-            return {
-                'output': '\n'.join(results),
-                'status': 'error'
-            }
+            return {"output": "\n".join(results), "status": "error"}
 
-    def _perform_cleanup(self, user, wipe_user, compost, scrub_memory, scrub_vault, reload_repair, skip_confirm, plan):
+    def _perform_cleanup(
+        self,
+        user,
+        wipe_user,
+        compost,
+        scrub_memory,
+        scrub_vault,
+        reload_repair,
+        skip_confirm,
+        plan,
+    ):
         """Perform cleanup operations.
 
         Args:
@@ -543,7 +563,7 @@ EXAMPLES:
         Returns:
             Output dict
         """
-        from core.services.logging_api import get_repo_root, get_logger
+        from core.services.logging_api import get_logger, get_repo_root
         from core.services.user_service import get_user_manager
 
         results = []
@@ -554,10 +574,11 @@ EXAMPLES:
             if wipe_user:
                 results.append("🗑️  Wiping user data and variables...")
                 from core.services.user_service import get_user_manager
+
                 user_mgr = get_user_manager()
 
                 # Delete all non-admin users
-                users_to_delete = [u for u in user_mgr.users.keys() if u != 'admin']
+                users_to_delete = [u for u in user_mgr.users.keys() if u != "admin"]
                 for username in users_to_delete:
                     user_mgr.delete_user(username)
 
@@ -565,19 +586,21 @@ EXAMPLES:
 
                 # Reset admin user variables to default
                 admin = user_mgr.current()
-                if admin and admin.username == 'admin':
+                if admin and admin.username == "admin":
                     # Clear any user-specific settings/variables
                     admin_file = user_mgr.state_dir / "admin.json"
                     try:
                         if remove_path(admin_file):
-                            results.append("   ✓ Reset admin user variables and settings")
+                            results.append(
+                                "   ✓ Reset admin user variables and settings"
+                            )
                     except Exception as e:
                         results.append(f"   ⚠️  Could not reset admin variables: {e}")
 
                     # Clear admin environment variables
-                    if hasattr(admin, 'variables'):
+                    if hasattr(admin, "variables"):
                         admin.variables.clear()
-                    if hasattr(admin, 'environment'):
+                    if hasattr(admin, "environment"):
                         admin.environment.clear()
                     results.append("   ✓ Cleared admin environment variables")
 
@@ -649,9 +672,9 @@ EXAMPLES:
                 results.append("  3. CONFIG                 (View variables)")
 
             return {
-                'output': '\n'.join(results),
-                'status': 'success',
-                'action': 'cleanup_complete'
+                "output": "\n".join(results),
+                "status": "success",
+                "action": "cleanup_complete",
             }
 
         except Exception as e:
@@ -663,10 +686,7 @@ EXAMPLES:
                 ctx={"traceback": True},
                 err=e,
             )
-            return {
-                'output': error_msg,
-                'status': 'error'
-            }
+            return {"output": error_msg, "status": "error"}
 
     def _resolve_vault_root(self, repo_root: Path) -> Path:
         return resolve_vault_root(repo_root)

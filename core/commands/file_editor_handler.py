@@ -1,31 +1,33 @@
 """File editor commands for Core TUI."""
 
-from typing import List, Dict
-from pathlib import Path
+from __future__ import annotations
 
 from core.commands.base import BaseCommandHandler
-from core.tui.output import OutputToolkit
 from core.services.editor_utils import (
-    resolve_workspace_path,
-    open_in_editor,
     get_memory_root,
+    open_in_editor,
+    resolve_workspace_path,
 )
+from core.tui.output import OutputToolkit
 
 
 class FileEditorHandler(BaseCommandHandler):
     """Handle FILE NEW/EDIT (and legacy NEW/EDIT/LOAD/SAVE) for /memory files."""
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
         cmd = command.upper()
         filename = " ".join(params).strip() if params else ""
         try:
+            import logging
+
             from core.services.user_service import is_ghost_mode
 
             if is_ghost_mode():
-                return {
-                    "status": "error",
-                    "message": "Ghost Mode is read-only (file editing disabled)",
-                }
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "[TESTING ALERT] Ghost Mode active: file editing in demo mode. "
+                    "Enforcement will be added before v1.5 release."
+                )
         except Exception:
             pass
 
@@ -35,19 +37,13 @@ class FileEditorHandler(BaseCommandHandler):
             if not filename:
                 filename = self.get_state("current_path", "")
             if not filename:
-                return {
-                    "status": "error",
-                    "message": f"{cmd} requires a filename",
-                }
+                return {"status": "error", "message": f"{cmd} requires a filename"}
             return self._open_editor(filename)
         if cmd == "SAVE":
             if not filename:
                 filename = self.get_state("current_path", "")
             if not filename:
-                return {
-                    "status": "error",
-                    "message": "SAVE requires a filename",
-                }
+                return {"status": "error", "message": "SAVE requires a filename"}
             return self._open_editor(filename)
 
         return {"status": "error", "message": f"Unknown command: {cmd}"}
@@ -55,7 +51,7 @@ class FileEditorHandler(BaseCommandHandler):
     def has_active_file(self) -> bool:
         return bool(self.get_state("current_path"))
 
-    def _open_editor(self, filename: str) -> Dict:
+    def _open_editor(self, filename: str) -> dict:
         try:
             path = resolve_workspace_path(filename)
         except ValueError as exc:
@@ -72,11 +68,9 @@ class FileEditorHandler(BaseCommandHandler):
             rel = path.as_posix()
         self.set_state("current_path", rel)
 
-        output = "\n".join(
-            [
-                OutputToolkit.banner("FILE EDITOR"),
-                f"Editor: {editor_name}",
-                f"Path: {path}",
-            ]
-        )
+        output = "\n".join([
+            OutputToolkit.banner("FILE EDITOR"),
+            f"Editor: {editor_name}",
+            f"Path: {path}",
+        ])
         return {"status": "success", "message": "Editor opened", "output": output}

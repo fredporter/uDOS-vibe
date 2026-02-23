@@ -4,31 +4,30 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
-from typing import Dict, List, Tuple
 
 from core.commands.base import BaseCommandHandler
 from core.commands.handler_logging_mixin import HandlerLoggingMixin
-from core.tui.output import OutputToolkit
-from core.tui.ui_elements import ProgressBar
 from core.services.logging_api import get_repo_root
 from core.services.maintenance_utils import (
-    create_backup,
-    restore_backup,
-    tidy,
     clean,
     compost,
-    list_backups,
-    default_repo_allowlist,
+    create_backup,
     default_memory_allowlist,
-    get_memory_root,
+    default_repo_allowlist,
     get_compost_root,
+    get_memory_root,
+    list_backups,
+    restore_backup,
+    tidy,
 )
+from core.tui.output import OutputToolkit
+from core.tui.ui_elements import ProgressBar
 
 
 class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
     """Handle maintenance commands (backup/restore/tidy/clean/compost/destroy)."""
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
         with self.trace_command(command, params) as trace:
             result = self._handle_impl(command, params, grid, parser)
             if isinstance(result, dict):
@@ -37,13 +36,22 @@ class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
                     trace.set_status(status)
             return result
 
-    def _handle_impl(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def _handle_impl(
+        self, command: str, params: list[str], grid=None, parser=None
+    ) -> dict:
         cmd = command.upper()
         try:
+            import logging
+
             from core.services.user_service import is_ghost_mode
 
             if is_ghost_mode():
-                return self._ghost_mode_block(cmd, params)
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "[TESTING ALERT] Ghost Mode active: %s in demo mode. "
+                    "Enforcement will be added before v1.5 release.",
+                    cmd,
+                )
 
             if cmd == "BACKUP":
                 return self._handle_backup(params)
@@ -64,19 +72,17 @@ class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
 
         return {"status": "error", "message": f"Unknown command: {cmd}"}
 
-    def _ghost_mode_block(self, cmd: str, params: List[str]) -> Dict:
+    def _ghost_mode_block(self, cmd: str, params: list[str]) -> dict:
         """Return a dry-run response for destructive commands in Ghost Mode."""
         scope, remaining = self._parse_scope(params)
         label = " ".join(remaining).strip()
-        output = "\n".join(
-            [
-                OutputToolkit.banner(f"{cmd} (DRY-RUN)"),
-                "Ghost Mode active: destructive commands run in check-only mode.",
-                f"Scope: {scope}",
-                f"Args: {' '.join(params) if params else '(none)'}",
-                f"Note: No files were modified. Run SETUP to exit Ghost Mode.",
-            ]
-        )
+        output = "\n".join([
+            OutputToolkit.banner(f"{cmd} (DRY-RUN)"),
+            "Ghost Mode active: destructive commands run in check-only mode.",
+            f"Scope: {scope}",
+            f"Args: {' '.join(params) if params else '(none)'}",
+            "Note: No files were modified. Run SETUP to exit Ghost Mode.",
+        ])
         return {
             "status": "warning",
             "message": f"{cmd} blocked in Ghost Mode",
@@ -86,7 +92,7 @@ class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
             "label": label,
         }
 
-    def _parse_scope(self, params: List[str]) -> Tuple[str, List[str]]:
+    def _parse_scope(self, params: list[str]) -> tuple[str, list[str]]:
         if not params:
             return "workspace", []
         scope = params[0].lower()
@@ -94,7 +100,7 @@ class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
             return scope, params[1:]
         return "workspace", params
 
-    def _resolve_scope(self, scope: str) -> Tuple[Path, bool]:
+    def _resolve_scope(self, scope: str) -> tuple[Path, bool]:
         if scope == "current":
             return Path.cwd(), False
         if scope == "+subfolders":
@@ -103,25 +109,25 @@ class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
             return get_repo_root(), True
         return get_memory_root(), True
 
-    def _handle_backup(self, params: List[str]) -> Dict:
+    def _handle_backup(self, params: list[str]) -> dict:
         scope, remaining = self._parse_scope(params)
         label = "backup" if not remaining else " ".join(remaining)
         target_root, _recursive = self._resolve_scope(scope)
 
         progress = self._progress_callback("BACKUP")
-        archive_path, manifest_path = create_backup(target_root, label, on_progress=progress)
-        output = "\n".join(
-            [
-                OutputToolkit.banner("BACKUP"),
-                f"Scope: {scope}",
-                f"Target: {target_root}",
-                f"Archive: {archive_path}",
-                f"Manifest: {manifest_path}",
-            ]
+        archive_path, manifest_path = create_backup(
+            target_root, label, on_progress=progress
         )
+        output = "\n".join([
+            OutputToolkit.banner("BACKUP"),
+            f"Scope: {scope}",
+            f"Target: {target_root}",
+            f"Archive: {archive_path}",
+            f"Manifest: {manifest_path}",
+        ])
         return {"status": "success", "message": "Backup created", "output": output}
 
-    def _handle_restore(self, params: List[str]) -> Dict:
+    def _handle_restore(self, params: list[str]) -> dict:
         scope, remaining = self._parse_scope(params)
         target_root, _recursive = self._resolve_scope(scope)
         force = False
@@ -145,7 +151,9 @@ class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
 
         try:
             progress = self._progress_callback("RESTORE")
-            message = restore_backup(archive, target_root, force=force, on_progress=progress)
+            message = restore_backup(
+                archive, target_root, force=force, on_progress=progress
+            )
         except FileExistsError as exc:
             return {
                 "status": "error",
@@ -153,32 +161,28 @@ class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
                 "hint": "Use RESTORE --force to overwrite existing files",
             }
 
-        output = "\n".join(
-            [
-                OutputToolkit.banner("RESTORE"),
-                f"Scope: {scope}",
-                f"Archive: {archive}",
-                f"Target: {target_root}",
-            ]
-        )
+        output = "\n".join([
+            OutputToolkit.banner("RESTORE"),
+            f"Scope: {scope}",
+            f"Archive: {archive}",
+            f"Target: {target_root}",
+        ])
         return {"status": "success", "message": message, "output": output}
 
-    def _handle_tidy(self, params: List[str]) -> Dict:
+    def _handle_tidy(self, params: list[str]) -> dict:
         scope, _remaining = self._parse_scope(params)
         target_root, recursive = self._resolve_scope(scope)
         moved, archive_root = tidy(target_root, recursive=recursive)
-        output = "\n".join(
-            [
-                OutputToolkit.banner("TIDY"),
-                f"Scope: {scope}",
-                f"Target: {target_root}",
-                f"Moved: {moved}",
-                f"Archive: {archive_root}",
-            ]
-        )
+        output = "\n".join([
+            OutputToolkit.banner("TIDY"),
+            f"Scope: {scope}",
+            f"Target: {target_root}",
+            f"Moved: {moved}",
+            f"Archive: {archive_root}",
+        ])
         return {"status": "success", "message": "Tidy complete", "output": output}
 
-    def _handle_clean(self, params: List[str]) -> Dict:
+    def _handle_clean(self, params: list[str]) -> dict:
         scope, _remaining = self._parse_scope(params)
         target_root, recursive = self._resolve_scope(scope)
         if target_root == get_repo_root():
@@ -188,44 +192,38 @@ class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
         else:
             allowlist = []
         moved, archive_root = clean(
-            target_root,
-            allowed_entries=allowlist,
-            recursive=recursive,
+            target_root, allowed_entries=allowlist, recursive=recursive
         )
-        output = "\n".join(
-            [
-                OutputToolkit.banner("CLEAN"),
-                f"Scope: {scope}",
-                f"Target: {target_root}",
-                f"Moved: {moved}",
-                f"Archive: {archive_root}",
-            ]
-        )
+        output = "\n".join([
+            OutputToolkit.banner("CLEAN"),
+            f"Scope: {scope}",
+            f"Target: {target_root}",
+            f"Moved: {moved}",
+            f"Archive: {archive_root}",
+        ])
         return {"status": "success", "message": "Clean complete", "output": output}
 
-    def _handle_compost(self, params: List[str]) -> Dict:
+    def _handle_compost(self, params: list[str]) -> dict:
         scope, _remaining = self._parse_scope(params)
         target_root, recursive = self._resolve_scope(scope)
         moved, compost_root = compost(target_root, recursive=recursive)
-        output = "\n".join(
-            [
-                OutputToolkit.banner("COMPOST"),
-                f"Scope: {scope}",
-                f"Target: {target_root}",
-                f"Moved: {moved}",
-                f"Compost: {compost_root}",
-            ]
-        )
+        output = "\n".join([
+            OutputToolkit.banner("COMPOST"),
+            f"Scope: {scope}",
+            f"Target: {target_root}",
+            f"Moved: {moved}",
+            f"Compost: {compost_root}",
+        ])
         return {"status": "success", "message": "Compost complete", "output": output}
 
-    def _handle_destroy(self, params: List[str]) -> Dict:
+    def _handle_destroy(self, params: list[str]) -> dict:
         return {
             "status": "error",
             "message": "DESTROY is only available from the Dev TUI.",
             "hint": "Launch the Dev TUI and run DESTROY there (requires confirmation).",
         }
 
-    def _handle_undo(self, params: List[str]) -> Dict:
+    def _handle_undo(self, params: list[str]) -> dict:
         scope, remaining = self._parse_scope(params)
         target_root, _recursive = self._resolve_scope(scope)
 
@@ -239,7 +237,9 @@ class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
         latest = backups[0]
         try:
             progress = self._progress_callback("RESTORE")
-            message = restore_backup(latest, target_root, force=True, on_progress=progress)
+            message = restore_backup(
+                latest, target_root, force=True, on_progress=progress
+            )
         except FileExistsError as exc:
             return {
                 "status": "error",
@@ -247,21 +247,20 @@ class MaintenanceHandler(BaseCommandHandler, HandlerLoggingMixin):
                 "hint": "Use RESTORE --force if you need to overwrite existing files",
             }
         except Exception as exc:
-            return {
-                "status": "error",
-                "message": f"UNDO failed: {exc}",
-            }
+            return {"status": "error", "message": f"UNDO failed: {exc}"}
 
-        output = "\n".join(
-            [
-                OutputToolkit.banner("UNDO"),
-                f"Scope: {scope}",
-                f"Archive: {latest.name}",
-                f"Target: {target_root}",
-                f"Message: {message}",
-            ]
-        )
-        return {"status": "success", "message": "Restored last backup", "output": output}
+        output = "\n".join([
+            OutputToolkit.banner("UNDO"),
+            f"Scope: {scope}",
+            f"Archive: {latest.name}",
+            f"Target: {target_root}",
+            f"Message: {message}",
+        ])
+        return {
+            "status": "success",
+            "message": "Restored last backup",
+            "output": output,
+        }
 
     def _progress_callback(self, label: str):
         if not sys.stdout.isatty():

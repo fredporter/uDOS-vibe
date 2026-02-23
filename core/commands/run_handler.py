@@ -1,23 +1,28 @@
 """RUN command handler - execute TS markdown scripts, TS data ops, or explicit Python scripts."""
 
-from pathlib import Path
+from __future__ import annotations
+
 import json
+from pathlib import Path
 import subprocess
 import sys
-from typing import Dict, List
 
 from core.commands.base import BaseCommandHandler
+from core.services.error_contract import CommandError
 from core.services.logging_api import get_repo_root
-from core.services.mode_policy import RuntimeMode, boundaries_enforced, resolve_runtime_mode
+from core.services.mode_policy import (
+    RuntimeMode,
+    boundaries_enforced,
+    resolve_runtime_mode,
+)
 from core.services.ts_runtime_service import TSRuntimeService
 from core.tui.output import OutputToolkit
-from core.services.error_contract import CommandError
 
 
 class RunHandler(BaseCommandHandler):
     """Handler for RUN command with explicit engine selection (--ts|--py)."""
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
         if not params:
             raise CommandError(
                 code="ERR_COMMAND_INVALID_ARG",
@@ -76,7 +81,11 @@ class RunHandler(BaseCommandHandler):
                     "output": "No sections found.",
                 }
             rows = [
-                [section.get("id", ""), section.get("title", ""), section.get("blocks", 0)]
+                [
+                    section.get("id", ""),
+                    section.get("title", ""),
+                    section.get("blocks", 0),
+                ]
                 for section in sections
             ]
             output = OutputToolkit.table(["id", "title", "blocks"], rows)
@@ -87,14 +96,16 @@ class RunHandler(BaseCommandHandler):
                 "sections": sections,
             }
 
+        import logging
+
         from core.services.user_service import is_ghost_mode
 
         if is_ghost_mode():
-            return {
-                "status": "warning",
-                "message": "Ghost Mode is read-only (RUN blocked)",
-                "output": "Ghost Mode active: RUN execution is disabled. Use RUN PARSE to inspect scripts.",
-            }
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "[TESTING ALERT] Ghost Mode active: RUN execution in demo mode. "
+                "Enforcement will be added before v1.5 release."
+            )
 
         file_arg = args[0]
         section_id = args[1] if len(args) > 1 else None
@@ -116,7 +127,7 @@ class RunHandler(BaseCommandHandler):
             "runtime": payload,
         }
 
-    def _run_python(self, params: List[str]) -> Dict:
+    def _run_python(self, params: list[str]) -> dict:
         mode = resolve_runtime_mode()
         if mode is not RuntimeMode.DEV and boundaries_enforced():
             return {
@@ -155,10 +166,14 @@ class RunHandler(BaseCommandHandler):
             "status": "success",
             "message": "Python script executed",
             "output": output,
-            **({"policy_flag": "dev_mode_recommended"} if mode is not RuntimeMode.DEV else {}),
+            **(
+                {"policy_flag": "dev_mode_recommended"}
+                if mode is not RuntimeMode.DEV
+                else {}
+            ),
         }
 
-    def _run_data(self, params: List[str]) -> Dict:
+    def _run_data(self, params: list[str]) -> dict:
         if not params:
             return {
                 "status": "error",
@@ -193,14 +208,20 @@ class RunHandler(BaseCommandHandler):
         status = payload.get("status", "error")
         if action == "LIST" and status == "success":
             datasets = payload.get("datasets", [])
-            rows = [[d.get("id", ""), d.get("type", ""), d.get("path", "")] for d in datasets]
-            output = "\n".join(
-                [
-                    OutputToolkit.banner("RUN DATA LIST"),
-                    OutputToolkit.table(["id", "type", "path"], rows) if rows else "(none)",
-                ]
-            )
-            return {"status": "success", "message": "Datasets", "output": output, "datasets": datasets}
+            rows = [
+                [d.get("id", ""), d.get("type", ""), d.get("path", "")]
+                for d in datasets
+            ]
+            output = "\n".join([
+                OutputToolkit.banner("RUN DATA LIST"),
+                OutputToolkit.table(["id", "type", "path"], rows) if rows else "(none)",
+            ])
+            return {
+                "status": "success",
+                "message": "Datasets",
+                "output": output,
+                "datasets": datasets,
+            }
 
         banner = OutputToolkit.banner(f"RUN DATA {action}")
         lines = [banner]
@@ -211,14 +232,24 @@ class RunHandler(BaseCommandHandler):
         if payload.get("invalid") is not None:
             lines.append(f"Invalid cells: {payload['invalid']}")
         if payload.get("sample"):
-            sample_rows = [[s.get("location", ""), s.get("cell", ""), s.get("reason", "")] for s in payload["sample"]]
-            lines.append(OutputToolkit.table(["location", "cell", "reason"], sample_rows))
+            sample_rows = [
+                [s.get("location", ""), s.get("cell", ""), s.get("reason", "")]
+                for s in payload["sample"]
+            ]
+            lines.append(
+                OutputToolkit.table(["location", "cell", "reason"], sample_rows)
+            )
         if payload.get("locations") is not None:
             lines.append(f"Locations: {payload['locations']}")
         if payload.get("dropped_cells") is not None:
             lines.append(f"Dropped cells: {payload['dropped_cells']}")
 
-        return {"status": status, "message": payload.get("message", "RUN DATA complete"), "output": "\n".join(lines), "payload": payload}
+        return {
+            "status": status,
+            "message": payload.get("message", "RUN DATA complete"),
+            "output": "\n".join(lines),
+            "payload": payload,
+        }
 
     def _resolve_path(self, file_arg: str) -> Path:
         path = Path(file_arg)

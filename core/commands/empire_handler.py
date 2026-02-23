@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import subprocess
 import threading
 import webbrowser
-from pathlib import Path
-from typing import Dict, List, Optional
 
 from core.commands.base import BaseCommandHandler
-from core.tui.output import OutputToolkit
-from core.tui.ui_elements import Spinner
 from core.services.logging_api import get_logger, get_repo_root
 from core.services.stdlib_http import http_get
+from core.tui.output import OutputToolkit
+from core.tui.ui_elements import Spinner
 
 logger = get_logger("empire-handler")
 
@@ -20,7 +19,7 @@ logger = get_logger("empire-handler")
 class EmpireHandler(BaseCommandHandler):
     """Handler for EMPIRE command - start/stop/rebuild and suite launch."""
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
         if not params:
             return self._show_help()
 
@@ -30,12 +29,22 @@ class EmpireHandler(BaseCommandHandler):
 
         from core.services.user_service import is_ghost_mode
 
-        if is_ghost_mode() and action in {"rebuild", "--rebuild", "start", "--start", "stop", "--stop"}:
-            return {
-                "status": "warning",
-                "message": "Ghost Mode is read-only (Empire control blocked)",
-                "output": self._help_text(),
-            }
+        if is_ghost_mode() and action in {
+            "rebuild",
+            "--rebuild",
+            "start",
+            "--start",
+            "stop",
+            "--stop",
+        }:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "[TESTING ALERT] Ghost Mode active: EMPIRE %s in demo mode. "
+                "Enforcement will be added before v1.5 release.",
+                action,
+            )
 
         if action in {"rebuild", "--rebuild"}:
             return self._rebuild_empire()
@@ -62,19 +71,19 @@ class EmpireHandler(BaseCommandHandler):
             "output": self._help_text(),
         }
 
-    def _empire_root(self) -> Optional[Path]:
+    def _empire_root(self) -> Path | None:
         repo_root = get_repo_root()
         path = Path(repo_root) / "empire"
         return path if path.exists() else None
 
-    def _suite_path(self) -> Optional[Path]:
+    def _suite_path(self) -> Path | None:
         root = self._empire_root()
         if not root:
             return None
         suite = root / "web" / "index.html"
         return suite if suite.exists() else None
 
-    def _prompt_open_suite(self, suite_path: Path) -> Optional[bool]:
+    def _prompt_open_suite(self, suite_path: Path) -> bool | None:
         try:
             response = input("Open Empire Suite...? [Yes|No|OK] ").strip().lower()
         except Exception:
@@ -93,26 +102,24 @@ class EmpireHandler(BaseCommandHandler):
             logger.error(f"[LOCAL] Failed to open Empire Suite: {exc}")
             return f"❌ Failed to open Empire Suite: {exc}"
 
-    def _show_help(self) -> Dict:
+    def _show_help(self) -> dict:
         return {"status": "success", "output": self._help_text()}
 
     def _help_text(self) -> str:
-        return "\n".join(
-            [
-                OutputToolkit.banner("EMPIRE"),
-                "EMPIRE START      Start Empire services",
-                "EMPIRE STOP       Stop Empire services",
-                "EMPIRE REBUILD    Rebuild Empire suite assets",
-                "EMPIRE INGEST     Ingest raw records into JSONL",
-                "EMPIRE NORMALIZE  Normalize + persist records",
-                "EMPIRE SYNC       Refresh overview + sync state",
-                "EMPIRE API        Start/stop Empire API server",
-                "EMPIRE EMAIL      Email receive/process scaffolding",
-                "EMPIRE HELP       Show this help",
-            ]
-        )
+        return "\n".join([
+            OutputToolkit.banner("EMPIRE"),
+            "EMPIRE START      Start Empire services",
+            "EMPIRE STOP       Stop Empire services",
+            "EMPIRE REBUILD    Rebuild Empire suite assets",
+            "EMPIRE INGEST     Ingest raw records into JSONL",
+            "EMPIRE NORMALIZE  Normalize + persist records",
+            "EMPIRE SYNC       Refresh overview + sync state",
+            "EMPIRE API        Start/stop Empire API server",
+            "EMPIRE EMAIL      Email receive/process scaffolding",
+            "EMPIRE HELP       Show this help",
+        ])
 
-    def _start_empire(self) -> Dict:
+    def _start_empire(self) -> dict:
         banner = OutputToolkit.banner("EMPIRE START")
         output_lines = [banner, ""]
 
@@ -139,7 +146,7 @@ class EmpireHandler(BaseCommandHandler):
 
         return {"status": "success", "output": "\n".join(output_lines)}
 
-    def _stop_empire(self) -> Dict:
+    def _stop_empire(self) -> dict:
         banner = OutputToolkit.banner("EMPIRE STOP")
         output_lines = [banner, ""]
 
@@ -155,7 +162,7 @@ class EmpireHandler(BaseCommandHandler):
         output_lines.append("✅ Empire stopped (no background services running)")
         return {"status": "success", "output": "\n".join(output_lines)}
 
-    def _rebuild_empire(self) -> Dict:
+    def _rebuild_empire(self) -> dict:
         banner = OutputToolkit.banner("EMPIRE REBUILD")
         output_lines = [banner, ""]
 
@@ -189,7 +196,7 @@ class EmpireHandler(BaseCommandHandler):
         output_lines.append("✅ Empire rebuild skipped (no build system detected)")
         return {"status": "success", "output": "\n".join(output_lines)}
 
-    def _ingest(self, args: List[str]) -> Dict:
+    def _ingest(self, args: list[str]) -> dict:
         banner = OutputToolkit.banner("EMPIRE INGEST")
         output_lines = [banner, ""]
 
@@ -202,7 +209,9 @@ class EmpireHandler(BaseCommandHandler):
             }
 
         if not args:
-            output_lines.append("Usage: EMPIRE INGEST <input> [--out <path>] [--source <label>]")
+            output_lines.append(
+                "Usage: EMPIRE INGEST <input> [--out <path>] [--source <label>]"
+            )
             return {"status": "error", "output": "\n".join(output_lines)}
 
         input_path = args[0]
@@ -223,7 +232,9 @@ class EmpireHandler(BaseCommandHandler):
         if source_label:
             cmd.extend(["--source", source_label])
 
-        result = subprocess.run(cmd, capture_output=False, check=False, cwd=str(empire_root))
+        result = subprocess.run(
+            cmd, capture_output=False, check=False, cwd=str(empire_root)
+        )
         if result.returncode != 0:
             output_lines.append("❌ Ingest failed")
             return {"status": "error", "output": "\n".join(output_lines)}
@@ -231,7 +242,7 @@ class EmpireHandler(BaseCommandHandler):
         output_lines.append(f"✅ Ingested records -> {out_path}")
         return {"status": "success", "output": "\n".join(output_lines)}
 
-    def _normalize(self, args: List[str]) -> Dict:
+    def _normalize(self, args: list[str]) -> dict:
         banner = OutputToolkit.banner("EMPIRE NORMALIZE")
         output_lines = [banner, ""]
 
@@ -270,7 +281,9 @@ class EmpireHandler(BaseCommandHandler):
         if not persist:
             cmd.append("--no-persist")
 
-        result = subprocess.run(cmd, capture_output=False, check=False, cwd=str(empire_root))
+        result = subprocess.run(
+            cmd, capture_output=False, check=False, cwd=str(empire_root)
+        )
         if result.returncode != 0:
             output_lines.append("❌ Normalize failed")
             return {"status": "error", "output": "\n".join(output_lines)}
@@ -280,7 +293,7 @@ class EmpireHandler(BaseCommandHandler):
             output_lines.append(f"✅ Persisted to DB -> {db_path}")
         return {"status": "success", "output": "\n".join(output_lines)}
 
-    def _sync(self, args: List[str]) -> Dict:
+    def _sync(self, args: list[str]) -> dict:
         banner = OutputToolkit.banner("EMPIRE SYNC")
         output_lines = [banner, ""]
 
@@ -309,14 +322,30 @@ class EmpireHandler(BaseCommandHandler):
         output_lines.append("✅ UI auto-refreshes from live API")
         return {"status": "success", "output": "\n".join(output_lines)}
 
-    def _start_api_then_check(self, output_lines: List[str], api_base: str, headers: Dict[str, str]) -> Dict:
+    def _start_api_then_check(
+        self, output_lines: list[str], api_base: str, headers: dict[str, str]
+    ) -> dict:
         empire_root = self._empire_root()
         if not empire_root:
             output_lines.append("❌ Empire submodule not found")
             return {"status": "error", "output": "\n".join(output_lines)}
 
-        cmd = ["python3", "-m", "uvicorn", "empire.api.server:app", "--host", "127.0.0.1", "--port", "8991"]
-        subprocess.Popen(cmd, cwd=str(empire_root), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cmd = [
+            "python3",
+            "-m",
+            "uvicorn",
+            "empire.api.server:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8991",
+        ]
+        subprocess.Popen(
+            cmd,
+            cwd=str(empire_root),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
         try:
             import time
@@ -346,7 +375,7 @@ class EmpireHandler(BaseCommandHandler):
         output_lines.append("❌ Failed to start Empire API")
         return {"status": "error", "output": "\n".join(output_lines)}
 
-    def _email(self, args: List[str]) -> Dict:
+    def _email(self, args: list[str]) -> dict:
         banner = OutputToolkit.banner("EMPIRE EMAIL")
         output_lines = [banner, ""]
 
@@ -373,7 +402,9 @@ class EmpireHandler(BaseCommandHandler):
             output_lines.append("Usage: EMPIRE EMAIL RECEIVE|PROCESS [options]")
             return {"status": "error", "output": "\n".join(output_lines)}
 
-        result = subprocess.run(cmd, capture_output=False, check=False, cwd=str(empire_root))
+        result = subprocess.run(
+            cmd, capture_output=False, check=False, cwd=str(empire_root)
+        )
         if result.returncode != 0:
             output_lines.append("❌ Email command failed")
             return {"status": "error", "output": "\n".join(output_lines)}
@@ -381,7 +412,7 @@ class EmpireHandler(BaseCommandHandler):
         output_lines.append("✅ Email command complete")
         return {"status": "success", "output": "\n".join(output_lines)}
 
-    def _api(self, args: List[str]) -> Dict:
+    def _api(self, args: list[str]) -> dict:
         banner = OutputToolkit.banner("EMPIRE API")
         output_lines = [banner, ""]
 
@@ -399,12 +430,28 @@ class EmpireHandler(BaseCommandHandler):
 
         action = args[0].lower()
         if action == "start":
-            cmd = ["python3", "-m", "uvicorn", "empire.api.server:app", "--host", "127.0.0.1", "--port", "8991"]
-            subprocess.Popen(cmd, cwd=str(empire_root), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            cmd = [
+                "python3",
+                "-m",
+                "uvicorn",
+                "empire.api.server:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8991",
+            ]
+            subprocess.Popen(
+                cmd,
+                cwd=str(empire_root),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             output_lines.append("✅ Empire API started on http://127.0.0.1:8991")
             return {"status": "success", "output": "\n".join(output_lines)}
         if action == "stop":
-            subprocess.run(["pkill", "-f", "empire.api.server:app"], capture_output=True)
+            subprocess.run(
+                ["pkill", "-f", "empire.api.server:app"], capture_output=True
+            )
             output_lines.append("✅ Empire API stopped")
             return {"status": "success", "output": "\n".join(output_lines)}
 

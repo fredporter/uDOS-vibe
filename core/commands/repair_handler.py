@@ -13,11 +13,13 @@ Commands:
   REPAIR --help               # Show help
 """
 
-from typing import List, Dict, Tuple, Any, Optional
+from __future__ import annotations
+
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+from typing import Any
 
 from core.commands.base import BaseCommandHandler
 from core.commands.handler_logging_mixin import HandlerLoggingMixin
@@ -28,7 +30,7 @@ from core.services.self_healer import collect_self_heal_summary
 class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
     """Handler for REPAIR command - self-healing and system maintenance."""
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
         with self.trace_command(command, params) as trace:
             result = self._handle_impl(command, params or [], grid, parser)
             if isinstance(result, dict):
@@ -37,12 +39,16 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
                     trace.set_status(status)
             return result
 
-    def _handle_impl(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def _handle_impl(
+        self, command: str, params: list[str], grid=None, parser=None
+    ) -> dict:
         """Handle REPAIR command - perform system maintenance."""
         flags = [param.lower() for param in (params or [])]
 
         if "--help" in flags or "-h" in flags:
             return self._show_help()
+
+        import logging
 
         from core.services.user_service import get_user_manager, is_ghost_mode
 
@@ -50,11 +56,11 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
         user = user_mgr.current()
 
         if is_ghost_mode():
-            ignored_flags = [flag for flag in flags if flag != "--check"]
-            notice = "Ghost Mode active: REPAIR runs in check-only (dry-run) mode."
-            if ignored_flags:
-                notice += f" Ignored flags: {', '.join(ignored_flags)}."
-            return self._check_system(user, ghost_notice=notice)
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "[TESTING ALERT] Ghost Mode active: REPAIR executing in demo mode. "
+                "Enforcement will be added before v1.5 release."
+            )
 
         user, error = self._require_permission()
         if error:
@@ -132,7 +138,7 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
         }
 
     def _require_permission(self):
-        from core.services.user_service import get_user_manager, Permission
+        from core.services.user_service import Permission, get_user_manager
 
         user_mgr = get_user_manager()
         user = user_mgr.current()
@@ -144,7 +150,7 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
             }
         return user, None
 
-    def _git_pull(self) -> Dict:
+    def _git_pull(self) -> dict:
         """Pull latest changes from git repository."""
         logger = get_logger("repair-handler")
         try:
@@ -155,10 +161,7 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
                 return {"status": "error", "message": "Not a git repository"}
 
             result = subprocess.run(
-                ["git", "pull"],
-                capture_output=True,
-                text=True,
-                timeout=60,
+                ["git", "pull"], capture_output=True, text=True, timeout=60
             )
 
             if result.returncode == 0:
@@ -184,12 +187,9 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
                 "message": "Git pull timed out (taking >60 seconds)",
             }
         except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Failed to pull repository: {str(e)}",
-            }
+            return {"status": "error", "message": f"Failed to pull repository: {e!s}"}
 
-    def _install_dependencies(self) -> Dict:
+    def _install_dependencies(self) -> dict:
         """Install/verify Python dependencies."""
         logger = get_logger("repair-handler")
         try:
@@ -207,11 +207,7 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
                 cmd = [sys.executable, "-m", "pip", "install", "-e", ".[udos]"]
 
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120,
-                cwd=str(repo_path),
+                cmd, capture_output=True, text=True, timeout=120, cwd=str(repo_path)
             )
 
             if result.returncode == 0:
@@ -240,10 +236,10 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
         except Exception as e:
             return {
                 "status": "error",
-                "message": f"Failed to install dependencies: {str(e)}",
+                "message": f"Failed to install dependencies: {e!s}",
             }
 
-    def _check_system(self, user, ghost_notice: Optional[str] = None) -> Dict:
+    def _check_system(self, user, ghost_notice: str | None = None) -> dict:
         """Check system health status."""
         logger = get_logger("core", category="repair", name="repair-handler")
         from core.tui.output import OutputToolkit
@@ -259,12 +255,17 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
         output = [OutputToolkit.banner("REPAIR: SELF-HEAL CHECK")]
         output.append(OutputToolkit.table(["metric", "value"], summary_rows))
         output.append("")
-        output.append(OutputToolkit.section("Details", "\n".join(summary.get("messages", []))))
+        output.append(
+            OutputToolkit.section("Details", "\n".join(summary.get("messages", [])))
+        )
         if ghost_notice:
             output.append("")
             output.append(OutputToolkit.section("Ghost Mode", ghost_notice))
 
-        logger.info("[LOCAL] REPAIR self-heal check completed (success=%s)", summary.get("success"))
+        logger.info(
+            "[LOCAL] REPAIR self-heal check completed (success=%s)",
+            summary.get("success"),
+        )
         logger.event(
             "info",
             "repair.self_heal",
@@ -283,7 +284,7 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
             "output": "\n".join(output),
         }
 
-    def _upgrade_all(self) -> Dict:
+    def _upgrade_all(self) -> dict:
         """Upgrade all components (git pull + dependencies)."""
         results = {"status": "success", "steps": {}}
 
@@ -308,11 +309,13 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
         results["output"] = "\n".join(output)
         return results
 
-    def _show_help(self) -> Dict:
+    def _show_help(self) -> dict:
         """Show repair help."""
         from core.tui.output import OutputToolkit
 
-        help_text = OutputToolkit.banner("REPAIR COMMAND HELP") + """
+        help_text = (
+            OutputToolkit.banner("REPAIR COMMAND HELP")
+            + """
 
 REPAIR is the system maintenance and recovery command. It can check
 system health, reset user data, clear credentials, and restore defaults.
@@ -344,11 +347,8 @@ EXAMPLES:
   REPAIR --full
   REPAIR --pull
 """
-        return {
-            "output": help_text.strip(),
-            "status": "info",
-            "command": "REPAIR",
-        }
+        )
+        return {"output": help_text.strip(), "status": "info", "command": "REPAIR"}
 
     def _perform_repair_with_options(
         self,
@@ -357,8 +357,8 @@ EXAMPLES:
         reset_keys: bool,
         reset_config: bool,
         skip_confirm: bool,
-        plan: List[str],
-    ) -> Dict:
+        plan: list[str],
+    ) -> dict:
         """Perform repair with reset options."""
         from core.services.user_service import get_user_manager
 
@@ -444,28 +444,21 @@ EXAMPLES:
             error_msg = f"❌ Repair failed: {e}"
             logger.error("[LOCAL] %s", error_msg)
             logger.event(
-                "error",
-                "repair.failed",
-                error_msg,
-                ctx={"error": str(e)},
-                err=e,
+                "error", "repair.failed", error_msg, ctx={"error": str(e)}, err=e
             )
-        return {
-            "output": error_msg,
-            "status": "error",
-        }
+        return {"output": error_msg, "status": "error"}
 
-    def _find_flag_index(self, flag: str, params: List[str]) -> Optional[int]:
+    def _find_flag_index(self, flag: str, params: list[str]) -> int | None:
         """Return index of flag in params (case-insensitive)."""
         for idx, param in enumerate(params):
             if param.lower() == flag.lower():
                 return idx
         return None
 
-    def _refresh_runtime(self, user) -> Dict:
+    def _refresh_runtime(self, user) -> dict:
         """Clean runtime artifacts and reinstall enabled integrations."""
-        from core.tui.output import OutputToolkit
         from core.services.logging_api import get_logger
+        from core.tui.output import OutputToolkit
 
         logger = get_logger("repair-handler")
         cleaned, errors = self._clean_runtime_targets()
@@ -477,13 +470,17 @@ EXAMPLES:
         if errors:
             output.append(f"  Errors: {len(errors)} ({'; '.join(errors)})")
         if reinstall["available"]:
-            output.append(f"  Reinstalled integrations: {len(reinstall.get('results', []))}")
+            output.append(
+                f"  Reinstalled integrations: {len(reinstall.get('results', []))}"
+            )
             for line in reinstall.get("results", [])[:5]:
                 output.append(f"    {line}")
             if len(reinstall.get("results", [])) > 5:
                 output.append("    ...")
         else:
-            output.append("  Wizard integrations unavailable (wizard component missing)")
+            output.append(
+                "  Wizard integrations unavailable (wizard component missing)"
+            )
         if updates is not None:
             output.append(f"  Plugin updates available: {len(updates)}")
         output.append("")
@@ -491,31 +488,46 @@ EXAMPLES:
         output.append("  • Run REPAIR --install-plugin <name>")
         output.append("  • Run HEALTH and VERIFY to re-run diagnostics")
 
-        logger.info("[LOCAL] REPAIR runtime refresh completed by %s", user.username if user else "unknown")
+        logger.info(
+            "[LOCAL] REPAIR runtime refresh completed by %s",
+            user.username if user else "unknown",
+        )
         return {
             "status": "success" if not errors else "warning",
             "message": "Runtime caches refreshed",
             "output": "\n".join(output),
         }
 
-    def _runtime_cleanup_targets(self) -> List[Tuple[str, Path]]:
+    def _runtime_cleanup_targets(self) -> list[tuple[str, Path]]:
         repo_root = get_repo_root()
         root_parent = repo_root.parent
         return [
             ("Virtualenv (venv)", repo_root / "venv"),
             ("Extensions runtime copies", repo_root / "extensions"),
-            ("Wizard dashboard node_modules", repo_root / "wizard" / "dashboard" / "node_modules"),
+            (
+                "Wizard dashboard node_modules",
+                repo_root / "wizard" / "dashboard" / "node_modules",
+            ),
             ("Wizard dashboard dist", repo_root / "wizard" / "dashboard" / "dist"),
             ("Wizard web static assets", repo_root / "wizard" / "web" / "static"),
             ("Memory wizard cache", repo_root / "memory" / "wizard"),
             ("Memory tests cache", repo_root / "memory" / "tests"),
-            ("Wizard plugin cache", repo_root / "wizard" / "distribution" / "plugins" / "cache"),
-            ("GitHub integration folder", root_parent / "wizard" / "github_integration"),
-            ("Local AI assets (Mistral/Vibe)", root_parent / "library" / "mistral-vibe"),
+            (
+                "Wizard plugin cache",
+                repo_root / "wizard" / "distribution" / "plugins" / "cache",
+            ),
+            (
+                "GitHub integration folder",
+                root_parent / "wizard" / "github_integration",
+            ),
+            (
+                "Local AI assets (Mistral/Vibe)",
+                root_parent / "library" / "mistral-vibe",
+            ),
             ("Local Ollama container", root_parent / "library" / "ollama"),
         ]
 
-    def _clean_runtime_targets(self) -> Tuple[List[str], List[str]]:
+    def _clean_runtime_targets(self) -> tuple[list[str], list[str]]:
         cleaned = []
         errors = []
         for label, path in self._runtime_cleanup_targets():
@@ -531,9 +543,14 @@ EXAMPLES:
                 errors.append(f"{label}: {exc}")
         return cleaned, errors
 
-    def _reinstall_integrations(self) -> Dict[str, Any]:
+    def _reinstall_integrations(self) -> dict[str, Any]:
         """Reinstall enabled or installed integrations via the Wizard library manager."""
-        from core.services.provider_registry import get_provider, ProviderType, ProviderNotAvailableError
+        from core.services.provider_registry import (
+            ProviderNotAvailableError,
+            ProviderType,
+            get_provider,
+        )
+
         try:
             manager = get_provider(ProviderType.LIBRARY_MANAGER)
         except ProviderNotAvailableError:
@@ -546,25 +563,37 @@ EXAMPLES:
             result = manager.install_integration(integration.name)
             status_label = "OK" if result.success else "FAIL"
             detail = result.message or result.error or "no details"
-            results.append(f"{integration.name}: {result.action} ({status_label}) {detail}")
+            results.append(
+                f"{integration.name}: {result.action} ({status_label}) {detail}"
+            )
         return {"available": True, "results": results}
 
-    def _collect_plugin_updates(self) -> Optional[List[Any]]:
-        from core.services.provider_registry import get_provider, ProviderType, ProviderNotAvailableError
+    def _collect_plugin_updates(self) -> list[Any] | None:
+        from core.services.provider_registry import (
+            ProviderNotAvailableError,
+            ProviderType,
+            get_provider,
+        )
+
         try:
             repo = get_provider(ProviderType.PLUGIN_REPOSITORY)
             return repo.check_updates()
         except ProviderNotAvailableError:
             return None
 
-    def _install_plugin(self, plugin_name: Optional[str]) -> Dict:
+    def _install_plugin(self, plugin_name: str | None) -> dict:
         if not plugin_name:
             return {
                 "status": "error",
                 "message": "Usage: REPAIR --install-plugin <integration_name>",
             }
 
-        from core.services.provider_registry import get_provider, ProviderType, ProviderNotAvailableError
+        from core.services.provider_registry import (
+            ProviderNotAvailableError,
+            ProviderType,
+            get_provider,
+        )
+
         try:
             manager = get_provider(ProviderType.LIBRARY_MANAGER)
         except ProviderNotAvailableError:

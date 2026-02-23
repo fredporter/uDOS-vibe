@@ -1,10 +1,26 @@
 # Ghost Mode Policy (v1.3+)
 
-**Status:** Draft
-**Last Updated:** 2026-02-06
+**Status:** Testing Phase - Enforcement Disabled
+**Enforcement Target:** v1.5+ Release
+**Current Behavior:** Alerts/Notifications Only
+**Last Updated:** 2026-02-24
 
 ## Purpose
 Define the Ghost Mode behaviour, and model routing rules for uDOS Core, Dev, and Wizard.
+
+## Current Testing Phase (v1.4.x)
+During pre-launch testing through v1.4.x, Ghost Mode will:
+- ✅ Detect when Ghost Mode is active
+- ✅ Log [TESTING ALERT] warnings to indicate demo operations
+- ✅ **ALLOW all operations** (no blocking or restrictions)
+- ❌ NOT enforce any read-only restrictions
+- ❌ NOT block destructive commands
+- ❌ NOT prevent writes or file operations
+
+**All operational restrictions will be implemented before v1.5.0 release.**
+
+## Enforcement (v1.5+)
+Starting with v1.5.0, Ghost Mode will enforce read-only behavior as documented below.
 
 ## Scope
 This policy applies to `/core`, `/dev`, all submodules, and `wizard-server`.

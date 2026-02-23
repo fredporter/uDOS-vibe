@@ -1,5 +1,4 @@
-"""
-Binder Handler
+"""Binder Handler
 
 Core binder operations for TUI:
 - BINDER            -> open file picker for binder folder
@@ -8,16 +7,16 @@ Core binder operations for TUI:
 - BINDER CHAPTERS <binder_id>
 """
 
-from typing import Dict, List
+from __future__ import annotations
 
 from pathlib import Path
 
 from core.binder import BinderCompiler
 from core.commands.base import BaseCommandHandler
+from core.services.error_contract import CommandError
+from core.services.logging_api import get_repo_root
 from core.tui.file_browser import FileBrowser
 from core.tui.output import OutputToolkit
-from core.services.logging_api import get_repo_root
-from core.services.error_contract import CommandError
 
 
 class BinderHandler(BaseCommandHandler):
@@ -27,7 +26,7 @@ class BinderHandler(BaseCommandHandler):
         super().__init__()
         self._spatial_handler = None
 
-    def handle(self, command: str, params: List[str], grid, parser) -> Dict:
+    def handle(self, command: str, params: list[str], grid, parser) -> dict:
         if not params:
             return self._pick_binder(".")
 
@@ -41,20 +40,27 @@ class BinderHandler(BaseCommandHandler):
             return self._pick_binder(start_dir)
 
         if subcommand == "COMPILE":
+            import logging
+
             from core.services.user_service import is_ghost_mode
 
             if is_ghost_mode():
-                return {
-                    "status": "warning",
-                    "message": "Ghost Mode is read-only (BINDER COMPILE blocked)",
-                    "output": "Ghost Mode active: compilation is disabled.",
-                }
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "[TESTING ALERT] Ghost Mode active: BINDER COMPILE in demo mode. "
+                    "Enforcement will be added before v1.5 release."
+                )
 
             if len(params) < 2:
-                picker = FileBrowser(start_dir=str(self._default_binder_root()), pick_directories=True)
+                picker = FileBrowser(
+                    start_dir=str(self._default_binder_root()), pick_directories=True
+                )
                 selected = picker.pick()
                 if not selected:
-                    return {"status": "cancelled", "message": "Binder selection cancelled"}
+                    return {
+                        "status": "cancelled",
+                        "message": "Binder selection cancelled",
+                    }
                 binder_id = Path(selected).name
             else:
                 binder_id = params[1]
@@ -68,17 +74,15 @@ class BinderHandler(BaseCommandHandler):
                 [out.get("format", ""), out.get("path", ""), out.get("status", "")]
                 for out in outputs
             ]
-            output = "\n".join(
-                [
-                    OutputToolkit.banner("BINDER COMPILE"),
-                    f"Binder: {binder_id}",
-                    f"Formats: {', '.join(formats) if formats else 'default'}",
-                    "",
-                    OutputToolkit.table(["format", "path", "status"], rows)
-                    if rows
-                    else "No outputs produced.",
-                ]
-            )
+            output = "\n".join([
+                OutputToolkit.banner("BINDER COMPILE"),
+                f"Binder: {binder_id}",
+                f"Formats: {', '.join(formats) if formats else 'default'}",
+                "",
+                OutputToolkit.table(["format", "path", "status"], rows)
+                if rows
+                else "No outputs produced.",
+            ])
             return {
                 "status": "success",
                 "message": "Binder compiled",
@@ -107,14 +111,12 @@ class BinderHandler(BaseCommandHandler):
                 ]
                 for chapter in chapters
             ]
-            output = "\n".join(
-                [
-                    OutputToolkit.banner("BINDER CHAPTERS"),
-                    OutputToolkit.table(["id", "title", "status", "words"], rows)
-                    if rows
-                    else "No chapters found.",
-                ]
-            )
+            output = "\n".join([
+                OutputToolkit.banner("BINDER CHAPTERS"),
+                OutputToolkit.table(["id", "title", "status", "words"], rows)
+                if rows
+                else "No chapters found.",
+            ])
             return {
                 "status": "success",
                 "message": "Binder chapters",
@@ -130,17 +132,15 @@ class BinderHandler(BaseCommandHandler):
             level="INFO",
         )
 
-    def _pick_binder(self, start_dir: str) -> Dict:
+    def _pick_binder(self, start_dir: str) -> dict:
         browser = FileBrowser(start_dir=start_dir, pick_directories=True)
         selected = browser.pick()
         if not selected:
             return {"status": "warning", "message": "Binder selection cancelled"}
-        output = "\n".join(
-            [
-                OutputToolkit.banner("BINDER PICK"),
-                f"Selected: {selected}",
-            ]
-        )
+        output = "\n".join([
+            OutputToolkit.banner("BINDER PICK"),
+            f"Selected: {selected}",
+        ])
         return {
             "status": "success",
             "message": "Binder selected",
@@ -152,8 +152,8 @@ class BinderHandler(BaseCommandHandler):
         return get_repo_root() / "memory" / "vault" / "bank" / "binders"
 
     def _handle_workspace_subcommand(
-        self, command: str, subcommand: str, params: List[str]
-    ) -> Dict:
+        self, command: str, subcommand: str, params: list[str]
+    ) -> dict:
         from core.commands.spatial_filesystem_handler import (
             SpatialFilesystemHandler,
             dispatch_spatial_command,
