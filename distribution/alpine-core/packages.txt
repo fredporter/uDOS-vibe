@@ -1,0 +1,22 @@
+# uDOS Alpine Core package list (single source of truth)
+# NOTE: exact package names can vary by Alpine release.
+
+# Core Wayland stack
+wayland
+mesa
+mesa-dri-gallium
+libinput
+seatd
+
+# Compositor (single-app)
+cage
+
+# Fonts / rendering
+fontconfig
+ttf-dejavu
+
+# Tauri WebView runtime (adjust to Alpine version)
+webkit2gtk
+
+# Optional diagnostics
+# wayland-utils

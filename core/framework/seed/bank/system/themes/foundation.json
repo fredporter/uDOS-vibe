@@ -1,0 +1,11 @@
+{
+  "name": "foundation",
+  "description": "Foundation message voice for settlement and base operations.",
+  "companions": ["galaxy_layers"],
+  "replacements": {
+    "Tip:": "Foundation Tip:",
+    "Health:": "Foundation Health:",
+    "Wizard": "Control Ops",
+    "WIZARD": "CONTROL OPS"
+  }
+}

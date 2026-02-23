@@ -1,0 +1,63 @@
+#!/bin/bash
+# Setup script for uDOS-Vibe integration with globally-installed Vibe CLI
+#
+# This script ensures the repo's custom tools and skills are discoverable
+# by the globally-installed Vibe CLI.
+#
+# Usage: ./bin/setup-vibe.sh
+
+set -e
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "🔧 Setting up uDOS-Vibe integration with global Vibe CLI..."
+echo "📁 Repo root: $REPO_ROOT"
+
+# Verify directory structure
+if [ ! -d "$REPO_ROOT/vibe/core/tools/ucode" ]; then
+    echo "❌ Error: vibe/core/tools/ucode not found"
+    exit 1
+fi
+
+if [ ! -d "$REPO_ROOT/vibe/core/skills/ucode" ]; then
+    echo "❌ Error: vibe/core/skills/ucode not found"
+    exit 1
+fi
+
+# Create symlinks in .vibe/
+mkdir -p "$REPO_ROOT/.vibe"
+
+echo "✓ Creating symlinks..."
+rm -f "$REPO_ROOT/.vibe/tools"
+rm -f "$REPO_ROOT/.vibe/skills"
+
+ln -s ../vibe/core/tools/ucode "$REPO_ROOT/.vibe/tools"
+ln -s ../vibe/core/skills/ucode "$REPO_ROOT/.vibe/skills"
+
+echo "✓ Symlinks created:"
+echo "  .vibe/tools -> $(readlink "$REPO_ROOT/.vibe/tools")"
+echo "  .vibe/skills -> $(readlink "$REPO_ROOT/.vibe/skills")"
+
+echo ""
+cd "$REPO_ROOT"
+if vibe --version >/dev/null 2>&1; then
+    echo "✓ Vibe CLI detected and ready"
+else
+    echo "⚠️  Vibe CLI not found in PATH"
+fi
+
+echo ""
+echo "✅ Setup complete!"
+echo ""
+echo "📖 To use uDOS commands (recommended):"
+echo "   cd $REPO_ROOT"
+echo "   ./bin/ucode"
+echo ""
+echo "💬 Raw Vibe chat UI (optional):"
+echo "   vibe"
+echo "   (non-blocking defaults; MCP is opt-in in .vibe/config.toml)"
+echo "   enable MCP tools: uv run --project . scripts/mcp_activation.py enable"
+echo ""
+echo "💡 Your custom tools are now available:"
+echo "   $(ls .vibe/tools/ | grep -v '^__' | tr '\n' ' ')"
+echo ""

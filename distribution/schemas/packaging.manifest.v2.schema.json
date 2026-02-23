@@ -1,0 +1,526 @@
+{
+  "$defs": {
+    "BuildIdPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "prefix": {
+          "default": "build",
+          "title": "Prefix",
+          "type": "string"
+        },
+        "timestamp_format": {
+          "default": "%Y%m%d-%H%M%S",
+          "title": "Timestamp Format",
+          "type": "string"
+        },
+        "random_suffix_length": {
+          "default": 6,
+          "title": "Random Suffix Length",
+          "type": "integer"
+        }
+      },
+      "title": "BuildIdPolicy",
+      "type": "object"
+    },
+    "DependencyProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "runtime_packages": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Runtime Packages",
+          "type": "array"
+        },
+        "build_packages": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Build Packages",
+          "type": "array"
+        }
+      },
+      "title": "DependencyProfile",
+      "type": "object"
+    },
+    "GlobalPackagingPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "version_source": {
+          "$ref": "#/$defs/VersionSource"
+        },
+        "build_id_policy": {
+          "$ref": "#/$defs/BuildIdPolicy"
+        },
+        "signing_policy": {
+          "$ref": "#/$defs/SigningPolicy"
+        },
+        "offline_assets": {
+          "$ref": "#/$defs/OfflineAssets"
+        }
+      },
+      "title": "GlobalPackagingPolicy",
+      "type": "object"
+    },
+    "LinuxAppBundle": {
+      "additionalProperties": false,
+      "properties": {
+        "build_script": {
+          "default": "distribution/alpine-core/build-sonic-stick.sh",
+          "title": "Build Script",
+          "type": "string"
+        },
+        "default_profile": {
+          "default": "alpine-core+sonic",
+          "title": "Default Profile",
+          "type": "string"
+        },
+        "builds_root": {
+          "default": "distribution/builds",
+          "title": "Builds Root",
+          "type": "string"
+        },
+        "runtime_dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Runtime Dependencies",
+          "type": "array"
+        }
+      },
+      "title": "LinuxAppBundle",
+      "type": "object"
+    },
+    "LinuxKioskWrapper": {
+      "additionalProperties": false,
+      "properties": {
+        "service_name": {
+          "default": "udos-kiosk-wrapper",
+          "title": "Service Name",
+          "type": "string"
+        },
+        "wrapper_script": {
+          "default": "distribution/linux/kiosk-wrapper.sh",
+          "title": "Wrapper Script",
+          "type": "string"
+        },
+        "enabled_by_default": {
+          "default": false,
+          "title": "Enabled By Default",
+          "type": "boolean"
+        }
+      },
+      "title": "LinuxKioskWrapper",
+      "type": "object"
+    },
+    "LinuxOfflineInstaller": {
+      "additionalProperties": false,
+      "properties": {
+        "script": {
+          "default": "distribution/installer.sh",
+          "title": "Script",
+          "type": "string"
+        },
+        "default_tier": {
+          "default": "core",
+          "title": "Default Tier",
+          "type": "string"
+        },
+        "tiers": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Tiers",
+          "type": "object"
+        }
+      },
+      "title": "LinuxOfflineInstaller",
+      "type": "object"
+    },
+    "LinuxPlatformConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "default_dependency_profile": {
+          "default": "alpine-core+sonic",
+          "title": "Default Dependency Profile",
+          "type": "string"
+        },
+        "dependency_profiles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DependencyProfile"
+          },
+          "title": "Dependency Profiles",
+          "type": "object"
+        },
+        "offline_installer": {
+          "$ref": "#/$defs/LinuxOfflineInstaller"
+        },
+        "app_bundle": {
+          "$ref": "#/$defs/LinuxAppBundle"
+        },
+        "kiosk_wrapper": {
+          "$ref": "#/$defs/LinuxKioskWrapper"
+        }
+      },
+      "title": "LinuxPlatformConfig",
+      "type": "object"
+    },
+    "MacOSAppBundle": {
+      "additionalProperties": false,
+      "properties": {
+        "app_name": {
+          "default": "uDOS Wizard.app",
+          "title": "App Name",
+          "type": "string"
+        },
+        "bundle_id": {
+          "default": "com.udos.wizard",
+          "title": "Bundle Id",
+          "type": "string"
+        }
+      },
+      "title": "MacOSAppBundle",
+      "type": "object"
+    },
+    "MacOSDmgPackaging": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "volume_name": {
+          "default": "uDOS Wizard",
+          "title": "Volume Name",
+          "type": "string"
+        },
+        "output_dir": {
+          "default": "distribution/builds/macos",
+          "title": "Output Dir",
+          "type": "string"
+        }
+      },
+      "title": "MacOSDmgPackaging",
+      "type": "object"
+    },
+    "MacOSNotarization": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "apple_id_env": {
+          "default": "UDOS_MACOS_NOTARY_APPLE_ID",
+          "title": "Apple Id Env",
+          "type": "string"
+        },
+        "app_password_env": {
+          "default": "UDOS_MACOS_NOTARY_APP_PASSWORD",
+          "title": "App Password Env",
+          "type": "string"
+        },
+        "team_id_env": {
+          "default": "UDOS_MACOS_TEAM_ID",
+          "title": "Team Id Env",
+          "type": "string"
+        }
+      },
+      "title": "MacOSNotarization",
+      "type": "object"
+    },
+    "MacOSPlatformConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "default_dependency_profile": {
+          "default": "wizard-app",
+          "title": "Default Dependency Profile",
+          "type": "string"
+        },
+        "dependency_profiles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DependencyProfile"
+          },
+          "title": "Dependency Profiles",
+          "type": "object"
+        },
+        "app_bundle": {
+          "$ref": "#/$defs/MacOSAppBundle"
+        },
+        "signing_identity": {
+          "$ref": "#/$defs/MacOSSigningIdentity"
+        },
+        "notarization": {
+          "$ref": "#/$defs/MacOSNotarization"
+        },
+        "dmg_packaging": {
+          "$ref": "#/$defs/MacOSDmgPackaging"
+        }
+      },
+      "title": "MacOSPlatformConfig",
+      "type": "object"
+    },
+    "MacOSSigningIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "identity_env": {
+          "default": "UDOS_MACOS_SIGNING_IDENTITY",
+          "title": "Identity Env",
+          "type": "string"
+        },
+        "team_id_env": {
+          "default": "UDOS_MACOS_TEAM_ID",
+          "title": "Team Id Env",
+          "type": "string"
+        }
+      },
+      "title": "MacOSSigningIdentity",
+      "type": "object"
+    },
+    "OfflineAssets": {
+      "additionalProperties": false,
+      "properties": {
+        "root": {
+          "default": "distribution/offline-assets",
+          "title": "Root",
+          "type": "string"
+        },
+        "cache_namespace": {
+          "default": "memory/wizard/offline-assets",
+          "title": "Cache Namespace",
+          "type": "string"
+        }
+      },
+      "title": "OfflineAssets",
+      "type": "object"
+    },
+    "PackagingPlatforms": {
+      "additionalProperties": false,
+      "properties": {
+        "windows": {
+          "$ref": "#/$defs/WindowsPlatformConfig"
+        },
+        "macos": {
+          "$ref": "#/$defs/MacOSPlatformConfig"
+        },
+        "linux": {
+          "$ref": "#/$defs/LinuxPlatformConfig"
+        }
+      },
+      "title": "PackagingPlatforms",
+      "type": "object"
+    },
+    "SigningPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "algorithm": {
+          "default": "sha256",
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "detached_signature_ext": {
+          "default": ".sig",
+          "title": "Detached Signature Ext",
+          "type": "string"
+        },
+        "public_key_env": {
+          "default": "WIZARD_SONIC_SIGN_PUBKEY",
+          "title": "Public Key Env",
+          "type": "string"
+        }
+      },
+      "title": "SigningPolicy",
+      "type": "object"
+    },
+    "VersionSource": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "default": "version.json",
+          "title": "Path",
+          "type": "string"
+        },
+        "field_priority": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Field Priority",
+          "type": "array"
+        }
+      },
+      "title": "VersionSource",
+      "type": "object"
+    },
+    "WindowsMediaGameImageSteps": {
+      "additionalProperties": false,
+      "properties": {
+        "scripts_root": {
+          "default": "distribution/windows10-entertainment/scripts",
+          "title": "Scripts Root",
+          "type": "string"
+        },
+        "mode_switch_script": {
+          "default": "distribution/windows10-entertainment/scripts/mode-switch.ps1",
+          "title": "Mode Switch Script",
+          "type": "string"
+        },
+        "install_media_shell_script": {
+          "default": "distribution/windows10-entertainment/scripts/install-media-shell.ps1",
+          "title": "Install Media Shell Script",
+          "type": "string"
+        },
+        "install_game_launcher_script": {
+          "default": "distribution/windows10-entertainment/scripts/install-game-launcher.ps1",
+          "title": "Install Game Launcher Script",
+          "type": "string"
+        },
+        "media_policies_script": {
+          "default": "distribution/windows10-entertainment/scripts/media-policies.ps1",
+          "title": "Media Policies Script",
+          "type": "string"
+        },
+        "offline_root": {
+          "default": "C:\\mount",
+          "title": "Offline Root",
+          "type": "string"
+        },
+        "media_identifier": {
+          "default": "{media}",
+          "title": "Media Identifier",
+          "type": "string"
+        },
+        "game_identifier": {
+          "default": "{game}",
+          "title": "Game Identifier",
+          "type": "string"
+        },
+        "media_partition": {
+          "default": "\\Device\\HarddiskVolume3",
+          "title": "Media Partition",
+          "type": "string"
+        },
+        "game_partition": {
+          "default": "\\Device\\HarddiskVolume4",
+          "title": "Game Partition",
+          "type": "string"
+        },
+        "boot_timeout_seconds": {
+          "default": 5,
+          "title": "Boot Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "WindowsMediaGameImageSteps",
+      "type": "object"
+    },
+    "WindowsPlatformConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "default_dependency_profile": {
+          "default": "windows10-entertainment",
+          "title": "Default Dependency Profile",
+          "type": "string"
+        },
+        "dependency_profiles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DependencyProfile"
+          },
+          "title": "Dependency Profiles",
+          "type": "object"
+        },
+        "thin_gui_build": {
+          "$ref": "#/$defs/WindowsThinGuiBuild"
+        },
+        "media_game_image_steps": {
+          "$ref": "#/$defs/WindowsMediaGameImageSteps"
+        },
+        "shell_defaults": {
+          "$ref": "#/$defs/WindowsShellDefaults"
+        }
+      },
+      "title": "WindowsPlatformConfig",
+      "type": "object"
+    },
+    "WindowsShellDefaults": {
+      "additionalProperties": false,
+      "properties": {
+        "kodi": {
+          "default": "C:\\Program Files\\Kodi\\kodi.exe",
+          "title": "Kodi",
+          "type": "string"
+        },
+        "playnite": {
+          "default": "C:\\Program Files\\Playnite\\Playnite.FullscreenApp.exe",
+          "title": "Playnite",
+          "type": "string"
+        },
+        "steam": {
+          "default": "C:\\Program Files (x86)\\Steam\\steam.exe -bigpicture",
+          "title": "Steam",
+          "type": "string"
+        },
+        "custom": {
+          "default": "C:\\udos\\MediaShell\\udos-media.exe",
+          "title": "Custom",
+          "type": "string"
+        },
+        "default_game_launcher_path": {
+          "default": "C:\\Program Files\\Playnite\\Playnite.FullscreenApp.exe",
+          "title": "Default Game Launcher Path",
+          "type": "string"
+        }
+      },
+      "title": "WindowsShellDefaults",
+      "type": "object"
+    },
+    "WindowsThinGuiBuild": {
+      "additionalProperties": false,
+      "properties": {
+        "workspace": {
+          "default": "wizard/dashboard",
+          "title": "Workspace",
+          "type": "string"
+        },
+        "target": {
+          "default": "msi",
+          "title": "Target",
+          "type": "string"
+        },
+        "release": {
+          "default": true,
+          "title": "Release",
+          "type": "boolean"
+        }
+      },
+      "title": "WindowsThinGuiBuild",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "udos.packaging.manifest.v2",
+      "default": "udos.packaging.manifest.v2",
+      "title": "Schema",
+      "type": "string"
+    },
+    "global": {
+      "$ref": "#/$defs/GlobalPackagingPolicy"
+    },
+    "platforms": {
+      "$ref": "#/$defs/PackagingPlatforms"
+    }
+  },
+  "title": "PackagingManifestV2",
+  "type": "object"
+}

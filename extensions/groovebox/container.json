@@ -1,0 +1,30 @@
+{
+  "$schema": "../container.schema.json",
+  "repo_path": "groovebox",
+  "container": {
+    "id": "groovebox",
+    "name": "Groovebox - Music Production Engine",
+    "description": "Self-contained music sequencer, instrument engine, and MIDI export. Can run standalone or integrated.",
+    "type": "git",
+    "source": "https://github.com/fredporter/uDOS-vibe",
+    "ref": "main",
+    "entry_point": "groovebox/engine/sequencer.py",
+    "cloned_at": "2026-02-01T00:00:00Z",
+    "last_update": "2026-02-01T00:00:00Z"
+  },
+  "policy": {
+    "status": "active",
+    "containerized": true,
+    "requires_init": false,
+    "allow_direct_imports": false,
+    "service_interface": "GrooveboxEngine"
+  },
+  "udos": {
+    "import_style": "service-client",
+    "example": "engine = ServiceClient('groovebox', 'GrooveboxEngine')",
+    "legacy_imports": [
+      "from groovebox.engine.sequencer import Sequencer",
+      "from groovebox.engine.midi_export import MidiExporter"
+    ]
+  }
+}

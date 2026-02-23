@@ -1,0 +1,11 @@
+{
+  "name": "hitchhikers",
+  "description": "Lightweight galaxy message voice for immediate space operations.",
+  "companions": ["galaxy_layers"],
+  "replacements": {
+    "Tip:": "42 Tip:",
+    "Health:": "Ship Health:",
+    "Wizard": "Guide Console",
+    "WIZARD": "GUIDE CONSOLE"
+  }
+}

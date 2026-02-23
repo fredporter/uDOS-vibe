@@ -1,0 +1,11 @@
+{
+  "name": "lonely-planet",
+  "description": "Explorer guidance message voice for Earth layers.",
+  "companions": ["earth_layers"],
+  "replacements": {
+    "Tip:": "Trail Tip:",
+    "Health:": "Camp Health:",
+    "Wizard": "Guide Ops",
+    "WIZARD": "GUIDE OPS"
+  }
+}

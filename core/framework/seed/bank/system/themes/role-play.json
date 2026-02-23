@@ -1,0 +1,11 @@
+{
+  "name": "role-play",
+  "description": "Role-play message voice for party and narrative operations.",
+  "companions": ["earth_layers_subterranean", "earth_layers"],
+  "replacements": {
+    "Tip:": "Role Tip:",
+    "Health:": "Party Health:",
+    "Wizard": "Narrator Ops",
+    "WIZARD": "NARRATOR OPS"
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "timestamp": "2026-02-10T08:09:07.718913",
+  "services": [
+    {
+      "name": "wizard",
+      "port": 8765,
+      "environment": "production",
+      "process_name": "python",
+      "description": "Wizard Server - Production always-on service",
+      "startup_cmd": "uv run wizard/server.py --no-interactive",
+      "shutdown_cmd": null,
+      "health_endpoint": "http://localhost:8765/health",
+      "enabled": true,
+      "status": "unknown",
+      "pid": null,
+      "last_check": null
+    },
+    {
+      "name": "api",
+      "port": 5001,
+      "environment": "development",
+      "process_name": "python",
+      "description": "API Server - REST/WebSocket API",
+      "startup_cmd": "python -m extensions.api.server",
+      "shutdown_cmd": null,
+      "health_endpoint": "http://localhost:5001/health",
+      "enabled": true,
+      "status": "unknown",
+      "pid": null,
+      "last_check": null
+    },
+    {
+      "name": "vite",
+      "port": 5173,
+      "environment": "development",
+      "process_name": "npm",
+      "description": "Vite Dev Server - Frontend development",
+      "startup_cmd": "npm run dev",
+      "shutdown_cmd": null,
+      "health_endpoint": "http://localhost:5173/",
+      "enabled": true,
+      "status": "unknown",
+      "pid": null,
+      "last_check": null
+    },
+    {
+      "name": "tauri",
+      "port": null,
+      "environment": "development",
+      "process_name": "tauri",
+      "description": "Tauri App - Desktop application",
+      "startup_cmd": "npm run tauri dev",
+      "shutdown_cmd": null,
+      "health_endpoint": null,
+      "enabled": true,
+      "status": "unknown",
+      "pid": null,
+      "last_check": null
+    },
+    {
+      "name": "ollama",
+      "port": 11434,
+      "environment": "production",
+      "process_name": "ollama",
+      "description": "Ollama local model server",
+      "startup_cmd": "ollama serve",
+      "shutdown_cmd": null,
+      "health_endpoint": "http://localhost:11434/api/version",
+      "enabled": true,
+      "status": "unknown",
+      "pid": null,
+      "last_check": null
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+# .vibe/config.toml — project-local Vibe configuration for uDOS-vibe
+#
+# Goal:
+# - Use globally installed `vibe` CLI
+# - Load repo-local ucode tools/skills reliably
+# - Keep startup non-blocking by default for large workspaces
+#
+# No trust subcommand is required for Vibe 2.x.
+#
+# Runtime start:
+#   vibe
+
+# Favor a faster default model for interactive startup reliability.
+active_model = "devstral-small"
+
+# Skill discovery for slash commands (primary ucode overlay)
+skill_paths = [
+  "vibe/core/skills/ucode",
+]
+
+# Tool discovery fallback when MCP is unavailable
+tool_paths = [
+  "vibe/core/tools/ucode",
+]
+
+# Keep prompt assembly lightweight for large monorepos.
+# This prevents long "no response" stalls before first token.
+include_project_context = false
+include_prompt_detail = false
+
+# Optional default model override
+# model = "mistral-large-latest"
+
+# Optional MCP integration (disabled by default to avoid startup stalls).
+# Use the canonical manager instead of hand-editing:
+#   uv run --project . scripts/mcp_activation.py enable
+#
+# [[mcp_servers]]
+# name = "wizard"
+# transport = "stdio"
+# command = "uv"
+# args = ["run", "--project", ".", "wizard/mcp/mcp_server.py"]
+# prompt = "uDOS Wizard MCP: ucode command dispatch, wizard services, system tooling"
+# startup_timeout_sec = 4.0
+# tool_timeout_sec = 25.0
+#
+#   [mcp_servers.env]
+#   PYTHONPATH = "."
+#   WIZARD_MCP_REQUIRE_ADMIN_TOKEN = "0"
+
+# Common misconfiguration checks:
+# - If tools/skills are missing, run: ./bin/setup-vibe.sh
+# - If MCP is enabled and fails to start, verify: uv run --project . wizard/mcp/mcp_server.py
+# - MCP block status: uv run --project . scripts/mcp_activation.py status
+# - If venv is missing, create/sync it per project setup docs
+
+
+# BEGIN UCODE MANAGED MCP (WIZARD)
+[[mcp_servers]]
+name = "wizard"
+transport = "stdio"
+command = "uv"
+args = ["run", "--project", ".", "wizard/mcp/mcp_server.py"]
+prompt = "uDOS Wizard MCP: ucode command dispatch, wizard services, system tooling"
+startup_timeout_sec = 4.0
+tool_timeout_sec = 25.0
+
+  [mcp_servers.env]
+  PYTHONPATH = "."
+  WIZARD_MCP_REQUIRE_ADMIN_TOKEN = "0"
+# END UCODE MANAGED MCP (WIZARD)

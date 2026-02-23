@@ -1,0 +1,15 @@
+{
+  "$schema": "https://udos.dev/schemas/plugin.schema.json",
+  "id": "api",
+  "name": "uDOS API Extension",
+  "version": "1.0.1",
+  "description": "REST API server - 144 endpoints, WebSocket streaming, command routing",
+  "category": "web",
+  "license": "MIT",
+  "author": "Fred Porter",
+  "source": "extensions/api",
+  "package_type": "tar.gz",
+  "package_size": 46773,
+  "package_checksum": "411ffc431e81af5d50efef70458455bb3e486f7c06f00b99f7d8fb955b02a27d",
+  "documentation": "extensions/api/README.md"
+}

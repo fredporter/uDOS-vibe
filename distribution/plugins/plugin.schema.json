@@ -1,0 +1,190 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://udos.dev/schemas/plugin.schema.json",
+  "title": "uDOS Plugin Manifest",
+  "description": "Schema for uDOS plugin manifest files",
+  "type": "object",
+  
+  "required": ["id", "name", "version", "description", "category", "license"],
+  
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Unique plugin identifier (lowercase, alphanumeric, hyphens)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable plugin name"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "Plugin version (semver)"
+    },
+    "udos_version": {
+      "type": "string",
+      "description": "Required uDOS version constraint (e.g., '>=1.0.0')"
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description of the plugin"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["editor", "transport", "ai", "games", "documentation", "web", "utility", "system", "graphics"],
+      "description": "Plugin category"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier"
+    },
+    "author": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "email": { "type": "string", "format": "email" },
+            "url": { "type": "string", "format": "uri" }
+          },
+          "required": ["name"]
+        }
+      ],
+      "description": "Plugin author"
+    },
+    "repository": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["git", "hg", "svn", "api"] },
+        "url": { "type": "string", "format": "uri" }
+      },
+      "required": ["type", "url"],
+      "description": "Source repository (use 'api' for API-only plugins)"
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "Plugin homepage URL"
+    },
+    "documentation": {
+      "type": "string",
+      "description": "Documentation URL or path"
+    },
+    "keywords": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Search keywords"
+    },
+    "platform": {
+      "type": "object",
+      "properties": {
+        "os": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["linux", "macos", "windows", "tinycore"] }
+        },
+        "arch": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["amd64", "arm64", "arm", "x86"] }
+        },
+        "tinycore": {
+          "type": "object",
+          "properties": {
+            "compatible": { "type": "boolean" },
+            "tcz_name": { "type": "string" },
+            "extensions": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "description": "Supported platforms"
+    },
+    "installation": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["binary", "npm", "pip", "tcz", "source"],
+          "description": "Installation method"
+        },
+        "sources": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Platform-specific download URLs"
+        },
+        "binary_name": {
+          "type": "string",
+          "description": "Name of the binary executable"
+        },
+        "install_path": {
+          "type": "string",
+          "description": "Installation directory"
+        },
+        "post_install": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Post-installation commands"
+        }
+      },
+      "required": ["method"],
+      "description": "Installation configuration"
+    },
+    "udos_integration": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "description": { "type": "string" },
+              "usage": { "type": "string" },
+              "handler": { "type": "string" },
+              "aliases": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "file_associations": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "default_editor": { "type": "boolean" }
+      },
+      "description": "uDOS command integration"
+    },
+    "configuration": {
+      "type": "object",
+      "properties": {
+        "config_dir": { "type": "string" },
+        "settings_file": { "type": "string" },
+        "defaults": { "type": "object" }
+      },
+      "description": "Plugin configuration"
+    },
+    "features": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Feature list"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Required dependencies"
+    },
+    "size_estimate": {
+      "type": "object",
+      "properties": {
+        "download": { "type": "string" },
+        "installed": { "type": "string" }
+      }
+    },
+    "checksums": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

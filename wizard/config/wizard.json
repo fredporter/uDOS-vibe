@@ -1,0 +1,34 @@
+{
+  "host": "0.0.0.0",
+  "port": 8765,
+  "debug": false,
+  "requests_per_minute": 60,
+  "requests_per_hour": 1000,
+  "ai_budget_daily": 10.0,
+  "ai_budget_monthly": 100.0,
+  "plugin_repo_enabled": true,
+  "plugin_auto_update": true,
+  "web_proxy_enabled": true,
+  "ok_gateway_enabled": true,
+  "ok_cloud_sanity_enabled": true,
+  "oauth_enabled": false,
+  "github_webhook_secret": null,
+  "github_webhook_secret_key_id": "github-webhook-secret",
+  "admin_api_key_id": "wizard-admin-token",
+  "github_allowed_repo": "fredporter/uDOS-dev",
+  "github_default_branch": "main",
+  "github_push_enabled": true,
+  "compost_cleanup_days": 30,
+  "compost_cleanup_dry_run": false,
+  "icloud_enabled": true,
+  "file_locations": {
+    "memory_root": "memory",
+    "artifacts_root": ".artifacts",
+    "test_runs_root": ".artifacts/test-runs",
+    "repo_root": "auto"
+  },
+  "enabled_providers": [
+    "github",
+    "nounproject"
+  ]
+}

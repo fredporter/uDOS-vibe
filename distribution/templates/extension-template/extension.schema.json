@@ -1,0 +1,138 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "uDOS Extension Manifest",
+  "type": "object",
+  "required": ["id", "version", "name"],
+  
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+$",
+      "description": "Unique extension identifier (reverse-DNS format)"
+    },
+    
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version (MAJOR.MINOR.PATCH)"
+    },
+    
+    "name": {
+      "type": "string",
+      "description": "Human-readable extension name"
+    },
+    
+    "description": {
+      "type": "string",
+      "description": "Brief description of extension functionality"
+    },
+    
+    "author": {
+      "type": "string",
+      "description": "Extension author/maintainer"
+    },
+    
+    "license": {
+      "type": "string",
+      "description": "License identifier (SPDX format)"
+    },
+    
+    "compatibility": {
+      "type": "object",
+      "properties": {
+        "udos_version": {
+          "type": "string",
+          "description": "Compatible uDOS version range (e.g., '>=1.0.0')"
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["linux", "tinycore", "macos", "windows"]
+          }
+        },
+        "requires_gui": {
+          "type": "boolean",
+          "description": "Whether extension requires GUI (Tauri)"
+        }
+      }
+    },
+    
+    "dependencies": {
+      "type": "object",
+      "properties": {
+        "tcz": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "TinyCore Linux dependencies (.tcz packages)"
+        },
+        "python": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Python package dependencies (pip installable)"
+        }
+      }
+    },
+    
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "filesystem:sandbox",
+          "filesystem:sandbox/*",
+          "api:commands",
+          "api:hooks",
+          "network:private",
+          "network:mesh",
+          "hardware:nfc",
+          "hardware:bluetooth"
+        ]
+      },
+      "description": "Required permissions (user extensions limited to sandbox)"
+    },
+    
+    "entry_points": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Command names this extension provides"
+        },
+        "hooks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "system_startup",
+              "system_shutdown",
+              "command_pre",
+              "command_post",
+              "file_open",
+              "file_save"
+            ]
+          },
+          "description": "System hooks this extension subscribes to"
+        },
+        "services": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Background services this extension provides"
+        }
+      }
+    },
+    
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "homepage": {"type": "string"},
+        "repository": {"type": "string"},
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}

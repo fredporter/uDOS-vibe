@@ -1,0 +1,41 @@
+#!/sbin/openrc-run
+# uDOS Watchdog & Recovery Service
+# Monitors system health and handles failure recovery
+#
+# Responsibilities:
+# - Monitor GUI session stability
+# - Detect crashes/hangs
+# - Trigger automatic recovery
+# - Fallback to TUI mode on repeated failures
+# - Log diagnostics
+
+description="uDOS System Watchdog & Recovery Manager"
+command="/usr/local/bin/udos-watchdog"
+pidfile="/var/run/udos-watchdog.pid"
+supervise_daemon_args="--respawn-max 5"
+
+depend() {
+    need localmount
+    want seatd udos-gui
+}
+
+start() {
+    ebegin "Starting uDOS Watchdog"
+    start-stop-daemon --start --pidfile "$pidfile" \
+        --exec "$command"
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping uDOS Watchdog"
+    start-stop-daemon --stop --pidfile "$pidfile"
+    eend $?
+}
+
+status() {
+    if service_started "$RC_SVCNAME"; then
+        einfo "status: running (system monitoring active)"
+    else
+        einfo "status: stopped"
+    fi
+}

@@ -1,0 +1,207 @@
+{
+  "folders": [
+    {
+      "name": "uDOS-vibe",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "explorer.excludeGitIgnore": false,
+    "files.associations": {
+      "*.ucode": "markdown",
+      "*.udos": "markdown"
+    },
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/__pycache__": true,
+      "**/*.pyc": true,
+      "**/venv": false
+    },
+    "search.exclude": {
+      "**/venv": true,
+      "**/__pycache__": true,
+      "**/node_modules": true
+    },
+    "python.defaultInterpreterPath": "${workspaceFolder:uDOS-vibe}/venv/bin/python",
+    "python.terminal.executeInFileDir": true,
+    "terminal.integrated.defaultProfile.osx": "zsh",
+    "terminal.integrated.profiles.osx": {
+      "zsh": {
+        "path": "/bin/zsh",
+        "args": [
+          "-l",
+          "-i"
+        ],
+        "icon": "terminal"
+      },
+      "bash": {
+        "path": "/bin/bash",
+        "args": [
+          "-l"
+        ],
+        "icon": "terminal-bash"
+      }
+    },
+    "terminal.integrated.env.osx": {
+      "VIRTUAL_ENV": "${workspaceFolder:uDOS-vibe}/venv",
+      "PATH": "${workspaceFolder:uDOS-vibe}/venv/bin:${env:PATH}",
+      "PYTHONPATH": "${workspaceFolder:uDOS-vibe}",
+      "UDOS_ROOT": "${workspaceFolder:uDOS-vibe}",
+      "UDOS_WIZARD_PORT_FILE": "${workspaceFolder:uDOS-vibe}/.wizard-port",
+      "VAULT_ROOT": "/Users/fredbook/Documents/vault-md",
+      "PAGER": "cat",
+      "PYTHONUNBUFFERED": "1"
+    },
+    "terminal.integrated.shellArgs.osx": [
+      "-l",
+      "-i"
+    ]
+  },
+  "extensions": {
+    "recommendations": [
+      "GitHub.copilot",
+      "GitHub.copilot-chat",
+      "ms-python.python",
+      "ms-python.vscode-pylance"
+    ],
+    "unwantedRecommendations": [
+      "hbenl.vscode-test-explorer",
+      "LittleFoxTeam.vscode-python-test-adapter"
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "uDOS: Vibe Status",
+        "type": "shell",
+        "command": "/bin/bash",
+        "args": [
+          "-lc",
+          "printf 'STATUS\\n' | ${workspaceFolder:uDOS-vibe}/bin/vibe"
+        ],
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated",
+          "focus": true,
+          "clear": true
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "uDOS: Run Tests",
+        "type": "shell",
+        "command": "/bin/bash",
+        "args": [
+          "-lc",
+          "printf 'TEST\\n' | ${workspaceFolder:uDOS-vibe}/bin/vibe"
+        ],
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated",
+          "focus": true,
+          "clear": true
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "uDOS: Lint",
+        "type": "shell",
+        "command": "/bin/bash",
+        "args": [
+          "-lc",
+          "printf 'LINT\\n' | ${workspaceFolder:uDOS-vibe}/bin/vibe"
+        ],
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated",
+          "focus": true,
+          "clear": true
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "uDOS: Health Check",
+        "type": "shell",
+        "command": "/bin/bash",
+        "args": [
+          "-lc",
+          "printf 'HEALTH\\n' | ${workspaceFolder:uDOS-vibe}/bin/vibe"
+        ],
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated",
+          "focus": true,
+          "clear": true
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "uDOS: Tail Logs",
+        "type": "shell",
+        "command": "/bin/bash",
+        "args": [
+          "-lc",
+          "printf 'TAIL LOGS\\n' | ${workspaceFolder:uDOS-vibe}/bin/vibe"
+        ],
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated",
+          "focus": true,
+          "clear": true
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "uDOS: Start Wizard Services",
+        "type": "shell",
+        "command": "/bin/bash",
+        "args": [
+          "-lc",
+          "printf 'WIZARD start\\n' | ${workspaceFolder:uDOS-vibe}/bin/vibe"
+        ],
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated",
+          "focus": true,
+          "clear": true
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "uDOS: uCODE Cycle Test",
+        "type": "shell",
+        "command": "/bin/bash",
+        "args": [
+          "-lc",
+          "${workspaceFolder:uDOS-vibe}/venv/bin/python ${workspaceFolder:uDOS-vibe}/bin/ucode-cycle.py"
+        ],
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated",
+          "focus": true,
+          "clear": true
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Wizard: Run MCP (stdio)",
+        "type": "process",
+        "command": "${workspaceFolder:uDOS-vibe}/venv/bin/python",
+        "args": [
+          "${workspaceFolder:uDOS-vibe}/mcp/wizard/mcp_server.py"
+        ],
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated",
+          "focus": true,
+          "clear": true
+        },
+        "problemMatcher": []
+      }
+    ]
+  },
+  "launch": {
+    "configurations": []
+  }
+}

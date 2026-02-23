@@ -1,0 +1,140 @@
+{
+  "schema": "udos.packaging.manifest.v2",
+  "global": {
+    "version_source": {
+      "path": "version.json",
+      "field_priority": ["display", "version"]
+    },
+    "build_id_policy": {
+      "prefix": "build",
+      "timestamp_format": "%Y%m%d-%H%M%S",
+      "random_suffix_length": 6
+    },
+    "signing_policy": {
+      "required": false,
+      "algorithm": "sha256",
+      "detached_signature_ext": ".sig",
+      "public_key_env": "WIZARD_SONIC_SIGN_PUBKEY"
+    },
+    "offline_assets": {
+      "root": "distribution/offline-assets",
+      "cache_namespace": "memory/wizard/offline-assets"
+    }
+  },
+  "platforms": {
+    "windows": {
+      "default_dependency_profile": "windows10-entertainment",
+      "dependency_profiles": {
+        "windows10-entertainment": {
+          "runtime_packages": [],
+          "build_packages": []
+        }
+      },
+      "thin_gui_build": {
+        "workspace": "wizard/dashboard",
+        "target": "msi",
+        "release": true
+      },
+      "media_game_image_steps": {
+        "scripts_root": "distribution/windows10-entertainment/scripts",
+        "mode_switch_script": "distribution/windows10-entertainment/scripts/mode-switch.ps1",
+        "install_media_shell_script": "distribution/windows10-entertainment/scripts/install-media-shell.ps1",
+        "install_game_launcher_script": "distribution/windows10-entertainment/scripts/install-game-launcher.ps1",
+        "media_policies_script": "distribution/windows10-entertainment/scripts/media-policies.ps1",
+        "offline_root": "C:\\mount",
+        "media_identifier": "{media}",
+        "game_identifier": "{game}",
+        "media_partition": "\\Device\\HarddiskVolume3",
+        "game_partition": "\\Device\\HarddiskVolume4",
+        "boot_timeout_seconds": 5
+      },
+      "shell_defaults": {
+        "kodi": "C:\\Program Files\\Kodi\\kodi.exe",
+        "playnite": "C:\\Program Files\\Playnite\\Playnite.FullscreenApp.exe",
+        "steam": "C:\\Program Files (x86)\\Steam\\steam.exe -bigpicture",
+        "custom": "C:\\udos\\MediaShell\\udos-media.exe",
+        "default_game_launcher_path": "C:\\Program Files\\Playnite\\Playnite.FullscreenApp.exe"
+      }
+    },
+    "macos": {
+      "default_dependency_profile": "wizard-app",
+      "dependency_profiles": {
+        "wizard-app": {
+          "runtime_packages": [],
+          "build_packages": []
+        }
+      },
+      "app_bundle": {
+        "app_name": "uDOS Wizard.app",
+        "bundle_id": "com.udos.wizard"
+      },
+      "signing_identity": {
+        "identity_env": "UDOS_MACOS_SIGNING_IDENTITY",
+        "team_id_env": "UDOS_MACOS_TEAM_ID"
+      },
+      "notarization": {
+        "enabled": false,
+        "apple_id_env": "UDOS_MACOS_NOTARY_APPLE_ID",
+        "app_password_env": "UDOS_MACOS_NOTARY_APP_PASSWORD",
+        "team_id_env": "UDOS_MACOS_TEAM_ID"
+      },
+      "dmg_packaging": {
+        "enabled": true,
+        "volume_name": "uDOS Wizard",
+        "output_dir": "distribution/builds/macos"
+      }
+    },
+    "linux": {
+      "default_dependency_profile": "alpine-core+sonic",
+      "dependency_profiles": {
+        "alpine-core+sonic": {
+          "runtime_packages": ["sqlite3"],
+          "build_packages": []
+        },
+        "udos-ui-thin-gui": {
+          "runtime_packages": [
+            "cage",
+            "wayland",
+            "libxkbcommon",
+            "mesa",
+            "libinput",
+            "seatd"
+          ],
+          "build_packages": [
+            "cargo",
+            "rustc",
+            "nodejs",
+            "npm",
+            "python3",
+            "python3-dev",
+            "gtk+3.0-dev",
+            "webkit2gtk-dev"
+          ]
+        }
+      },
+      "offline_installer": {
+        "script": "distribution/installer.sh",
+        "default_tier": "core",
+        "tiers": {
+          "ultra": ["udos-core.tcz"],
+          "micro": ["udos-core.tcz"],
+          "mini": ["udos-core.tcz", "udos-api.tcz"],
+          "core": ["udos-core.tcz", "udos-api.tcz"],
+          "standard": ["udos-core.tcz", "udos-api.tcz"],
+          "wizard": ["udos-core.tcz", "udos-api.tcz", "udos-wizard.tcz"]
+        }
+      },
+      "app_bundle": {
+        "build_script": "distribution/alpine-core/build-sonic-stick.sh",
+        "default_profile": "alpine-core+sonic",
+        "builds_root": "distribution/builds",
+        "runtime_dependencies": ["sqlite3"]
+      },
+      "kiosk_wrapper": {
+        "service_name": "udos-kiosk-wrapper",
+        "wrapper_script": "distribution/linux/kiosk-wrapper.sh",
+        "enabled_by_default": false
+      }
+    }
+  }
+}

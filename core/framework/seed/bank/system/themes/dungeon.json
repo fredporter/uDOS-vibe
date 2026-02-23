@@ -1,0 +1,11 @@
+{
+  "name": "dungeon",
+  "description": "Dungeon message voice for subterranean map layers.",
+  "companions": ["earth_layers_subterranean"],
+  "replacements": {
+    "Tip:": "Delve Tip:",
+    "Health:": "Delve Health:",
+    "Wizard": "Dungeon Ops",
+    "WIZARD": "DUNGEON OPS"
+  }
+}

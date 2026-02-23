@@ -1,0 +1,1 @@
+"""Empire extension package root."""

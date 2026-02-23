@@ -1,0 +1,112 @@
+{
+  "$schema": "../plugin.schema.json",
+  "id": "micro",
+  "name": "Micro Terminal Editor",
+  "version": "2.0.14",
+  "udos_version": ">=1.0.0",
+  "description": "Modern and intuitive terminal-based text editor with syntax highlighting",
+  "category": "editor",
+  "license": "MIT",
+  
+  "author": {
+    "name": "Zachary Yedidia",
+    "url": "https://github.com/zyedidia"
+  },
+  
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zyedidia/micro"
+  },
+  
+  "homepage": "https://micro-editor.github.io/",
+  "documentation": "https://github.com/zyedidia/micro#readme",
+  
+  "keywords": [
+    "editor",
+    "terminal",
+    "text",
+    "syntax-highlighting",
+    "nano-replacement"
+  ],
+  
+  "platform": {
+    "os": ["linux", "macos", "windows"],
+    "arch": ["amd64", "arm64", "arm"],
+    "tinycore": {
+      "compatible": true,
+      "tcz_name": "micro.tcz",
+      "extensions": []
+    }
+  },
+  
+  "installation": {
+    "method": "binary",
+    "sources": {
+      "linux-amd64": "https://github.com/zyedidia/micro/releases/download/v2.0.14/micro-2.0.14-linux64.tar.gz",
+      "linux-arm64": "https://github.com/zyedidia/micro/releases/download/v2.0.14/micro-2.0.14-linux-arm64.tar.gz",
+      "linux-arm": "https://github.com/zyedidia/micro/releases/download/v2.0.14/micro-2.0.14-linux-arm.tar.gz",
+      "macos-amd64": "https://github.com/zyedidia/micro/releases/download/v2.0.14/micro-2.0.14-macos-amd64.tar.gz",
+      "macos-arm64": "https://github.com/zyedidia/micro/releases/download/v2.0.14/micro-2.0.14-macos-arm64.tar.gz"
+    },
+    "binary_name": "micro",
+    "install_path": "bin/",
+    "post_install": [
+      "chmod +x bin/micro"
+    ]
+  },
+  
+  "udos_integration": {
+    "commands": {
+      "EDIT": {
+        "description": "Open file in micro editor",
+        "usage": "EDIT <filename>",
+        "handler": "core.commands.edit_handler",
+        "aliases": ["MICRO", "ED"]
+      }
+    },
+    "file_associations": [
+      ".txt", ".md", ".py", ".js", ".json", ".yaml", ".yml",
+      ".sh", ".bash", ".zsh", ".conf", ".ini", ".cfg",
+      ".md", ".ucode", ".udos"
+    ],
+    "default_editor": true
+  },
+  
+  "configuration": {
+    "config_dir": "~/.config/micro",
+    "settings_file": "settings.json",
+    "defaults": {
+      "colorscheme": "monokai",
+      "tabsize": 4,
+      "tabstospaces": true,
+      "autoindent": true,
+      "syntax": true,
+      "mouse": true
+    }
+  },
+  
+  "features": [
+    "Syntax highlighting (100+ languages)",
+    "Mouse support",
+    "Plugin system (Lua)",
+    "Multiple cursors",
+    "Split panes",
+    "Customizable keybindings",
+    "Common keyboard shortcuts (Ctrl+S, Ctrl+Q, etc.)",
+    "Undo/redo history",
+    "Unicode support",
+    "Low memory footprint"
+  ],
+  
+  "size_estimate": {
+    "download": "5MB",
+    "installed": "12MB"
+  },
+  
+  "checksums": {
+    "linux-amd64": "",
+    "linux-arm64": "",
+    "macos-amd64": "",
+    "macos-arm64": ""
+  }
+}

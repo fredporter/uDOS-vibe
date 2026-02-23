@@ -1,0 +1,157 @@
+{
+  "$schema": "../plugin.schema.json",
+  "id": "nounproject",
+  "name": "Noun Project Icon Library",
+  "version": "1.0.0",
+  "udos_version": ">=1.0.0",
+  "description": "Access millions of icons from The Noun Project for documentation and UI design",
+  "category": "graphics",
+  "license": "Proprietary",
+  
+  "author": {
+    "name": "Noun Project",
+    "url": "https://thenounproject.com"
+  },
+  
+  "repository": {
+    "type": "api",
+    "url": "https://api.thenounproject.com"
+  },
+  
+  "homepage": "https://thenounproject.com/",
+  "documentation": "https://api.thenounproject.com/documentation.html",
+  
+  "keywords": [
+    "icons",
+    "graphics",
+    "design",
+    "svg",
+    "png",
+    "library",
+    "wizard-only",
+    "api"
+  ],
+  
+  "platform": {
+    "os": ["linux", "macos", "windows"],
+    "arch": ["amd64", "arm64"],
+    "tinycore": {
+      "compatible": false,
+      "notes": "Wizard Server only - requires internet access for API calls"
+    }
+  },
+  
+  "requirements": {
+    "python": ">=3.10",
+    "internet": true,
+    "api_key": {
+      "name": "NOUNPROJECT_API_KEY",
+      "secret_name": "NOUNPROJECT_API_SECRET",
+      "url": "https://thenounproject.com/developers/",
+      "required": true,
+      "notes": "Requires both API key and API secret from developer portal"
+    }
+  },
+  
+  "installation": {
+    "method": "pip",
+    "packages": ["requests", "requests-oauthlib"],
+    "post_install": []
+  },
+  
+  "realm": "wizard_only",
+  "exposure_tier": "WIZARD_ONLY",
+  
+  "udos_integration": {
+    "commands": {
+      "ICON SEARCH": {
+        "description": "Search for icons by term",
+        "usage": "ICON SEARCH <term>",
+        "handler": "extensions.wizard_server.providers.nounproject_client",
+        "aliases": ["ICONS", "NP SEARCH"]
+      },
+      "ICON GET": {
+        "description": "Download icon by ID",
+        "usage": "ICON GET <id> [format]",
+        "handler": "extensions.wizard_server.providers.nounproject_client"
+      },
+      "ICON COLLECTION": {
+        "description": "Browse icon collections",
+        "usage": "ICON COLLECTION <name>",
+        "handler": "extensions.wizard_server.providers.nounproject_client"
+      },
+      "ICON RECENT": {
+        "description": "Show recently downloaded icons",
+        "usage": "ICON RECENT",
+        "handler": "extensions.wizard_server.providers.nounproject_client"
+      }
+    }
+  },
+  
+  "configuration": {
+    "config_dir": "~/.config/udos/providers",
+    "settings_file": "nounproject.json",
+    "defaults": {
+      "default_format": "svg",
+      "default_size": 128,
+      "cache_icons": true,
+      "cache_dir": "memory/cache/icons",
+      "max_results": 20
+    }
+  },
+  
+  "api_endpoints": {
+    "base_url": "https://api.thenounproject.com/v2",
+    "endpoints": {
+      "search": "/icon?query={term}",
+      "icon": "/icon/{id}",
+      "collection": "/collection/{slug}",
+      "collections": "/collections"
+    },
+    "rate_limits": {
+      "requests_per_minute": 100,
+      "daily_limit": 5000
+    }
+  },
+  
+  "output_formats": {
+    "svg": {
+      "description": "Scalable Vector Graphics (best for UI)",
+      "extension": ".svg"
+    },
+    "png": {
+      "description": "PNG raster image",
+      "sizes": [48, 84, 128, 256, 512],
+      "extension": ".png"
+    },
+    "ascii": {
+      "description": "ASCII art conversion for TUI",
+      "converter": "extensions.wizard_server.image_teletext"
+    }
+  },
+  
+  "features": [
+    "Search 5+ million icons",
+    "SVG and PNG download",
+    "Collection browsing",
+    "Icon caching (offline access after download)",
+    "ASCII art conversion for TUI display",
+    "Attribution tracking",
+    "Batch download support",
+    "Cost tracking integration"
+  ],
+  
+  "pricing": {
+    "notes": "Free tier: 100 API calls/day with attribution. Paid plans available.",
+    "url": "https://thenounproject.com/pricing/"
+  },
+  
+  "size_estimate": {
+    "installed": "1MB",
+    "cache": "Variable (depends on downloaded icons)"
+  },
+  
+  "changelog": {
+    "1.0.0": "Initial uDOS plugin manifest"
+  }
+}

@@ -1,0 +1,86 @@
+pkgname=udos-ui
+pkgver=1.3.4
+pkgrel=0
+pkgdesc="uDOS Alpine Core - Single-App GUI (Tauri + Wayland)"
+url="https://github.com/fredporter/udos"
+arch="x86_64"
+license="MIT"
+depends="
+    cage
+    wayland
+    libxkbcommon
+    mesa
+    libinput
+    seatd
+"
+
+makedepends="
+    cargo
+    rustc
+    nodejs
+    npm
+    python3
+    python3-dev
+    gtk+3.0-dev
+    webkit2gtk-dev
+"
+
+source="
+    https://github.com/fredporter/uMarkdown-app/archive/v$pkgver.tar.gz
+"
+
+build() {
+    cd "$builddir"
+
+    # Install frontend dependencies
+    cd src-tauri
+    cargo build --release
+    cd ..
+}
+
+package() {
+    cd "$builddir"
+
+    # Install binary to /usr/local/bin
+    install -Dm 755 src-tauri/target/release/udos-ui \
+        "$pkgdir/usr/local/bin/udos-ui"
+
+    # Add desktop entry (optional, for app menus)
+    install -Dm 644 /dev/stdin "$pkgdir/usr/share/applications/udos-ui.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=uDOS GUI
+Comment=uDOS Alpine Core GUI Interface
+Exec=/usr/local/bin/udos-ui
+Terminal=false
+Categories=Utility;
+EOF
+
+    # Add icon (if available)
+    # install -Dm 644 path/to/icon.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/udos-ui.svg"
+}
+
+# Post-install: ensure permissions
+post_install() {
+    # Ensure udos-ui is executable
+    chmod +x /usr/local/bin/udos-ui || true
+
+    # Create user/seat group if needed
+    if ! getent group seat >/dev/null 2>&1; then
+        addgroup -S seat
+    fi
+
+    echo ""
+    echo "=========================================="
+    echo "uDOS GUI (Tauri) installed successfully"
+    echo "=========================================="
+    echo ""
+    echo "To enable GUI mode:"
+    echo "  1. Mount persistence: udos-persist mount"
+    echo "  2. Switch to GUI tier: udos-tier switch gui"
+    echo "  3. Reboot or restart services"
+    echo ""
+    echo "To start GUI manually:"
+    echo "  udos-gui start"
+    echo ""
+}

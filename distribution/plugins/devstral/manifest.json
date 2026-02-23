@@ -1,0 +1,141 @@
+{
+  "$schema": "../plugin.schema.json",
+  "id": "devstral",
+  "name": "Devstral AI Coding Assistant",
+  "version": "1.0.0",
+  "udos_version": ">=1.0.0",
+  "description": "Mistral AI's coding-focused assistant for code generation, explanation, and debugging",
+  "category": "ai",
+  "license": "Apache-2.0",
+  
+  "author": {
+    "name": "Mistral AI",
+    "url": "https://mistral.ai"
+  },
+  
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mistralai/mistral-inference"
+  },
+  
+  "homepage": "https://mistral.ai/news/devstral/",
+  "documentation": "https://docs.mistral.ai/",
+  
+  "keywords": [
+    "ai",
+    "llm",
+    "coding",
+    "assistant",
+    "mistral",
+    "code-generation",
+    "debugging",
+    "wizard-only"
+  ],
+  
+  "platform": {
+    "os": ["linux", "macos", "windows"],
+    "arch": ["amd64", "arm64"],
+    "alpine": {
+      "compatible": false,
+      "notes": "Wizard Server only - requires internet access for API calls"
+    }
+  },
+  
+  "requirements": {
+    "python": ">=3.10",
+    "internet": true,
+    "api_key": {
+      "name": "MISTRAL_API_KEY",
+      "url": "https://console.mistral.ai/",
+      "required": true
+    }
+  },
+  
+  "installation": {
+    "method": "pip",
+    "packages": ["mistralai>=1.0.0"],
+    "post_install": []
+  },
+  
+  "realm": "wizard_only",
+  "exposure_tier": "WIZARD_ONLY",
+  
+  "udos_integration": {
+    "commands": {
+      "AI CODE": {
+        "description": "Generate code using Devstral",
+        "usage": "AI CODE <language> <prompt>",
+        "handler": "extensions.wizard_server.providers.devstral_client",
+        "aliases": ["DEVSTRAL", "CODE AI"]
+      },
+      "AI EXPLAIN": {
+        "description": "Explain code snippet",
+        "usage": "AI EXPLAIN <code>",
+        "handler": "extensions.wizard_server.providers.devstral_client"
+      },
+      "AI DEBUG": {
+        "description": "Debug code issues",
+        "usage": "AI DEBUG <code>",
+        "handler": "extensions.wizard_server.providers.devstral_client"
+      },
+      "AI REFACTOR": {
+        "description": "Suggest code improvements",
+        "usage": "AI REFACTOR <code>",
+        "handler": "extensions.wizard_server.providers.devstral_client"
+      }
+    }
+  },
+  
+  "configuration": {
+    "config_dir": "~/.config/udos/providers",
+    "settings_file": "devstral.json",
+    "defaults": {
+      "model": "devstral-small-2505",
+      "max_tokens": 4096,
+      "temperature": 0.7,
+      "top_p": 0.95
+    }
+  },
+  
+  "models": {
+    "devstral-small-2505": {
+      "context_window": 32768,
+      "specialization": "code",
+      "cost_per_1k_input": 0.0001,
+      "cost_per_1k_output": 0.0003
+    },
+    "codestral-latest": {
+      "context_window": 32768,
+      "specialization": "code",
+      "cost_per_1k_input": 0.0003,
+      "cost_per_1k_output": 0.0009
+    },
+    "mistral-large-latest": {
+      "context_window": 128000,
+      "specialization": "general",
+      "cost_per_1k_input": 0.002,
+      "cost_per_1k_output": 0.006
+    }
+  },
+  
+  "features": [
+    "Code generation (40+ languages)",
+    "Code explanation and documentation",
+    "Bug detection and debugging",
+    "Code refactoring suggestions",
+    "Test generation",
+    "Code completion",
+    "Function-calling support",
+    "Streaming responses",
+    "Cost tracking integration"
+  ],
+  
+  "size_estimate": {
+    "installed": "5MB",
+    "notes": "Python package only - model runs in cloud"
+  },
+  
+  "changelog": {
+    "1.0.0": "Initial uDOS plugin manifest"
+  }
+}

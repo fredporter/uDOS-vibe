@@ -1,0 +1,21 @@
+{
+  "name": "prose",
+  "version": "0.1.0",
+  "mode": "article",
+  "defaultTypography": {
+    "body": "Inter",
+    "heading": "Space Grotesk",
+    "code": "JetBrains Mono"
+  },
+  "slots": ["content", "title", "nav", "meta", "footer"],
+  "requiredAssets": ["theme.css", "assets/token.css", "assets/logo.svg", "tw-prose.css"],
+  "description": "Tailwind Typography inspired shell for readable documents.",
+  "gameplay": {
+    "contract_version": "v1",
+    "compatible_lenses": ["any"],
+    "recommended_lenses": ["rpgbbs"],
+    "score_profile": "prose-score",
+    "checkpoint_profile": "prose-checkpoints",
+    "overlay_defaults": {}
+  }
+}

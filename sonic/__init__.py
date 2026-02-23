@@ -1,0 +1,1 @@
+"""Sonic Screwdriver package root."""

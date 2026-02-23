@@ -1,0 +1,37 @@
+{
+  "$schema": "./extension.schema.json",
+  "id": "com.udos.example",
+  "version": "1.0.0",
+  "name": "Example Extension",
+  "description": "Template extension showing the extension system structure",
+  "author": "uDOS Team",
+  "license": "MIT",
+  
+  "compatibility": {
+    "udos_version": ">=1.0.0",
+    "platforms": ["linux", "tinycore"],
+    "requires_gui": false
+  },
+  
+  "dependencies": {
+    "tcz": [],
+    "python": []
+  },
+  
+  "permissions": [
+    "filesystem:sandbox",
+    "api:commands"
+  ],
+  
+  "entry_points": {
+    "commands": ["EXAMPLE"],
+    "hooks": ["system_startup", "command_pre"],
+    "services": []
+  },
+  
+  "metadata": {
+    "homepage": "https://github.com/udos/extensions/example",
+    "repository": "https://github.com/udos/extensions",
+    "tags": ["template", "example"]
+  }
+}

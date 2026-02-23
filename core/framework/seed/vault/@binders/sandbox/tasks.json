@@ -1,0 +1,66 @@
+{
+  "tasks": [
+    {
+      "id": "sandbox-import-001",
+      "mission_id": "sandbox",
+      "title": "Test email import from customer",
+      "description": "Example of importing an email as a task into sandbox",
+      "item_type": "imported",
+      "status": "todo",
+      "priority": "medium",
+      "tags": ["imported", "email", "example"],
+      "source": "email",
+      "source_id": "msg-example-001",
+      "metadata": {
+        "item_category": "feature_request",
+        "from": "customer@company.com",
+        "subject": "Feature request: dark mode support"
+      },
+      "created": "2026-02-20T10:00:00",
+      "updated": "2026-02-20T10:00:00"
+    },
+    {
+      "id": "sandbox-calendar-001",
+      "mission_id": "sandbox",
+      "title": "Team sync meeting",
+      "description": "Weekly team synchronization",
+      "item_type": "calendar_event",
+      "status": "todo",
+      "start_date": "2026-02-27T14:00:00",
+      "end_date": "2026-02-27T14:30:00",
+      "organizer": "lead@company.com",
+      "attendees": [
+        {
+          "name": "Team Lead",
+          "email": "lead@company.com",
+          "status": "accepted"
+        }
+      ],
+      "tags": ["meeting", "calendar", "team-sync"],
+      "source": "calendar",
+      "source_id": "gcal-event-001",
+      "metadata": {
+        "conference_link": "https://zoom.us/j/meeting-link",
+        "recurring": true
+      },
+      "created": "2026-02-20T09:00:00",
+      "updated": "2026-02-20T09:00:00"
+    },
+    {
+      "id": "sandbox-task-001",
+      "mission_id": "sandbox",
+      "title": "Explore new feature request",
+      "description": "Evaluate feasibility of dark mode implementation",
+      "item_type": "task",
+      "status": "todo",
+      "priority": "medium",
+      "assigned_to": null,
+      "tags": ["feature", "exploration"],
+      "due_date": "2026-02-28T17:00:00",
+      "source": "manual",
+      "metadata": {},
+      "created": "2026-02-20T10:30:00",
+      "updated": "2026-02-20T10:30:00"
+    }
+  ]
+}

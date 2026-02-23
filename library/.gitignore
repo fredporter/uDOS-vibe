@@ -1,0 +1,31 @@
+# /library - PUBLIC tool container definitions
+# Only container.json, setup scripts, and documentation are tracked.
+# Cloned/downloaded repos are local-only (not synced).
+
+# Ignore all directories by default
+*/
+
+# Whitelist container definitions and setup files
+!*/manifest.json
+!*/container.json
+!*/container.template.json
+!*/setup.sh
+!*/setup.py
+!*/README.md
+!hethack/
+!elite/
+!rpgbbs/
+!crawler3d/
+!nethack/
+!nounproject/
+!home-assistant/
+!songscribe/
+# Ignore everything inside home-assistant and songscribe except container.json
+home-assistant/*
+!home-assistant/container.json
+songscribe/*
+!songscribe/container.json
+!/README.md
+!/container.schema.json
+!/container.template.json
+!.gitkeep

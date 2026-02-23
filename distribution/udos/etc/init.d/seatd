@@ -1,0 +1,57 @@
+#!/sbin/openrc-run
+# OpenRC service for seatd
+# Seat management: provides seat access without logind
+#
+# Required by Wayland compositors (cage) for multi-user seat access
+# seatd replaces systemd-logind on Alpine/minimal systems
+
+description="Seat management daemon"
+command="/usr/sbin/seatd"
+command_args="-u seat"
+command_background=true
+pidfile="/var/run/seatd.pid"
+
+depend() {
+    need localmount
+    after logger
+}
+
+start_pre() {
+    # Ensure seat group exists
+    if ! getent group seat >/dev/null 2>&1; then
+        ebegin "Creating seat group"
+        addgroup -S seat 2>/dev/null || true
+        eend $?
+    fi
+
+    # Ensure seat user exists (if needed)
+    if ! getent passwd seat >/dev/null 2>&1; then
+        ebegin "Creating seat user"
+        adduser -S -D -G seat -s /sbin/nologin seat 2>/dev/null || true
+        eend $?
+    fi
+}
+
+start() {
+    ebegin "Starting seatd"
+    start-stop-daemon --start --pidfile "$pidfile" \
+        --exec "$command" -- $command_args
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping seatd"
+    start-stop-daemon --stop --pidfile "$pidfile"
+    eend $?
+}
+
+status() {
+    if service_started "$RC_SVCNAME"; then
+        einfo "status: started"
+        if [ -n "$pidfile" ] && [ -f "$pidfile" ]; then
+            einfo "  pid: $(cat "$pidfile")"
+        fi
+    else
+        einfo "status: stopped"
+    fi
+}

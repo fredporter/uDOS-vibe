@@ -1,0 +1,179 @@
+#!/bin/sh
+# uDOS System Tier Switcher
+# Runtime utility to switch between TUI and GUI modes
+#
+# Usage:
+#   udos-tier status
+#   udos-tier switch tui
+#   udos-tier switch gui
+#   udos-tier boot-flags     # Show kernel boot flags
+#   udos-tier config         # Show configuration
+
+set -e
+
+UDOS_CONFIG="/etc/udos"
+MODE_FILE="$UDOS_CONFIG/mode"
+PERSIST_MOUNT="/mnt/udos"
+
+# Ensure config directory exists
+mkdir -p "$UDOS_CONFIG"
+
+# Initialize mode file if missing
+if [ ! -f "$MODE_FILE" ]; then
+    echo "tui" > "$MODE_FILE"
+fi
+
+# Read current mode
+get_current_mode() {
+    cat "$MODE_FILE"
+}
+
+# Get mode from kernel boot flags
+get_boot_flag_mode() {
+    # Check kernel cmdline for udos.mode=...
+    if grep -q "udos.mode=" /proc/cmdline 2>/dev/null; then
+        grep -o "udos.mode=[^ ]*" /proc/cmdline | cut -d= -f2
+    else
+        echo ""
+    fi
+}
+
+cmd_status() {
+    local current=$(get_current_mode)
+    local boot_flag=$(get_boot_flag_mode)
+
+    echo "╭─ uDOS System Tier Status ─────────────────────╮"
+    echo "│                                                │"
+    echo "│  Current mode (config):  $current"
+    if [ -n "$boot_flag" ]; then
+        echo "│  Boot flag override:     $boot_flag"
+    fi
+    echo "│                                                │"
+    echo "│  Tier 1 (TUI):   OpenRC shell [default]       │"
+    echo "│  Tier 2 (GUI):   Wayland + Cage + Tauri       │"
+    echo "│                                                │"
+
+    # Check GUI prerequisites if applicable
+    if [ "$current" = "gui" ] || [ "$boot_flag" = "gui" ]; then
+        echo "│  GUI Prerequisites:                          │"
+        if [ -f /usr/local/bin/udos-ui ]; then
+            echo "│    ✓ udos-ui binary found                     │"
+        else
+            echo "│    ✗ udos-ui binary NOT found                 │"
+        fi
+        if command -v cage >/dev/null 2>&1; then
+            echo "│    ✓ Cage compositor available                │"
+        else
+            echo "│    ✗ Cage not installed (apk add cage)        │"
+        fi
+        if command -v seatd >/dev/null 2>&1; then
+            echo "│    ✓ seatd available                          │"
+        else
+            echo "│    ✗ seatd not installed (apk add seatd)      │"
+        fi
+        if [ -d "$PERSIST_MOUNT" ]; then
+            echo "│    ✓ Persistence mount found: $PERSIST_MOUNT  │"
+        else
+            echo "│    ✗ Persistence NOT mounted                  │"
+        fi
+    fi
+
+    echo "│                                                │"
+    echo "╰────────────────────────────────────────────────╯"
+}
+
+cmd_switch() {
+    if [ -z "$1" ]; then
+        echo "Usage: udos-tier switch {tui|gui}"
+        exit 1
+    fi
+
+    case "$1" in
+        tui|gui)
+            echo "$1" > "$MODE_FILE"
+            echo "✓ Tier switched to: $1"
+            echo ""
+            echo "To use the new tier immediately:"
+            echo "  - Reboot system: reboot"
+            echo "  - Or at next service restart"
+            ;;
+        *)
+            echo "Error: Invalid tier '$1'"
+            echo "Valid options: tui, gui"
+            exit 1
+            ;;
+    esac
+}
+
+cmd_boot_flags() {
+    echo "Current kernel boot flags:"
+    echo "  $(cat /proc/cmdline)"
+    echo ""
+    echo "To set boot mode via kernel flags:"
+    echo "  Add to bootloader: udos.mode=gui"
+    echo ""
+    echo "Example (Alpine GRUB):"
+    echo "  Edit /etc/default/grub:"
+    echo "    GRUB_CMDLINE_LINUX_DEFAULT=\"udos.mode=gui\""
+    echo "  Then: grub-mkconfig -o /boot/grub/grub.cfg"
+}
+
+cmd_config() {
+    echo "Configuration files:"
+    echo "  Mode config:      $MODE_FILE"
+    echo "  Config directory: $UDOS_CONFIG"
+    echo "  Persistence:      $PERSIST_MOUNT"
+    echo ""
+    echo "Current /etc/udos/mode contents:"
+    cat "$MODE_FILE"
+    echo ""
+}
+
+cmd_help() {
+    cat <<'EOF'
+udos-tier - uDOS System Tier Manager
+
+Usage:
+  udos-tier status        Show current tier and prerequisites
+  udos-tier switch {tui|gui}  Switch tier [requires reboot to take effect]
+  udos-tier boot-flags    Show kernel boot flag configuration
+  udos-tier config        Show configuration file locations
+  udos-tier help          This help message
+
+Tiers:
+  Tier 1 (TUI):   Text User Interface, minimal services [default]
+  Tier 2 (GUI):   Wayland + Cage + Tauri single-app session
+
+Boot-time Override:
+  Add 'udos.mode=gui' to kernel command line to override config file.
+
+Examples:
+  $ udos-tier status
+  $ udos-tier switch gui
+  $ reboot
+EOF
+}
+
+# Main dispatcher
+case "${1:-status}" in
+    status)
+        cmd_status
+        ;;
+    switch)
+        cmd_switch "${2:-}"
+        ;;
+    boot-flags)
+        cmd_boot_flags
+        ;;
+    config)
+        cmd_config
+        ;;
+    help|--help|-h)
+        cmd_help
+        ;;
+    *)
+        echo "Unknown command: $1"
+        cmd_help
+        exit 1
+        ;;
+esac

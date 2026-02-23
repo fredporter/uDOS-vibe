@@ -1,0 +1,69 @@
+{
+  "id": "songscribe",
+  "name": "Songscribe",
+  "version": "1.2.1",
+  "description": "Turn any song into sheet music. ML-powered instrument separation, audio-to-MIDI conversion, and score generation.",
+  "category": "music_production",
+  "type": "container",
+  "source": "library/songscribe",
+  "license": "MIT",
+  "homepage": "https://songscribe.xyz/",
+  "documentation": "https://github.com/gabe-serna/songscribe#readme",
+  "maintainer": "Gabe Serna / uDOS Wizard Server",
+  "keywords": ["music", "transcription", "midi", "ml", "audio-to-midi", "sheet-music"],
+  "features": {
+    "audio_to_midi": true,
+    "instrument_separation": true,
+    "vocal_removal": true,
+    "drum_transcription": true,
+    "sheet_music_generation": true,
+    "midi_editor": true,
+    "pdf_export": true
+  },
+  "supported_formats": {
+    "input": ["mp3", "wav", "flac", "ogg", "youtube_url"],
+    "output": ["midi", "musicxml", "pdf", "stems"]
+  },
+  "presets": {
+    "solo": "1 instrument",
+    "duet": "vocals + no vocals",
+    "small_band": "vocals, drums, bass, other",
+    "full_band": "vocals, drums, bass, guitar, piano, other"
+  },
+  "system_requirements": {
+    "cpu": "Multi-core recommended",
+    "memory": "8GB+ for ML models",
+    "gpu": "Optional (CUDA acceleration)",
+    "storage": "2GB+ for models",
+    "platforms": ["linux", "macos", "windows", "alpine"]
+  },
+  "wizard_commands": [
+    "MUSIC TRANSCRIBE <file.mp3>",
+    "MUSIC TRANSCRIBE <youtube_url>",
+    "MUSIC SEPARATE <file.mp3> --preset full_band",
+    "MUSIC STEMS <file.mp3>",
+    "MUSIC SCORE <file.mid>"
+  ],
+  "launch_config": {
+    "service": "songscribe_service",
+    "port": 3000,
+    "browser_route": "/ui/songscribe",
+    "output_page": true,
+    "frame_title": "Songscribe - Music Transcription"
+  },
+  "groovebox_integration": {
+    "import_midi": true,
+    "export_to_mml": true,
+    "stem_to_track": true,
+    "note": "Transcribed MIDI can be edited in Groovebox and exported to MML patterns"
+  },
+  "dependencies": [
+    "python3.11+",
+    "node.js 18+",
+    "ffmpeg"
+  ],
+  "installation": {
+    "method": "apk",
+    "script": "wizard/tools/songscribe_setup.py"
+  }
+}

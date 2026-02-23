@@ -1,0 +1,51 @@
+{
+  "$schema": "../container.schema.json",
+  "container": {
+    "id": "crawler3d",
+    "name": "TOYBOX Crawler3D",
+    "description": "3D crawler gameplay runtime adapter for uDOS TOYBOX.",
+    "type": "git",
+    "source": "https://github.com/crawl/crawl",
+    "ref": "master",
+    "cloned_at": null,
+    "last_update": null,
+    "commit": null,
+    "version": "0.1.0-scaffold"
+  },
+  "policy": {
+    "read_only": true,
+    "auto_update": false,
+    "update_channel": "wizard_only",
+    "verify_signatures": false
+  },
+  "integration": {
+    "wrapper_path": "extensions/play/toybox/crawler3d",
+    "service_path": "wizard/services/toybox/crawler3d_adapter.py",
+    "handler_path": "core/commands/gameplay_handler.py",
+    "install_script": "library/crawler3d/setup.sh",
+    "layers": "500-599"
+  },
+  "metadata": {
+    "license": "Open Source",
+    "homepage": "https://crawl.develz.org/",
+    "documentation": "docs/specs/TOYBOX-GAMEPLAY-SCAFFOLD-v1.3.md",
+    "maintainer": "uDOS Wizard Server",
+    "category": "toybox-gameplay"
+  },
+  "toybox": {
+    "profile": "crawler3d",
+    "lens": "crawler3d",
+    "upstream_policy": "no-fork",
+    "reskin_policy": "udos-ui-redraw-2026"
+  },
+  "service": {
+    "port": 7424,
+    "health_check_url": "http://localhost:7424/health",
+    "browser_route": "/ui/crawler3d"
+  },
+  "launch_config": {
+    "command": ["python3", "-m", "wizard.services.toybox.crawler3d_adapter"],
+    "cwd": "."
+  },
+  "repo_path": "memory/library/containers/crawler3d"
+}

@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "wizard-server",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "wizard/server.py", "--no-interactive"],
+      "port": 8765,
+      "autoPort": false
+    },
+    {
+      "name": "dashboard-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "wizard/dashboard"],
+      "port": 5174
+    },
+    {
+      "name": "web-admin-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "web-admin"],
+      "port": 5173
+    },
+  ]
+}

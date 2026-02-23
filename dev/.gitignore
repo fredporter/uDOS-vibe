@@ -1,0 +1,10 @@
+# Dev template ignores
+examples/
+goblin/
+library/
+scripts/
+tests/
+
+# OS detritus
+.DS_Store
+**/.DS_Store

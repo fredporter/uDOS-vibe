@@ -1,0 +1,11 @@
+{
+  "name": "scientist",
+  "description": "Laboratory message voice for orbital and stellar operations.",
+  "companions": ["galaxy_layers", "stellar_layers"],
+  "replacements": {
+    "Tip:": "Lab Tip:",
+    "Health:": "Systems Health:",
+    "Wizard": "Research Ops",
+    "WIZARD": "RESEARCH OPS"
+  }
+}

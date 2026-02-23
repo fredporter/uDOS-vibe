@@ -1,0 +1,264 @@
+"""
+GOTO command handler - Navigate between locations.
+
+Enables movement to adjacent locations via location ID or direction (north, south, etc).
+Validates connections and updates game state.
+
+Includes instrumentation via HandlerLoggingMixin for performance tracking.
+"""
+
+from typing import Dict, List, Optional
+from core.commands.base import BaseCommandHandler
+from core.commands.handler_logging_mixin import HandlerLoggingMixin
+from core.locations import load_locations, LocationService
+from core.services.error_contract import CommandError
+
+
+class GotoHandler(BaseCommandHandler, HandlerLoggingMixin):
+    """Navigate to another location with automatic logging."""
+
+    def __init__(self):
+        """Initialize goto handler."""
+        super().__init__()
+        self.location_service = LocationService()
+        self.current_location = "L300-BJ10"  # Default starting location
+
+    def handle(self, command: str, params: List[str], grid, parser) -> Dict:
+        """
+        Handle GOTO command.
+
+        Args:
+            command: "GOTO"
+            params: ["location_id"] or ["direction"] (north, south, east, west, up, down)
+            grid: TUI grid for rendering
+            parser: Command parser
+
+        Returns:
+            Dict with status and navigation result
+        """
+        with self.trace_command(command, params) as trace:
+            if not params:
+                trace.set_status('error')
+                self.log_param_error(command, params, "Location ID or direction required")
+                raise CommandError(
+                    code="ERR_COMMAND_INVALID_ARG",
+                    message="GOTO requires location ID or direction (north, south, east, west, up, down)",
+                    recovery_hint="Usage: GOTO <location_id> or GOTO <direction>",
+                    level="INFO",
+                )
+
+            # Load locations
+            try:
+                db = load_locations()
+                current = db.get(self.current_location)
+                trace.add_event('current_location_loaded', {
+                    'location_id': self.current_location
+                })
+            except Exception as e:
+                trace.record_error(e)
+                trace.set_status('error')
+                self.log_operation(command, 'current_location_load_failed', {
+                    'error': str(e)
+                })
+                raise CommandError(
+                    code="ERR_LOCATION_LOAD_FAILED",
+                    message=f"Failed to load current location: {str(e)}",
+                    recovery_hint="Run VERIFY to check location data integrity",
+                    level="WARNING",
+                )
+
+            if not current:
+                trace.set_status('error')
+                self.log_operation(command, 'current_location_not_found', {
+                    'location_id': self.current_location
+                })
+                raise CommandError(
+                    code="ERR_LOCATION_NOT_FOUND",
+                    message=f"Current location {self.current_location} not found",
+                    recovery_hint="Use FIND to search for available locations",
+                    level="INFO",
+                )
+
+            trace.mark_milestone('current_location_validated')
+
+            # Check if params[0] is direction
+            target_param = params[0]  # Preserve case for location IDs
+            direction_keywords = [
+                "north",
+                "south",
+                "east",
+                "west",
+                "up",
+                "down",
+                "n",
+                "s",
+                "e",
+                "w",
+                "u",
+                "d",
+            ]
+
+            if target_param.lower() in direction_keywords:
+                trace.add_event('direction_navigation', {
+                    'direction': target_param.lower()
+                })
+
+                # Expand short directions
+                direction_map = {
+                    "n": "north",
+                    "s": "south",
+                    "e": "east",
+                    "w": "west",
+                    "u": "up",
+                    "d": "down",
+                }
+                target_dir = direction_map.get(target_param.lower(), target_param.lower())
+
+                # Find connection in that direction
+                target_id = self._find_connection_by_direction(current, target_dir)
+                trace.add_event('connection_lookup', {
+                    'direction': target_dir,
+                    'found': target_id is not None
+                })
+
+                if not target_id:
+                    available = self._get_available_directions(current)
+                    trace.set_status('error')
+                    self.log_operation(command, 'no_exit_in_direction', {
+                        'direction': target_dir,
+                        'available_directions': available
+                    })
+                    raise CommandError(
+                        code="ERR_LOCATION_NOT_FOUND",
+                        message=f"Cannot go {target_dir} from here.",
+                        recovery_hint=f"Available exits: {', '.join(available) if available else 'none'}",
+                        details={"available_directions": available},
+                        level="INFO",
+                    )
+            else:
+                # Treat as location ID
+                target_id = target_param
+                trace.add_event('location_id_navigation', {
+                    'target_id': target_id
+                })
+
+            # Validate target exists
+            try:
+                target = db.get(target_id)
+                trace.add_event('target_loaded', {'target_id': target_id})
+            except Exception as e:
+                trace.record_error(e)
+                trace.set_status('error')
+                self.log_operation(command, 'target_load_failed', {'error': str(e)})
+                raise CommandError(
+                    code="ERR_LOCATION_LOAD_FAILED",
+                    message=f"Failed to load target location: {str(e)}",
+                    recovery_hint="Run VERIFY to check location data integrity",
+                    level="WARNING",
+                )
+
+            if not target:
+                trace.set_status('error')
+                self.log_operation(command, 'target_not_found', {'target_id': target_id})
+                raise CommandError(
+                    code="ERR_LOCATION_NOT_FOUND",
+                    message=f"Target location {target_id} not found",
+                    recovery_hint="Use FIND to search for available locations",
+                    level="INFO",
+                )
+
+            # Check if target is reachable from current location
+            if not self._is_connected(current, target_id):
+                trace.set_status('error')
+                self.log_operation(command, 'target_not_connected', {
+                    'current_location': current.name,
+                    'target_location': target.name
+                })
+                raise CommandError(
+                    code="ERR_STATE_INVALID_TRANSITION",
+                    message=f"Cannot reach {target.name} from {current.name}",
+                    recovery_hint="Use FIND to locate a path or try a connected direction",
+                    details={
+                        "current_location": current.name,
+                        "target_location": target.name,
+                    },
+                    level="INFO",
+                )
+
+            # Update game state
+            previous_location = self.current_location
+            self.current_location = target_id
+
+            trace.set_status('success')
+            trace.add_event('location_updated', {
+                'previous_location': previous_location,
+                'new_location': target_id
+            })
+
+            return {
+                "status": "success",
+                "message": f"OK Traveled to {target.name}",
+                "location_id": target_id,
+                "location_name": target.name,
+                "region": target.region,
+                "layer": target.layer,
+                "timezone": target.timezone,
+                "previous_location": previous_location,
+                "available_exits": self._get_available_directions(target),
+            }
+
+    def _find_connection_by_direction(self, location, direction: str) -> Optional[str]:
+        """
+        Find connection matching direction.
+
+        Args:
+            location: Location object
+            direction: Direction name ('north', 'south', etc)
+
+        Returns:
+            Target location ID or None if not found
+        """
+        for conn in location.connections:
+            if conn.direction.lower() == direction.lower():
+                return conn.to
+        return None
+
+    def _get_available_directions(self, location) -> List[str]:
+        """
+        Get list of available directions from location.
+
+        Args:
+            location: Location object
+
+        Returns:
+            List of available direction names
+        """
+        directions = []
+        for conn in location.connections:
+            if conn.direction not in directions:
+                directions.append(conn.direction)
+        return sorted(directions)
+
+    def _is_connected(self, location, target_id: str) -> bool:
+        """
+        Check if target location is directly connected.
+
+        Args:
+            location: Source location
+            target_id: Target location ID
+
+        Returns:
+            True if directly connected, False otherwise
+        """
+        for conn in location.connections:
+            if conn.to == target_id:
+                return True
+        return False
+
+    def set_current_location(self, location_id: str) -> None:
+        """Set the current location (for game state management)."""
+        self.current_location = location_id
+
+    def get_current_location(self) -> str:
+        """Get the current location."""
+        return self.current_location

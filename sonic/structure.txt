@@ -1,0 +1,64 @@
+sonic/ --part local only
+├── config/
+│   ├── sonic-layout.json
+│   └── sonic-manifest.json.example
+├── core/
+│   ├── __init__.py
+│   ├── manifest.py
+│   ├── os_limits.py
+│   ├── plan.py
+│   └── sonic_cli.py
+├── datasets/
+│   ├── README.md
+│   ├── sonic-devices.schema.json
+│   ├── sonic-devices.sql
+│   ├── sonic-devices.table.md
+│   └── version.json
+├── docs/
+│   ├── devlog/
+│   ├── howto/
+│   ├── specs/
+│   ├── 01-overview.md
+│   ├── 02-usb-setup.md
+│   ├── 03-udos-core.md
+│   ├── 04-tauri-layer.md
+│   ├── 05-ubuntu-wizard.md
+│   ├── 06-local-drives.md
+│   ├── 07-windows-gaming.md
+│   ├── 08-boot-model.md
+│   ├── 09-summary.md
+│   ├── README.md
+│   ├── retroarch-single-profile-netplay.md
+│   ├── roadmap.md
+│   ├── sonic-stick-kodi-launcher-flow-and-modes.md
+│   ├── sonic-stick-media-addon-brief.md
+│   └── wantmymtv-kiosk-wrapper-spec.md
+├── payloads/
+│   ├── .gitignore
+│   └── README.md
+├── scripts/
+│   ├── lib/
+│   ├── apply-payloads-v2.sh
+│   ├── collect-logs.sh
+│   ├── create-data-partition.sh
+│   ├── download-payloads.sh
+│   ├── partition-layout.sh
+│   ├── scan-library.sh
+│   ├── sonic-stick.sh
+│   ├── tinycore-bootlog.sh
+│   └── verify-usb-layout.sh
+├── ui/
+│   ├── src/
+│   ├── index.html
+│   ├── package.json
+│   ├── postcss.config.js
+│   ├── README.md
+│   ├── tailwind.config.js
+│   └── vite.config.js
+├── .DS_Store --local only
+├── .gitignore
+├── CHANGELOG.md
+├── LICENSE
+├── README.md
+├── sonic-stick.code-workspace
+└── version.json

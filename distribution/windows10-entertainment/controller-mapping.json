@@ -1,0 +1,24 @@
+{
+  "controller": "xbox_one",
+  "layout": {
+    "A": "confirm",
+    "B": "back",
+    "X": "context",
+    "Y": "search",
+    "Menu": "options",
+    "View": "overlay",
+    "LB": "tab_left",
+    "RB": "tab_right",
+    "LT": "scroll_fast_left",
+    "RT": "scroll_fast_right",
+    "DPad": "navigate",
+    "LeftStick": "primary",
+    "RightStick": "secondary",
+    "Xbox": "system_menu"
+  },
+  "long_press": {
+    "Xbox": "mode_switcher",
+    "View": "udos_overlay",
+    "Menu": "power_menu"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "stranger-things",
+  "description": "UpsideDown-inspired message voice for subterranean layers.",
+  "companions": ["earth_layers_subterranean"],
+  "replacements": {
+    "Tip:": "Upside Tip:",
+    "Health:": "Upside Health:",
+    "Wizard": "Signal Ops",
+    "WIZARD": "SIGNAL OPS"
+  }
+}

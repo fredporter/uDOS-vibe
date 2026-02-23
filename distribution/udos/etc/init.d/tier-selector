@@ -1,0 +1,72 @@
+#!/sbin/openrc-run
+# uDOS Tier Selector Service
+# Early boot service that determines system tier based on /etc/udos/mode
+#
+# Tier 1 (default, TUI):  OpenRC shell, minimal services
+# Tier 2 (GUI):        Wayland + Cage + Tauri single-app session
+#
+# This service runs before getty to configure the appropriate boot path
+
+description="uDOS System Tier Selector (TUI vs GUI)"
+depend() {
+    need localmount
+    before logger
+    before getty
+}
+
+start() {
+    ebegin "Selecting uDOS system tier"
+
+    # Ensure mode file exists
+    if [ ! -f /etc/udos/mode ]; then
+        einfo "Creating mode file with default (TUI)..."
+        mkdir -p /etc/udos
+        echo "tui" > /etc/udos/mode
+    fi
+
+    MODE=$(cat /etc/udos/mode)
+
+    case "$MODE" in
+        tui)
+            einfo "Tier 1 selected: TUI (Text User Interface)"
+            einfo "Starting OpenRC → shell environment"
+            ;;
+        gui)
+            einfo "Tier 2 selected: GUI (Wayland + Cage + Tauri)"
+            einfo "Starting OpenRC → GUI launcher"
+            # udos-gui service will be started by OpenRC if mode is 'gui'
+            ;;
+        *)
+            ewarn "Unknown mode: '$MODE'"
+            ewarn "Valid modes: tui, gui"
+            ewarn "Defaulting to TUI"
+            echo "tui" > /etc/udos/mode
+            ;;
+    esac
+
+    eend 0
+}
+
+# Allow runtime tier switching
+# Usage: rc-service tier-selector switch gui
+switch() {
+    if [ -z "$1" ]; then
+        cur=$(cat /etc/udos/mode)
+        einfo "Current tier: $cur"
+        einfo "Usage: rc-service tier-selector switch {tui|gui}"
+        return 1
+    fi
+
+    case "$1" in
+        tui|gui)
+            einfo "Switching to tier: $1"
+            echo "$1" > /etc/udos/mode
+            einfo "New tier will be active on next boot"
+            einfo "To switch immediately, restart OpenRC or reboot"
+            ;;
+        *)
+            eerror "Invalid tier: $1"
+            eend 1
+            ;;
+    esac
+}

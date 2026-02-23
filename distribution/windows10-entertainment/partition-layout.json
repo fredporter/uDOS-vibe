@@ -1,0 +1,32 @@
+{
+  "label": "windows10-entertainment",
+  "format_mode": "gpt",
+  "auto_scale": false,
+  "partitions": [
+    {
+      "label": "uDOS_BOOT",
+      "fs": "fat32",
+      "size_gb": 1,
+      "role": "boot",
+      "flags": ["boot", "esp"]
+    },
+    {
+      "label": "uDOS_CORE",
+      "fs": "ext4",
+      "size_gb": 16,
+      "role": "udos"
+    },
+    {
+      "label": "WINDOWS_MEDIA",
+      "fs": "ntfs",
+      "size_gb": 80,
+      "role": "media"
+    },
+    {
+      "label": "WINDOWS_GAMES",
+      "fs": "ntfs",
+      "remainder": true,
+      "role": "games"
+    }
+  ]
+}

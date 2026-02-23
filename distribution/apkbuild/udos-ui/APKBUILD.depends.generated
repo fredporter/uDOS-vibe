@@ -1,0 +1,21 @@
+# Generated from packaging.manifest.json
+# source: platforms.linux.dependency_profiles.udos-ui-thin-gui
+depends="
+    cage
+    wayland
+    libxkbcommon
+    mesa
+    libinput
+    seatd
+"
+
+makedepends="
+    cargo
+    rustc
+    nodejs
+    npm
+    python3
+    python3-dev
+    gtk+3.0-dev
+    webkit2gtk-dev
+"

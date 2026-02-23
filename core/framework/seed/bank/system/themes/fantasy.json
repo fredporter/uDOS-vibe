@@ -1,0 +1,11 @@
+{
+  "name": "fantasy",
+  "description": "Quest-style message voice for dungeon and overworld operations.",
+  "companions": ["earth_layers_subterranean", "earth_layers"],
+  "replacements": {
+    "Tip:": "Quest Tip:",
+    "Health:": "Guild Health:",
+    "Wizard": "Arcane Ops",
+    "WIZARD": "ARCANE OPS"
+  }
+}

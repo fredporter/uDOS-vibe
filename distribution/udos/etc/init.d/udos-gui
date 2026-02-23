@@ -1,0 +1,75 @@
+#!/sbin/openrc-run
+# OpenRC service for uDOS GUI (Cage + Tauri)
+# Wayland single-app session manager
+#
+# Depends on: seatd, localmount
+# Executes: cage -- /usr/local/bin/udos-ui
+#
+# Tier 2 mode only - enabled via /etc/udos/mode = "gui"
+
+description="uDOS Alpine Core GUI (Wayland + Cage + Tauri)"
+command="/usr/local/bin/udos-gui"
+command_args="start"
+pidfile="/var/run/udos-gui.pid"
+supervise_daemon_args="--respawn-max 0"
+
+depend() {
+    need seatd localmount
+    use net logger
+    before getty
+}
+
+start_pre() {
+    # Check if GUI mode is enabled
+    if [ -f /etc/udos/mode ]; then
+        MODE=$(cat /etc/udos/mode)
+        if [ "$MODE" != "gui" ]; then
+            ewarn "GUI mode not enabled (/etc/udos/mode = '$MODE')"
+            ewarn "Set /etc/udos/mode to 'gui' to enable this service"
+            return 1
+        fi
+    else
+        ewarn "Mode file not found: /etc/udos/mode"
+        ewarn "Create with: echo 'gui' > /etc/udos/mode"
+        return 1
+    fi
+
+    # Verify udos-gui exists
+    if [ ! -f "$command" ]; then
+        eerror "udos-gui not found: $command"
+        return 1
+    fi
+
+    if [ ! -x "$command" ]; then
+        chmod +x "$command"
+    fi
+
+    # Ensure persistence mount exists
+    if [ ! -d /mnt/udos ]; then
+        ewarn "Persistence mount not found: /mnt/udos"
+        ewarn "GUI mode requires persistence partition to be mounted"
+        return 1
+    fi
+}
+
+start() {
+    ebegin "Starting uDOS GUI (Cage + Tauri)"
+    start-stop-daemon --start --pidfile "$pidfile" \
+        --exec "$command" -- $command_args
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping uDOS GUI"
+    start-stop-daemon --stop --pidfile "$pidfile" \
+        --exec "$command" -- stop
+    eend $?
+}
+
+status() {
+    if service_started "$RC_SVCNAME"; then
+        einfo "status: started (GUI session active)"
+    else
+        einfo "status: stopped (TUI mode)"
+    fi
+}

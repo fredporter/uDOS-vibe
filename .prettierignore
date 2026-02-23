@@ -1,0 +1,41 @@
+# Files to ignore for Prettier formatting
+
+# Node modules
+node_modules/
+.npm/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+.coverage
+
+# Git & version control
+.git/
+.gitignore
+
+# Environment & config
+.env*
+.venv/
+venv/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project-specific
+memory/
+.vibe/
+vault/
+
+# Vibe distribution (read-only)
+vibe/

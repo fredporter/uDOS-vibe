@@ -1,0 +1,13 @@
+{
+  "completed": [
+    {
+      "id": "sandbox-milestone-001",
+      "mission_id": "sandbox",
+      "title": "Completed first import test",
+      "description": "Successfully imported test email as task",
+      "item_type": "imported",
+      "completed": "2026-02-20T12:00:00",
+      "achievements": ["import-functional", "email-mapping-works"]
+    }
+  ]
+}

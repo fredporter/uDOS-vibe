@@ -1,0 +1,30 @@
+{
+  "id": "sandbox",
+  "name": "Sandbox Project",
+  "description": "Safe space for exploring ideas and experimenting without impacting main projects",
+  "goal": "Explore and validate ideas rapidly without impacting production projects.",
+  "definition_of_done": "Validated experiments are documented and either promoted or archived.",
+  "constraints": {
+    "budget": null,
+    "max_daily_calls": null,
+    "privacy": "local-first",
+    "deadlines": []
+  },
+  "policy": {
+    "routing_rules": [],
+    "escalation_thresholds": {}
+  },
+  "promptsets": [],
+  "binders": {
+    "chapter_outline": [],
+    "exports": ["markdown", "json"]
+  },
+  "task_graph": {
+    "tasks": [],
+    "dependencies": []
+  },
+  "guidelines": "1. Use for prototyping\n2. Iterate quickly\n3. Document discoveries\n4. Graduate successful experiments to main projects",
+  "process": "1. Create task\n2. Experiment\n3. Document findings\n4. Review\n5. Archive or promote",
+  "created": "2026-02-20T00:00:00",
+  "updated": "2026-02-20T00:00:00"
+}

@@ -1,0 +1,55 @@
+{
+  "id": "home-assistant",
+  "name": "Home Assistant",
+  "version": "2024.1.0",
+  "description": "Open-source home automation platform with local control and privacy focus",
+  "category": "home_automation",
+  "type": "container",
+  "source": "library/home-assistant",
+  "license": "Apache-2.0",
+  "homepage": "https://www.home-assistant.io/",
+  "documentation": "https://developers.home-assistant.io/",
+  "maintainer": "Home Assistant / uDOS Wizard Server",
+  "keywords": ["home", "automation", "iot", "smart-home"],
+  "features": {
+    "local_control": true,
+    "privacy_first": true,
+    "automation": true,
+    "integrations": "90+ platforms",
+    "web_interface": true,
+    "api": true,
+    "mqtt": true
+  },
+  "system_requirements": {
+    "cpu": "ARM or x86",
+    "memory": "1GB+",
+    "storage": "2GB+",
+    "platforms": ["linux", "macos", "windows", "alpine"]
+  },
+  "wizard_commands": [
+    "HOME START",
+    "HOME RESTART",
+    "HOME STATUS",
+    "HOME SHOW <entity_id>"
+  ],
+  "launch_config": {
+    "service": "home_assistant_service",
+    "port": 8123,
+    "browser_route": "/ui/home-assistant",
+    "output_page": true,
+    "frame_title": "Home Assistant"
+  },
+  "dependencies": [
+    "python3.11+",
+    "sqlite3"
+  ],
+  "installation": {
+    "method": "apk",
+    "script": "wizard/tools/home_assistant_setup.py"
+  },
+  "status_indicators": {
+    "service_running": true,
+    "port_available": true,
+    "database_ready": true
+  }
+}

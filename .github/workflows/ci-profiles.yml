@@ -1,0 +1,54 @@
+name: CI Profiles
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  tests-by-profile:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: core
+            extra: udos
+          - profile: wizard
+            extra: udos-wizard
+          - profile: full
+            extra: udos-full
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync dependencies (${{ matrix.profile }})
+        run: uv sync --group dev --extra ${{ matrix.extra }}
+
+      - name: Packaging dependency parity
+        run: uv run python tools/ci/check_packaging_dependency_artifacts_sync.py
+
+      - name: Run tests (${{ matrix.profile }})
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          WARNING_BUDGET: "0"
+        run: |
+          log_file="$(mktemp)"
+          ./scripts/run_pytest_profile.sh "${{ matrix.profile }}" | tee "$log_file"
+
+          observed_warnings=0
+          if summary_line="$(grep -E ' [0-9]+ warnings?' "$log_file" | tail -n 1)"; then
+            observed_warnings="$(printf '%s' "$summary_line" | sed -E 's/.* ([0-9]+) warnings?.*/\1/')"
+          fi
+
+          echo "Warning budget (${{ matrix.profile }}): allowed=${WARNING_BUDGET}, observed=${observed_warnings}"
+          echo "::notice title=Warning budget (${{ matrix.profile }})::allowed=${WARNING_BUDGET}, observed=${observed_warnings}"
