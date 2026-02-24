@@ -15,6 +15,8 @@ import socket
 import time
 from collections import deque
 
+from core.services.unified_config_loader import get_config, get_bool_config, get_int_config
+
 # Ensure local gateway module is importable without shadowing MCP SDK package.
 THIS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = THIS_DIR.parent.parent
@@ -51,14 +53,10 @@ _MCP_TOOL_LINE_RE = re.compile(r"^- `([a-z0-9_.]+)`$")
 
 
 def _mcp_limits() -> tuple[int, float]:
-    rpm_raw = os.getenv("WIZARD_MCP_RATE_LIMIT_PER_MIN", "120")
-    min_interval_raw = os.getenv("WIZARD_MCP_MIN_INTERVAL_SECONDS", "0.05")
+    rpm = get_int_config("WIZARD_MCP_RATE_LIMIT_PER_MIN", 120)
+    min_interval_str = get_config("WIZARD_MCP_MIN_INTERVAL_SECONDS", "0.05")
     try:
-        rpm = int(rpm_raw)
-    except (TypeError, ValueError):
-        rpm = 120
-    try:
-        min_interval = float(min_interval_raw)
+        min_interval = float(min_interval_str) if isinstance(min_interval_str, str) else min_interval_str
     except (TypeError, ValueError):
         min_interval = 0.05
     return max(1, rpm), max(0.0, min_interval)
@@ -66,8 +64,8 @@ def _mcp_limits() -> tuple[int, float]:
 
 def _enforce_mcp_security() -> None:
     global _MCP_LAST_CALL_TS
-    require_admin = os.getenv("WIZARD_MCP_REQUIRE_ADMIN_TOKEN", "1").strip().lower() in {"1", "true", "yes"}
-    if require_admin and not os.getenv("WIZARD_ADMIN_TOKEN"):
+    require_admin = get_bool_config("WIZARD_MCP_REQUIRE_ADMIN_TOKEN", True)
+    if require_admin and not get_config("WIZARD_ADMIN_TOKEN"):
         raise RuntimeError("MCP admin token required: set WIZARD_ADMIN_TOKEN")
 
     rpm, min_interval = _mcp_limits()
@@ -87,8 +85,8 @@ def _enforce_mcp_security() -> None:
 def _client() -> WizardGateway:
     _enforce_mcp_security()
     client = WizardGateway(
-        base_url=os.getenv("WIZARD_BASE_URL", "http://localhost:8765"),
-        admin_token=os.getenv("WIZARD_ADMIN_TOKEN"),
+        base_url=get_config("WIZARD_BASE_URL", "http://localhost:8765"),
+        admin_token=get_config("WIZARD_ADMIN_TOKEN"),
     )
     client.ensure_available()
     return client
@@ -102,8 +100,8 @@ def _is_port_open(host: str, port: int, timeout: float = 0.4) -> bool:
 
 def _status_line() -> str:
     # Role/ghost mode (simple env-based fallback)
-    role = (os.getenv("UDOS_USER_ROLE") or os.getenv("USER_ROLE") or "guest").upper()
-    ghost_mode = os.getenv("UDOS_GHOST_MODE", "1").strip().lower() in {"1", "true", "yes"}
+    role = (get_config("UDOS_USER_ROLE") or get_config("USER_ROLE") or "guest").upper()
+    ghost_mode = get_bool_config("UDOS_GHOST_MODE", True)
     ghost_tag = " [GHOST MODE]" if ghost_mode else ""
     role_tag = "👻" if ghost_mode else "👤"
 
@@ -137,7 +135,7 @@ def _emoji_indicator() -> str:
     return frames[idx]
 
 def _toolbar_block() -> str:
-    dev_state = "ON" if os.getenv("UDOS_DEV_MODE") in ("1", "true", "yes") else "OFF"
+    dev_state = "ON" if get_bool_config("UDOS_DEV_MODE", False) else "OFF"
     commands = ["OK", "BINDER", "FILE", "MAP", "HELP"]
     line1 = "  ⎔ Commands: " + ", ".join(commands[:3]) + " (+2 more)"
     line2 = f"  ↳ DEV: {dev_state}  |  Tip: Use ':' or 'OK' for uCODE, '/' for shell"

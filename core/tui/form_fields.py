@@ -28,6 +28,7 @@ from core.services.logging_api import get_repo_root, get_logger
 from core.services.viewport_service import ViewportService
 from core.input.confirmation_utils import normalize_default, parse_confirmation, format_prompt
 from core.services.maintenance_utils import get_memory_root
+from core.services.unified_config_loader import get_config, get_bool_config, get_int_config
 from core.utils.text_width import truncate_ansi_to_width
 from dataclasses import dataclass
 from enum import Enum
