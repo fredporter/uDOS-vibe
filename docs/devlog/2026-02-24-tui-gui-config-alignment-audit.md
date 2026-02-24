@@ -1,6 +1,6 @@
 # TUI vs GUI (Wizard) Configuration Alignment Audit
-**Date:** 2026-02-24  
-**Status:** COMPLETE - Pre-centralization alignment check  
+**Date:** 2026-02-24
+**Status:** COMPLETE - Pre-centralization alignment check
 **Scope:** TUI (core/tui), GUI (wizard routes), user data storage, secrets management
 
 ---
@@ -43,7 +43,7 @@ TUI and GUI **do not currently share the same environment variable sets**, creat
 ```
 core/tui/form_fields.py:284    ✓ Header inversion check
 core/tui/form_fields.py:622    ✓ Header inversion check
-core/tui/form_fields.py:1228   ✓ Header inversion check  
+core/tui/form_fields.py:1228   ✓ Header inversion check
 core/tui/advanced_form_handler.py:739  ✓ Header inversion check
 ```
 
@@ -347,7 +347,7 @@ User Data Locations
 │   └── Profiles: admin, guest, demo, ...
 │   └── Last sync: 2026-02-24 10:30 UTC
 │
-├── User Configuration Variables  
+├── User Configuration Variables
 │   └── ??? core/data/variables/user.json (or moved to memory/?)
 │   └── Preferences: theme, notifications, ...
 │   └── Last sync: [unknown]
@@ -385,7 +385,7 @@ GET /api/wizard/secrets-inventory
   Returns: list of secret keys in tomb (without values)
 
 POST /api/wizard/sync-user-data
-  Ensures memory/bank/private/users.json and 
+  Ensures memory/bank/private/users.json and
   core/data/variables/user.json stay in sync
   (depends on audit decision re: consolidation)
 ```
@@ -406,7 +406,7 @@ TUI → Setting Variable
 
 GUI → Setting Variable (via /api/config/env)
 ├─ Read from .env file
-├─ Write to .env file  
+├─ Write to .env file
 ├─ Refresh os.environ[]
 └─ Problem: TUI doesn't catch changes made via GUI
 ```
@@ -431,7 +431,7 @@ For variables to be settable from **both TUI and GUI**:
 Create: core/services/paths.py
 
 USERS_FILE = get_repo_root() / "memory" / "bank" / "private" / "users.json"
-SECRETS_TOMB = get_repo_root() / "wizard" / "secrets.tomb"  
+SECRETS_TOMB = get_repo_root() / "wizard" / "secrets.tomb"
 VAULT_ROOT = Path(os.getenv("VAULT_ROOT")) or get_repo_root() / "memory" / "vault"
 MEMORY_ROOT = get_repo_root() / "memory"
 CONFIG_FILE = get_repo_root() / "wizard" / "config" / "wizard.json"
@@ -477,7 +477,7 @@ On TUI startup:
   - Load .env + config.toml + wizard.json into ConfigLoader
   - Watch for external changes (from GUI API)
   - Hot-reload on .env changes
-  
+
 On GUI API write:
   - Update .env file
   - Then signal ConfigSync to reload
@@ -490,10 +490,10 @@ On GUI API write:
 Add wizard routes for user data/paths inventory:
 
 GET /api/wizard/data-locations
-GET /api/wizard/vault-info  
+GET /api/wizard/vault-info
 GET /api/wizard/memory-info
 GET /api/wizard/secrets-inventory
-POST /api/wizard/sync-user-data  
+POST /api/wizard/sync-user-data
 ```
 
 ---
@@ -556,7 +556,7 @@ POST /api/wizard/sync-user-data
 
 ```
 UDOS_ROOT
-VAULT_ROOT  
+VAULT_ROOT
 VAULT_MD_ROOT
 USER_NAME
 USER_USERNAME

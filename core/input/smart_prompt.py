@@ -1,5 +1,4 @@
-"""
-uDOS Core Smart Interactive Prompt
+"""uDOS Core Smart Interactive Prompt
 
 Advanced input handling with:
 - Real-time autocomplete
@@ -8,16 +7,17 @@ Advanced input handling with:
 - Command history tracking
 - Graceful fallback to basic input
 """
+from __future__ import annotations
 
 try:
     from prompt_toolkit import PromptSession
+    from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
     from prompt_toolkit.completion import Completer, Completion
-    from prompt_toolkit.history import InMemoryHistory, FileHistory
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.history import FileHistory, InMemoryHistory
     from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.keys import Keys
     from prompt_toolkit.styles import Style
-    from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-    from prompt_toolkit.document import Document
 
     HAS_PROMPT_TOOLKIT = True
 except ImportError:
@@ -54,23 +54,21 @@ except ImportError:
 
     HAS_PROMPT_TOOLKIT = False
 
-import sys
+from collections.abc import Iterable
 import os
-import re
-import time
 from pathlib import Path
-from typing import Optional, List, Iterable, Tuple, Dict
+import re
+import sys
+import time
 
-from .autocomplete import AutocompleteService
-from .command_predictor import CommandPredictor
 from core.input.confirmation_utils import (
+    format_error,
+    format_prompt,
     normalize_default,
     parse_confirmation,
-    format_prompt,
-    format_error,
 )
-from core.services.logging_api import get_logger
 from core.input.keymap import decode_key_input
+from core.services.logging_api import get_logger
 from core.utils.tty import (
     interactive_tty_status,
     normalize_terminal_input,
@@ -78,14 +76,14 @@ from core.utils.tty import (
     strip_literal_escape_sequences,
 )
 
+from .autocomplete import AutocompleteService
+from .command_predictor import CommandPredictor
+
 logger = get_logger("core", category="smartprompt", name="smartprompt")
 _debug_logger = get_logger("core", category="smartprompt-debug", name="smartprompt")
-_debug_override = os.environ.get("DEBUG_SMARTPROMPT", "").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+from core.services.unified_config_loader import get_bool_config
+
+_debug_override = get_bool_config("DEBUG_SMARTPROMPT")
 
 
 class _SilentDebugLogger:
@@ -111,8 +109,7 @@ class CoreCompleter(Completer):
     """Dynamic autocomplete for Core TUI commands with syntax hints"""
 
     def __init__(self, autocomplete_service: AutocompleteService, registry=None):
-        """
-        Initialize completer.
+        """Initialize completer.
 
         Args:
             autocomplete_service: AutocompleteService instance
@@ -125,8 +122,7 @@ class CoreCompleter(Completer):
     def get_completions(
         self, document: Document, complete_event
     ) -> Iterable[Completion]:
-        """
-        Provide completions based on cursor position with enhanced help text.
+        """Provide completions based on cursor position with enhanced help text.
 
         Args:
             document: Current document
@@ -139,12 +135,12 @@ class CoreCompleter(Completer):
         debug_logger.debug(f"get_completions() called: text='{text}'")
 
         if not text.strip():
-            debug_logger.debug(f"  Empty text, returning no completions")
+            debug_logger.debug("  Empty text, returning no completions")
             return
 
         words = text.split()
         if not words:
-            debug_logger.debug(f"  No words, returning")
+            debug_logger.debug("  No words, returning")
             return
 
         debug_logger.debug(f"  Words: {words}, word count: {len(words)}")
@@ -254,8 +250,7 @@ class CoreCompleter(Completer):
                     )
 
     def _get_command_help(self, command: str) -> str:
-        """
-        Get quick help text for a command.
+        """Get quick help text for a command.
 
         Args:
             command: Command name (e.g., "GOTO")
@@ -286,8 +281,7 @@ class CoreCompleter(Completer):
         return ""
 
     def _get_option_hint(self, command: str, option: str) -> str:
-        """
-        Get hint text for an option.
+        """Get hint text for an option.
 
         Args:
             command: Command name
@@ -326,7 +320,7 @@ class CoreCompleter(Completer):
 
         return hints.get(option.lower(), "")
 
-    def _path_suggestions(self, partial: str) -> List[str]:
+    def _path_suggestions(self, partial: str) -> list[str]:
         """Return relative file suggestions for @path completion."""
         try:
             base = Path(".").resolve()
@@ -357,8 +351,7 @@ class CoreCompleter(Completer):
 
 
 class SmartPrompt:
-    """
-    Advanced interactive prompt for Core TUI.
+    """Advanced interactive prompt for Core TUI.
 
     Features:
     - Autocomplete with Tab key
@@ -369,8 +362,7 @@ class SmartPrompt:
     """
 
     def __init__(self, use_fallback: bool = False, registry=None):
-        """
-        Initialize SmartPrompt.
+        """Initialize SmartPrompt.
 
         Args:
             use_fallback: Force fallback to basic input() (default: auto-detect)
@@ -381,18 +373,13 @@ class SmartPrompt:
         )
 
         # Check if terminal is interactive
-        self.interactive_reason: Optional[str] = None
+        self.interactive_reason: str | None = None
         is_tty = self._is_interactive()
         debug_logger.debug(
             f"  is_tty={is_tty}, HAS_PROMPT_TOOLKIT={HAS_PROMPT_TOOLKIT}"
         )
 
-        force_fallback = os.environ.get("UDOS_SMARTPROMPT_FORCE_FALLBACK", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        force_fallback = get_bool_config("UDOS_SMARTPROMPT_FORCE_FALLBACK")
         self.use_fallback = force_fallback or use_fallback or not HAS_PROMPT_TOOLKIT or not is_tty
         self.fallback_reason = None
         self.tab_handler = None
@@ -400,8 +387,8 @@ class SmartPrompt:
         self.registry = registry
         self.fkey_handler = None
         self.bottom_toolbar_provider = None
-        self.input_history: List[str] = []
-        self._fallback_history_cursor: Optional[int] = None
+        self.input_history: list[str] = []
+        self._fallback_history_cursor: int | None = None
         self.logger = logger
 
         if self.use_fallback and not HAS_PROMPT_TOOLKIT:
@@ -416,25 +403,26 @@ class SmartPrompt:
         )
 
         if not self.use_fallback:
-            debug_logger.debug(f"  Initializing advanced mode")
+            debug_logger.debug("  Initializing advanced mode")
             self._init_advanced_prompt()
             debug_logger.debug(
                 f"  Advanced mode initialized, has session: {hasattr(self, 'session')}"
             )
         else:
-            debug_logger.debug(f"  Initializing fallback mode")
+            debug_logger.debug("  Initializing fallback mode")
             self._init_fallback_prompt()
-            debug_logger.debug(f"  Fallback mode initialized")
+            debug_logger.debug("  Fallback mode initialized")
 
     def _init_advanced_prompt(self) -> None:
         """Initialize advanced prompt_toolkit features"""
         self.autocomplete_service = AutocompleteService()
         self.predictor = CommandPredictor(self.autocomplete_service)
         self.completer = CoreCompleter(self.autocomplete_service, registry=self.registry)
-        history_path = (
-            Path(os.environ.get("UDOS_PROMPT_HISTORY_FILE", "~/.udos/history/ucode.history"))
-            .expanduser()
-        )
+        from core.services.unified_config_loader import get_config
+
+        history_path = Path(
+            get_config("UDOS_PROMPT_HISTORY_FILE", "~/.udos/history/ucode.history")
+        ).expanduser()
         try:
             history_path.parent.mkdir(parents=True, exist_ok=True)
             self.history = FileHistory(str(history_path))
@@ -475,7 +463,7 @@ class SmartPrompt:
         except Exception as e:
             # Switch to fallback if session creation fails
             self.use_fallback = True
-            self.fallback_reason = f"PromptSession creation failed: {str(e)}"
+            self.fallback_reason = f"PromptSession creation failed: {e!s}"
             # Still initialize fallback services
             self.autocomplete_service = AutocompleteService()
             self.predictor = CommandPredictor(self.autocomplete_service)
@@ -494,8 +482,7 @@ class SmartPrompt:
         return interactive
 
     def _create_key_bindings(self) -> KeyBindings:
-        """
-        Create key bindings for the prompt.
+        """Create key bindings for the prompt.
 
         Returns:
             KeyBindings instance
@@ -586,8 +573,7 @@ class SmartPrompt:
         self.fkey_handler = handler
 
     def set_bottom_toolbar_provider(self, provider) -> None:
-        """
-        Register a callable that returns dynamic bottom toolbar lines.
+        """Register a callable that returns dynamic bottom toolbar lines.
 
         Provider signature: provider(text: str) -> Iterable[str] | str
         """
@@ -625,8 +611,7 @@ class SmartPrompt:
         prompt_text: str = "uDOS> ",
         default: str = "",
     ) -> str:
-        """
-        Display prompt and get user input.
+        """Display prompt and get user input.
 
         Args:
             prompt_text: Prompt to display
@@ -638,13 +623,13 @@ class SmartPrompt:
         debug_logger.debug(f"ask() called: prompt_text='{prompt_text}'")
         try:
             if self.use_fallback:
-                debug_logger.debug(f"  Using fallback mode")
+                debug_logger.debug("  Using fallback mode")
                 return self._ask_fallback(prompt_text)
             else:
-                debug_logger.debug(f"  Using advanced mode (prompt_toolkit)")
+                debug_logger.debug("  Using advanced mode (prompt_toolkit)")
                 return self._ask_advanced(prompt_text)
         except (KeyboardInterrupt, EOFError):
-            debug_logger.debug(f"  KeyboardInterrupt/EOFError caught")
+            debug_logger.debug("  KeyboardInterrupt/EOFError caught")
             return ""
         except Exception as e:
             # Fallback on any error
@@ -659,8 +644,7 @@ class SmartPrompt:
         question: str,
         default: str = "yes",
     ) -> str:
-        """
-        Ask a standardized Yes/No/OK question.
+        """Ask a standardized Yes/No/OK question.
 
         Format: "Question? [Yes/No/OK]"
         Accepts: Y/1, N/0, OK (OK maps to Yes). Enter returns default.
@@ -685,7 +669,7 @@ class SmartPrompt:
     def ask_yes_no_choice(
         self,
         question: str,
-        default: Optional[str] = None,
+        default: str | None = None,
         variant: str = "ok",
     ) -> str:
         """Ask a standardized Yes/No/OK or Yes/No/SKIP question."""
@@ -714,9 +698,8 @@ class SmartPrompt:
         prompt_text: str,
         num_options: int,
         allow_zero: bool = False,
-    ) -> Optional[int]:
-        """
-        Prompt for a numbered menu choice.
+    ) -> int | None:
+        """Prompt for a numbered menu choice.
 
         Format: "Choose an option [1-N] (Enter=0 for cancel): "
 
@@ -745,9 +728,8 @@ class SmartPrompt:
             if allow_zero:
                 if 0 <= choice <= num_options:
                     return choice
-            else:
-                if 1 <= choice <= num_options:
-                    return choice
+            elif 1 <= choice <= num_options:
+                return choice
 
             # Out of range
             print(f"  ❌ Please enter a number between {valid_range}")
@@ -761,11 +743,10 @@ class SmartPrompt:
     def ask_single_key(
         self,
         prompt_text: str,
-        valid_keys: List[str],
-        default: Optional[str] = None,
+        valid_keys: list[str],
+        default: str | None = None,
     ) -> str:
-        """
-        Prompt for a single key/choice input (y/n, number selection, etc).
+        """Prompt for a single key/choice input (y/n, number selection, etc).
         Accepts the key directly or uses default on Enter.
 
         Args:
@@ -801,8 +782,7 @@ class SmartPrompt:
             return ""
 
     def _ask_advanced(self, prompt_text: str) -> str:
-        """
-        Get input using prompt_toolkit.
+        """Get input using prompt_toolkit.
 
         Args:
             prompt_text: Prompt to display
@@ -810,7 +790,7 @@ class SmartPrompt:
         Returns:
             User input
         """
-        debug_logger.debug(f"_ask_advanced() called")
+        debug_logger.debug("_ask_advanced() called")
         try:
             debug_logger.debug(f"  Calling session.prompt('{prompt_text}')")
             bottom_toolbar = self._get_bottom_toolbar if self.bottom_toolbar_provider else None
@@ -824,7 +804,7 @@ class SmartPrompt:
             # Track for history
             if user_input.strip():
                 self._record_input(user_input)
-                debug_logger.debug(f"  Recorded command in history")
+                debug_logger.debug("  Recorded command in history")
 
             return user_input.strip()
         except Exception as e:
@@ -832,9 +812,8 @@ class SmartPrompt:
             # Fallback to basic input
             return self._ask_fallback(prompt_text)
 
-    def _process_hotkey_text_submission(self, raw_input: str) -> Optional[str]:
-        """
-        Process prompt text for keymap actions and escape-noise self-heal.
+    def _process_hotkey_text_submission(self, raw_input: str) -> str | None:
+        """Process prompt text for keymap actions and escape-noise self-heal.
 
         Returns:
             - cleaned command string
@@ -888,8 +867,7 @@ class SmartPrompt:
         return user_input
 
     def _ask_fallback(self, prompt_text: str = "uDOS> ") -> str:
-        """
-        Get input using basic input().
+        """Get input using basic input().
 
         Args:
             prompt_text: Prompt to display
@@ -898,12 +876,9 @@ class SmartPrompt:
             User input
         """
         try:
-            inline_toolbar = os.getenv("UDOS_PROMPT_TOOLBAR_INLINE", "").strip().lower() in {
-                "1",
-                "true",
-                "yes",
-                "on",
-            }
+            from core.services.unified_config_loader import get_bool_config
+
+            inline_toolbar = get_bool_config("UDOS_PROMPT_TOOLBAR_INLINE")
             while True:
                 if not inline_toolbar:
                     self._render_fallback_toolbar()
@@ -957,7 +932,9 @@ class SmartPrompt:
 
     def _can_use_raw_fallback_line_editor(self) -> bool:
         """Return True when we can safely use raw-mode fallback input."""
-        if os.getenv("UDOS_FALLBACK_RAW_EDITOR", "1").strip().lower() in {"0", "false", "no"}:
+        from core.services.unified_config_loader import get_bool_config
+
+        if not get_bool_config("UDOS_FALLBACK_RAW_EDITOR", default=True):
             return False
         if os.name == "nt":
             return False
@@ -1002,8 +979,7 @@ class SmartPrompt:
     def _consume_literal_escape_suffix(
         self, prompt_text: str, buffer_text: str
     ) -> tuple[str, bool]:
-        """
-        Consume caret-style literal escape tokens at line end (for bad terminals).
+        """Consume caret-style literal escape tokens at line end (for bad terminals).
 
         Example token: '^[[A' or '^[[15~'
         """
@@ -1058,9 +1034,8 @@ class SmartPrompt:
             self._redraw_raw_fallback_prompt(prompt_text, working)
         return working, handled
 
-    def _read_raw_fallback_line(self, prompt_text: str) -> Optional[str]:
-        """
-        Read one line in raw mode to self-heal arrow/function-key handling.
+    def _read_raw_fallback_line(self, prompt_text: str) -> str | None:
+        """Read one line in raw mode to self-heal arrow/function-key handling.
 
         Returns:
             str: collected input line
@@ -1071,7 +1046,7 @@ class SmartPrompt:
 
         fd = sys.stdin.fileno()
         original = termios.tcgetattr(fd)
-        buffer_chars: List[str] = []
+        buffer_chars: list[str] = []
         self._fallback_history_cursor = None
         self._redraw_raw_fallback_prompt(prompt_text, "")
         try:
@@ -1226,14 +1201,14 @@ class SmartPrompt:
         except Exception as exc:
             debug_logger.debug(f"Inline toolbar render failed: {exc}")
 
-    def _parse_fallback_function_key(self, raw_input: str) -> Optional[str]:
+    def _parse_fallback_function_key(self, raw_input: str) -> str | None:
         """Best-effort F1-F8 parsing in fallback mode across common terminals."""
         decoded = decode_key_input(raw_input, env=os.environ)
         if decoded.action.startswith("FKEY_"):
             return f"F{decoded.action.split('_', 1)[1]}"
         return None
 
-    def _handle_tab_shortcut(self) -> Optional[str]:
+    def _handle_tab_shortcut(self) -> str | None:
         """Invoke command selector via Tab even in fallback mode."""
         if not self.tab_handler:
             return None
@@ -1289,9 +1264,8 @@ class SmartPrompt:
         self.input_history.append(user_input)
         self.input_history = self.input_history[-200:]
 
-    def get_predictions(self, partial: str, max_results: int = 5) -> List:
-        """
-        Get command predictions for partial input.
+    def get_predictions(self, partial: str, max_results: int = 5) -> list:
+        """Get command predictions for partial input.
 
         Args:
             partial: Partial command text
@@ -1303,8 +1277,7 @@ class SmartPrompt:
         return self.predictor.predict(partial, max_results)
 
     def get_highlighted_command(self, command: str) -> str:
-        """
-        Get syntax-highlighted version of command.
+        """Get syntax-highlighted version of command.
 
         Args:
             command: Command string
@@ -1334,9 +1307,8 @@ class SmartPrompt:
 
         return highlighted.strip()
 
-    def get_command_help_hint(self, command: str) -> Optional[str]:
-        """
-        Get a quick help hint for a command.
+    def get_command_help_hint(self, command: str) -> str | None:
+        """Get a quick help hint for a command.
 
         Args:
             command: Command string (e.g., "GOTO north" or "SAVE")
@@ -1374,9 +1346,8 @@ class SmartPrompt:
 
         return None
 
-    def get_syntax_examples(self, command: str, max_examples: int = 3) -> List[str]:
-        """
-        Get example usages for a command.
+    def get_syntax_examples(self, command: str, max_examples: int = 3) -> list[str]:
+        """Get example usages for a command.
 
         Args:
             command: Command string
@@ -1408,9 +1379,8 @@ class SmartPrompt:
 
         return []
 
-    def ask_story_field(self, field: Dict, previous_value: Optional[str] = None) -> Optional[str]:
-        """
-        Basic story field input (fallback method).
+    def ask_story_field(self, field: dict, previous_value: str | None = None) -> str | None:
+        """Basic story field input (fallback method).
 
         Used when AdvancedFormField is not available or fails.
         Provides simple labeled input for story forms.

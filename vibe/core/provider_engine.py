@@ -1,0 +1,392 @@
+"""Provider Engine - Async Provider Interaction Layer
+
+Handles all interactions with OK Providers (Ollama, Mistral, OpenAI, Anthropic, Gemini).
+Enforces timeout guards, stream handling, response normalisation, and error recovery.
+
+This is the canonical provider abstraction layer for Vibe-CLI.
+
+Architecture Rules (from vibe/AGENTS.md):
+- NO direct execution of responses (normalisation only)
+- Timeout guards on all calls
+- Proper stream closing
+- Provider capability respect
+- Error recovery with fallback chain
+
+Usage:
+    from vibe.core.provider_engine import ProviderEngine
+    from vibe.core.response_normaliser import ResponseNormaliser
+
+    normaliser = ResponseNormaliser()
+    engine = ProviderEngine(normaliser=normaliser, timeout=30)
+
+    result = await engine.call_provider(
+        provider_type="ollama",
+        model="devstral-small-2",
+        prompt="explain this code",
+        system="You are a coding assistant."
+    )
+
+    if result.success:
+        print(result.normalised.text)
+
+Version: 1.0.0
+Milestone: v1.4.6 Architecture Stabilisation
+"""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from enum import Enum
+import logging
+
+from vibe.core.response_normaliser import NormalisedResponse, ResponseNormaliser
+
+logger = logging.getLogger("vibe.provider-engine")
+
+
+class ProviderType(str, Enum):
+    """Supported provider types."""
+
+    OLLAMA = "ollama"
+    MISTRAL = "mistral"
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    GEMINI = "gemini"
+
+
+class ProviderStatus(str, Enum):
+    """Provider availability status."""
+
+    AVAILABLE = "available"
+    UNAVAILABLE = "unavailable"
+    TIMEOUT = "timeout"
+    ERROR = "error"
+
+
+@dataclass
+class ProviderResult:
+    """Result from provider call."""
+
+    success: bool
+    raw_response: str = ""
+    normalised: NormalisedResponse | None = None
+    provider: str = ""
+    model: str = ""
+    error: str | None = None
+    status: ProviderStatus = ProviderStatus.UNAVAILABLE
+    execution_time: float = 0.0
+
+
+class ProviderEngine:
+    """Async provider interaction engine with timeout guards and response normalisation."""
+
+    def __init__(
+        self, normaliser: ResponseNormaliser, timeout: int = 30, max_retries: int = 2
+    ):
+        """Initialize provider engine.
+
+        Args:
+            normaliser: ResponseNormaliser instance for sanitizing responses
+            timeout: Default timeout in seconds for provider calls
+            max_retries: Maximum retry attempts on transient failures
+        """
+        self.normaliser = normaliser
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.logger = logger
+
+    async def call_provider(
+        self,
+        provider_type: str,
+        model: str,
+        prompt: str,
+        system: str | None = None,
+        stream: bool = False,
+        timeout: int | None = None,
+        **kwargs,
+    ) -> ProviderResult:
+        """Call provider with timeout guards and response normalisation.
+
+        Args:
+            provider_type: Provider to use (ollama, mistral, etc.)
+            model: Model identifier
+            prompt: User prompt
+            system: System message (optional)
+            stream: Whether to stream response
+            timeout: Override default timeout
+            **kwargs: Additional provider-specific parameters
+
+        Returns:
+            ProviderResult with normalised response or error
+        """
+        import time
+
+        start_time = time.time()
+        effective_timeout = timeout or self.timeout
+
+        try:
+            self.logger.info(
+                f"Calling {provider_type} provider: model={model}, timeout={effective_timeout}s"
+            )
+
+            # Route to provider-specific handler
+            if provider_type == ProviderType.OLLAMA.value:
+                raw_response = await self._call_ollama(
+                    model, prompt, system, stream, effective_timeout, **kwargs
+                )
+            elif provider_type == ProviderType.MISTRAL.value:
+                raw_response = await self._call_mistral(
+                    model, prompt, system, stream, effective_timeout, **kwargs
+                )
+            elif provider_type == ProviderType.OPENAI.value:
+                raw_response = await self._call_openai(
+                    model, prompt, system, stream, effective_timeout, **kwargs
+                )
+            elif provider_type == ProviderType.ANTHROPIC.value:
+                raw_response = await self._call_anthropic(
+                    model, prompt, system, stream, effective_timeout, **kwargs
+                )
+            elif provider_type == ProviderType.GEMINI.value:
+                raw_response = await self._call_gemini(
+                    model, prompt, system, stream, effective_timeout, **kwargs
+                )
+            else:
+                return ProviderResult(
+                    success=False,
+                    error=f"Unsupported provider: {provider_type}",
+                    provider=provider_type,
+                    model=model,
+                    status=ProviderStatus.ERROR,
+                )
+
+            # Normalise response
+            normalised = self.normaliser.normalise(raw_response)
+
+            execution_time = time.time() - start_time
+            self.logger.info(
+                f"Provider call succeeded: {len(raw_response)} chars in {execution_time:.2f}s"
+            )
+
+            return ProviderResult(
+                success=True,
+                raw_response=raw_response,
+                normalised=normalised,
+                provider=provider_type,
+                model=model,
+                status=ProviderStatus.AVAILABLE,
+                execution_time=execution_time,
+            )
+
+        except TimeoutError:
+            execution_time = time.time() - start_time
+            error_msg = f"Provider timeout after {execution_time:.1f}s"
+            self.logger.error(error_msg)
+            return ProviderResult(
+                success=False,
+                error=error_msg,
+                provider=provider_type,
+                model=model,
+                status=ProviderStatus.TIMEOUT,
+                execution_time=execution_time,
+            )
+
+        except Exception as exc:
+            execution_time = time.time() - start_time
+            error_msg = f"Provider error: {exc}"
+            self.logger.error(error_msg, exc_info=True)
+            return ProviderResult(
+                success=False,
+                error=error_msg,
+                provider=provider_type,
+                model=model,
+                status=ProviderStatus.ERROR,
+                execution_time=execution_time,
+            )
+
+    async def _call_ollama(
+        self,
+        model: str,
+        prompt: str,
+        system: str | None,
+        stream: bool,
+        timeout: int,
+        **kwargs,
+    ) -> str:
+        """Call Ollama provider with proper stream handling.
+
+        Critical Fix:
+        - Explicitly close response streams to prevent hanging
+        - Handle both /api/chat and /api/generate endpoints
+        - Detect API format and adapt accordingly
+        """
+        import aiohttp
+
+        endpoint = kwargs.pop("endpoint", "http://127.0.0.1:11434")
+
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        # Try /api/chat first (newer Ollama versions)
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": False,  # Stream handling fix: always use False for now
+            "options": {
+                "temperature": kwargs.get("temperature", 0.2),
+                "top_p": kwargs.get("top_p", 0.95),
+            },
+        }
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with asyncio.timeout(timeout):
+                    async with session.post(
+                        f"{endpoint}/api/chat", json=payload
+                    ) as resp:
+                        resp.raise_for_status()
+                        data = await resp.json()
+                        return data["message"]["content"]
+
+            except (aiohttp.ClientResponseError, KeyError):
+                # Fallback to /api/generate for older Ollama
+                self.logger.info(
+                    "[OLLAMA] /api/chat failed, trying /api/generate fallback"
+                )
+
+                prompt_parts = []
+                for msg in messages:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role == "system":
+                        prompt_parts.append(f"System: {content}")
+                    elif role == "user":
+                        prompt_parts.append(f"User: {content}")
+
+                combined_prompt = "\n\n".join(prompt_parts)
+
+                payload_legacy = {
+                    "model": model,
+                    "prompt": combined_prompt,
+                    "stream": False,
+                    "options": payload["options"],
+                }
+
+                async with asyncio.timeout(timeout):
+                    async with session.post(
+                        f"{endpoint}/api/generate", json=payload_legacy
+                    ) as resp:
+                        resp.raise_for_status()
+                        data = await resp.json()
+                        return data.get("response", "")
+
+    async def _call_mistral(
+        self,
+        model: str,
+        prompt: str,
+        system: str | None,
+        stream: bool,
+        timeout: int,
+        **kwargs,
+    ) -> str:
+        """Call Mistral API provider."""
+        # TODO: Implement Mistral API integration
+        # Requires wizard/services/adapters/mistral_adapter.py
+        raise NotImplementedError("Mistral provider adapter pending implementation")
+
+    async def _call_openai(
+        self,
+        model: str,
+        prompt: str,
+        system: str | None,
+        stream: bool,
+        timeout: int,
+        **kwargs,
+    ) -> str:
+        """Call OpenAI API provider."""
+        # TODO: Implement OpenAI integration
+        raise NotImplementedError("OpenAI provider adapter pending implementation")
+
+    async def _call_anthropic(
+        self,
+        model: str,
+        prompt: str,
+        system: str | None,
+        stream: bool,
+        timeout: int,
+        **kwargs,
+    ) -> str:
+        """Call Anthropic API provider."""
+        # TODO: Implement Anthropic integration
+        raise NotImplementedError("Anthropic provider adapter pending implementation")
+
+    async def _call_gemini(
+        self,
+        model: str,
+        prompt: str,
+        system: str | None,
+        stream: bool,
+        timeout: int,
+        **kwargs,
+    ) -> str:
+        """Call Google Gemini API provider."""
+        # TODO: Implement Gemini integration
+        raise NotImplementedError("Gemini provider adapter pending implementation")
+
+    async def call_with_fallback(
+        self,
+        provider_chain: list[tuple[str, str]],
+        prompt: str,
+        system: str | None = None,
+        **kwargs,
+    ) -> ProviderResult:
+        """Call providers in fallback chain until success.
+
+        Args:
+            provider_chain: List of (provider_type, model) tuples
+            prompt: User prompt
+            system: System message
+            **kwargs: Additional parameters
+
+        Returns:
+            ProviderResult from first successful provider
+        """
+        last_error = None
+
+        for provider_type, model in provider_chain:
+            self.logger.info(f"Trying provider: {provider_type} / {model}")
+            result = await self.call_provider(
+                provider_type, model, prompt, system, **kwargs
+            )
+
+            if result.success:
+                self.logger.info(f"Provider {provider_type} succeeded")
+                return result
+
+            last_error = result.error
+            self.logger.warning(
+                f"Provider {provider_type} failed: {result.error}, trying next..."
+            )
+
+        # All providers failed
+        return ProviderResult(
+            success=False,
+            error=f"All providers failed. Last: {last_error}",
+            status=ProviderStatus.ERROR,
+        )
+
+    def check_provider_availability(self, provider_type: str) -> ProviderStatus:
+        """Check if provider is available.
+
+        Args:
+            provider_type: Provider to check
+
+        Returns:
+            ProviderStatus enum
+        """
+        # Synchronous availability check
+        # TODO: Implement actual checks per provider
+        # For now, assume all providers are potentially available
+        return ProviderStatus.AVAILABLE

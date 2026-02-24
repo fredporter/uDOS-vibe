@@ -1,6 +1,6 @@
 """SKIN command handler - Wizard GUI theme packs (HTML/CSS)."""
+from __future__ import annotations
 
-from typing import Dict, List, Optional
 import json
 import os
 from pathlib import Path
@@ -32,7 +32,7 @@ class SkinHandler(BaseCommandHandler, HandlerLoggingMixin):
         self.repo_root = get_repo_root()
         self.skin_root = self.repo_root / "themes"
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
         with self.trace_command(command, params) as trace:
             if not params:
                 result = self._status()
@@ -76,12 +76,12 @@ class SkinHandler(BaseCommandHandler, HandlerLoggingMixin):
         value = get_config(self.ENV_SKIN, "").strip()
         return value or "default"
 
-    def _skin_dirs(self) -> List[Path]:
+    def _skin_dirs(self) -> list[Path]:
         if not self.skin_root.exists():
             return []
         return sorted([p for p in self.skin_root.iterdir() if p.is_dir()])
 
-    def _skin_meta(self, skin_name: str) -> Optional[Dict[str, object]]:
+    def _skin_meta(self, skin_name: str) -> dict[str, object] | None:
         skin_dir = self.skin_root / skin_name
         meta_path = skin_dir / "theme.json"
         if not meta_path.exists():
@@ -174,14 +174,14 @@ class SkinHandler(BaseCommandHandler, HandlerLoggingMixin):
             "errors": errors,
         }
 
-    def _available_skins(self) -> List[str]:
+    def _available_skins(self) -> list[str]:
         skins = []
         for skin_dir in self._skin_dirs():
             if (skin_dir / "theme.json").exists():
                 skins.append(skin_dir.name)
         return skins
 
-    def _status(self, *, compact: bool = False) -> Dict:
+    def _status(self, *, compact: bool = False) -> dict:
         active = self._active_skin()
         meta = self._skin_meta(active) or {}
         contract = meta.get("gameplay_contract", {}) if isinstance(meta.get("gameplay_contract"), dict) else {}
@@ -242,10 +242,10 @@ class SkinHandler(BaseCommandHandler, HandlerLoggingMixin):
             result["policy_flag"] = policy_flag
         return result
 
-    def _list_skins(self) -> Dict:
+    def _list_skins(self) -> dict:
         return self._status()
 
-    def _check_skin(self, *, compact: bool = False) -> Dict:
+    def _check_skin(self, *, compact: bool = False) -> dict:
         active = self._active_skin()
         meta = self._skin_meta(active) or {}
         contract = meta.get("gameplay_contract", {}) if isinstance(meta.get("gameplay_contract"), dict) else {}
@@ -304,7 +304,7 @@ class SkinHandler(BaseCommandHandler, HandlerLoggingMixin):
             result["policy_flag"] = policy_flag
         return result
 
-    def _show_skin(self, name: str) -> Dict:
+    def _show_skin(self, name: str) -> dict:
         skins = self._available_skins()
         if name not in skins:
             raise CommandError(
@@ -346,7 +346,7 @@ class SkinHandler(BaseCommandHandler, HandlerLoggingMixin):
             result["policy_flag"] = policy_flag
         return result
 
-    def _set_skin(self, name: str) -> Dict:
+    def _set_skin(self, name: str) -> dict:
         skins = self._available_skins()
         if name != "default" and name not in skins:
             raise CommandError(
@@ -375,7 +375,7 @@ class SkinHandler(BaseCommandHandler, HandlerLoggingMixin):
             result["policy_flag"] = policy_flag
         return result
 
-    def _clear_skin(self) -> Dict:
+    def _clear_skin(self) -> dict:
         updates = {self.ENV_SKIN: None}
         ok, message = self.sync.update_env_vars(updates)
         os.environ.pop(self.ENV_SKIN, None)

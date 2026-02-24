@@ -1,5 +1,4 @@
-"""
-Spatial Filesystem for uDOS v1.0.7+
+"""Spatial Filesystem for uDOS v1.0.7+
 
 Integrates filesystem paths with grid locations, Binders, content-tagging, and role-based access.
 
@@ -33,105 +32,109 @@ Author: uDOS Development Team
 Version: 1.0.7.0
 """
 
-import os
-import json
+from __future__ import annotations
+
 try:
     import yaml
+
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
     yaml = None
-from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Any
-from dataclasses import dataclass, field, asdict
-from enum import Enum
-from datetime import datetime
-import re
 from collections import defaultdict
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+import re
+from typing import Any
 
 from core.services.logging_api import get_logger
 from core.services.workspace_ref import parse_workspace_name
 
-logger = get_logger('spatial-filesystem')
+logger = get_logger("spatial-filesystem")
 
 
 # =============================================================================
 # Enums & Constants
 # =============================================================================
 
+
 class UserRole(Enum):
     """User role levels for access control."""
-    ADMIN = 'admin'
-    USER = 'user'
-    GUEST = 'guest'
+
+    ADMIN = "admin"
+    USER = "user"
+    GUEST = "guest"
 
 
 class WorkspaceType(Enum):
     """Workspace types and their access requirements."""
-    SANDBOX = 'sandbox'        # memory/sandbox — user writable
-    VAULT = 'vault'            # memory/vault — primary knowledge store
-    INBOX = 'inbox'            # memory/inbox — intake
-    PUBLIC = 'public'          # memory/contributions — published/open
-    SUBMISSIONS = 'submissions'  # memory/submissions — intake
-    PRIVATE = 'private'        # memory/private — explicit/private share
-    SHARED = 'shared'          # memory/sharing — proximity verified share
-    WIZARD = 'wizard'          # memory/wizard — wizard service only
-    KNOWLEDGE = 'knowledge'    # /knowledge — admin only
-    DEV = 'dev'                # /dev — admin only
+
+    SANDBOX = "sandbox"  # memory/sandbox — user writable
+    VAULT = "vault"  # memory/vault — primary knowledge store
+    INBOX = "inbox"  # memory/inbox — intake
+    PUBLIC = "public"  # memory/contributions — published/open
+    SUBMISSIONS = "submissions"  # memory/submissions — intake
+    PRIVATE = "private"  # memory/private — explicit/private share
+    SHARED = "shared"  # memory/sharing — proximity verified share
+    WIZARD = "wizard"  # memory/wizard — wizard service only
+    KNOWLEDGE = "knowledge"  # /knowledge — admin only
+    DEV = "dev"  # /dev — admin only
 
 
 # Workspace configuration
 WORKSPACE_CONFIG = {
     WorkspaceType.SANDBOX: {
-        'path': 'memory/sandbox',
-        'roles': [UserRole.ADMIN, UserRole.USER],
-        'description': 'Sandbox for experiments and drafts'
+        "path": "memory/sandbox",
+        "roles": [UserRole.ADMIN, UserRole.USER],
+        "description": "Sandbox for experiments and drafts",
     },
     WorkspaceType.VAULT: {
-        'path': 'memory/vault',
-        'roles': [UserRole.ADMIN, UserRole.USER],
-        'description': 'Primary knowledge store'
+        "path": "memory/vault",
+        "roles": [UserRole.ADMIN, UserRole.USER],
+        "description": "Primary knowledge store",
     },
     WorkspaceType.INBOX: {
-        'path': 'memory/inbox',
-        'roles': [UserRole.ADMIN, UserRole.USER],
-        'description': 'Inbox intake (raw notes, imports)'
+        "path": "memory/inbox",
+        "roles": [UserRole.ADMIN, UserRole.USER],
+        "description": "Inbox intake (raw notes, imports)",
     },
     WorkspaceType.PUBLIC: {
-        'path': 'memory/contributions',
-        'roles': [UserRole.ADMIN, UserRole.USER],
-        'description': 'Public/open/published content'
+        "path": "memory/contributions",
+        "roles": [UserRole.ADMIN, UserRole.USER],
+        "description": "Public/open/published content",
     },
     WorkspaceType.SUBMISSIONS: {
-        'path': 'memory/submissions',
-        'roles': [UserRole.ADMIN, UserRole.USER],
-        'description': 'Submission intake'
+        "path": "memory/submissions",
+        "roles": [UserRole.ADMIN, UserRole.USER],
+        "description": "Submission intake",
     },
     WorkspaceType.PRIVATE: {
-        'path': 'memory/private',
-        'roles': [UserRole.ADMIN, UserRole.USER],
-        'description': 'Private explicit sharing'
+        "path": "memory/private",
+        "roles": [UserRole.ADMIN, UserRole.USER],
+        "description": "Private explicit sharing",
     },
     WorkspaceType.SHARED: {
-        'path': 'memory/sharing',
-        'roles': [UserRole.ADMIN, UserRole.USER],
-        'description': 'Shared space (verified proximity)'
+        "path": "memory/sharing",
+        "roles": [UserRole.ADMIN, UserRole.USER],
+        "description": "Shared space (verified proximity)",
     },
     WorkspaceType.WIZARD: {
-        'path': 'memory/wizard',
-        'roles': [UserRole.ADMIN],
-        'description': 'Wizard service workspace (internal)'
+        "path": "memory/wizard",
+        "roles": [UserRole.ADMIN],
+        "description": "Wizard service workspace (internal)",
     },
     WorkspaceType.KNOWLEDGE: {
-        'path': 'knowledge',
-        'roles': [UserRole.ADMIN],
-        'description': 'Knowledge base (admin only)'
+        "path": "knowledge",
+        "roles": [UserRole.ADMIN],
+        "description": "Knowledge base (admin only)",
     },
     WorkspaceType.DEV: {
-        'path': 'dev',
-        'roles': [UserRole.ADMIN],
-        'description': 'Development workspace (admin only)'
-    }
+        "path": "dev",
+        "roles": [UserRole.ADMIN],
+        "description": "Development workspace (admin only)",
+    },
 }
 
 
@@ -139,49 +142,53 @@ WORKSPACE_CONFIG = {
 # Data Models
 # =============================================================================
 
+
 @dataclass
 class ContentMetadata:
     """Extracted content metadata from front-matter."""
-    title: str = ''
-    description: str = ''
-    tags: List[str] = field(default_factory=list)
-    grid_locations: List[str] = field(default_factory=list)  # L###-Cell
-    binder_id: Optional[str] = None
-    chapter: Optional[int] = None
-    created_at: str = ''
-    updated_at: str = ''
-    author: str = ''
-    custom_fields: Dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    title: str = ""
+    description: str = ""
+    tags: list[str] = field(default_factory=list)
+    grid_locations: list[str] = field(default_factory=list)  # L###-Cell
+    binder_id: str | None = None
+    chapter: int | None = None
+    created_at: str = ""
+    updated_at: str = ""
+    author: str = ""
+    custom_fields: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 @dataclass
 class FileLocation:
     """Physical and logical location of a file."""
+
     workspace: WorkspaceType
     relative_path: str  # path relative to workspace
     absolute_path: Path
-    grid_locations: List[str] = field(default_factory=list)
-    metadata: Optional[ContentMetadata] = None
-    last_indexed: str = ''
+    grid_locations: list[str] = field(default_factory=list)
+    metadata: ContentMetadata | None = None
+    last_indexed: str = ""
 
 
 @dataclass
 class GridLocation:
     """Grid location reference."""
+
     layer: int  # L###
-    cell: str   # AA10
-    z: Optional[int] = None  # optional vertical offset
+    cell: str  # AA10
+    z: int | None = None  # optional vertical offset
 
     def __str__(self) -> str:
-        return f'L{self.layer}-{self.cell}{f"-Z{self.z}" if self.z is not None else ""}'
+        return f"L{self.layer}-{self.cell}{f'-Z{self.z}' if self.z is not None else ''}"
 
     @classmethod
-    def parse(cls, location_str: str) -> Optional['GridLocation']:
+    def parse(cls, location_str: str) -> GridLocation | None:
         """Parse 'L300-AA10' or 'L300-AA10-Z2' format."""
-        match = re.match(r'^L(\d+)-([A-Z]{2}\d{2})(?:-Z(-?\d{1,2}))?$', location_str)
+        match = re.match(r"^L(\d+)-([A-Z]{2}\d{2})(?:-Z(-?\d{1,2}))?$", location_str)
         if match:
             layer = int(match.group(1))
             cell = match.group(2)
@@ -201,14 +208,14 @@ class GridLocation:
 # Spatial Filesystem
 # =============================================================================
 
-class SpatialFilesystem:
-    """
-    Integrates filesystem with spatial grid, content-tagging, and role-based access.
-    """
 
-    def __init__(self, root_dir: Optional[Path] = None, user_role: UserRole = UserRole.USER):
-        """
-        Initialize spatial filesystem.
+class SpatialFilesystem:
+    """Integrates filesystem with spatial grid, content-tagging, and role-based access."""
+
+    def __init__(
+        self, root_dir: Path | None = None, user_role: UserRole = UserRole.USER
+    ):
+        """Initialize spatial filesystem.
 
         Args:
             root_dir: Root directory (typically uDOS root)
@@ -219,21 +226,29 @@ class SpatialFilesystem:
 
             root_dir = get_repo_root()
         self.root_dir = Path(root_dir)
-        self.user_role = user_role if isinstance(user_role, UserRole) else UserRole(user_role)
+        self.user_role = (
+            user_role if isinstance(user_role, UserRole) else UserRole(user_role)
+        )
 
         # Metadata indexes
-        self.location_index: Dict[str, Set[str]] = defaultdict(set)  # L###-Cell → file paths
-        self.tag_index: Dict[str, Set[str]] = defaultdict(set)       # tag → file paths
-        self.binder_index: Dict[str, List[str]] = defaultdict(list)  # binder_id → chapters
-        self.metadata_cache: Dict[str, ContentMetadata] = {}         # path → metadata
+        self.location_index: dict[str, set[str]] = defaultdict(
+            set
+        )  # L###-Cell → file paths
+        self.tag_index: dict[str, set[str]] = defaultdict(set)  # tag → file paths
+        self.binder_index: dict[str, list[str]] = defaultdict(
+            list
+        )  # binder_id → chapters
+        self.metadata_cache: dict[str, ContentMetadata] = {}  # path → metadata
 
         # Ensure memory workspace folders exist (open-box layout)
         for config in WORKSPACE_CONFIG.values():
-            path = config.get('path', '')
-            if isinstance(path, str) and path.startswith('memory/'):
+            path = config.get("path", "")
+            if isinstance(path, str) and path.startswith("memory/"):
                 (self.root_dir / path).mkdir(parents=True, exist_ok=True)
 
-        logger.info(f'[LOCAL] Spatial filesystem initialized (role: {self.user_role.value})')
+        logger.info(
+            f"[LOCAL] Spatial filesystem initialized (role: {self.user_role.value})"
+        )
 
     # =========================================================================
     # Access Control
@@ -241,14 +256,14 @@ class SpatialFilesystem:
 
     def has_access(self, workspace: WorkspaceType) -> bool:
         """Check if user has access to workspace."""
-        required_roles = WORKSPACE_CONFIG[workspace]['roles']
+        required_roles = WORKSPACE_CONFIG[workspace]["roles"]
         return self.user_role in required_roles
 
     def ensure_access(self, workspace: WorkspaceType) -> None:
         """Raise error if user doesn't have access."""
         if not self.has_access(workspace):
             raise PermissionError(
-                f'Access denied: {self.user_role.value} cannot access {workspace.value}'
+                f"Access denied: {self.user_role.value} cannot access {workspace.value}"
             )
 
     # =========================================================================
@@ -258,12 +273,11 @@ class SpatialFilesystem:
     def get_workspace_path(self, workspace: WorkspaceType) -> Path:
         """Get absolute path for workspace."""
         config = WORKSPACE_CONFIG[workspace]
-        path = self.root_dir / config['path']
+        path = self.root_dir / config["path"]
         return path
 
-    def resolve_workspace_reference(self, ref: str) -> Tuple[WorkspaceType, str]:
-        """
-        Resolve @workspace syntax.
+    def resolve_workspace_reference(self, ref: str) -> tuple[WorkspaceType, str]:
+        """Resolve @workspace syntax.
 
         Args:
             ref: '@sandbox/story.md', '@workspace/sandbox/story.md', or
@@ -273,12 +287,11 @@ class SpatialFilesystem:
             (WorkspaceType, relative_path)
         """
         workspace_name, relative_path = parse_workspace_name(
-            ref,
-            known_names=[ws.value for ws in WorkspaceType],
+            ref, known_names=[ws.value for ws in WorkspaceType]
         )
         return WorkspaceType(workspace_name), relative_path
 
-    def list_workspace(self, workspace_ref: str) -> List[FileLocation]:
+    def list_workspace(self, workspace_ref: str) -> list[FileLocation]:
         """List files in workspace."""
         ws_type, _ = self.resolve_workspace_reference(workspace_ref)
         self.ensure_access(ws_type)
@@ -287,16 +300,18 @@ class SpatialFilesystem:
         files = []
 
         if ws_path.exists():
-            for item in ws_path.rglob('*'):
+            for item in ws_path.rglob("*"):
                 if item.is_file():
                     relative_path = str(item.relative_to(ws_path))
                     metadata = self._extract_metadata(item)
-                    files.append(FileLocation(
-                        workspace=ws_type,
-                        relative_path=relative_path,
-                        absolute_path=item,
-                        metadata=metadata
-                    ))
+                    files.append(
+                        FileLocation(
+                            workspace=ws_type,
+                            relative_path=relative_path,
+                            absolute_path=item,
+                            metadata=metadata,
+                        )
+                    )
 
         return files
 
@@ -311,15 +326,16 @@ class SpatialFilesystem:
 
         file_path = self.get_workspace_path(ws_type) / relative_path
         if not file_path.exists():
-            raise FileNotFoundError(f'File not found: {file_path}')
+            raise FileNotFoundError(f"File not found: {file_path}")
 
-        logger.info(f'[LOCAL] Read file: {workspace_ref}')
-        return file_path.read_text(encoding='utf-8')
+        logger.info(f"[LOCAL] Read file: {workspace_ref}")
+        return file_path.read_text(encoding="utf-8")
 
     def write_file(self, workspace_ref: str, content: str) -> FileLocation:
         """Write file to workspace."""
-        from core.services.user_service import is_ghost_mode
         import logging
+
+        from core.services.user_service import is_ghost_mode
 
         if is_ghost_mode():
             logger = logging.getLogger(__name__)
@@ -337,8 +353,8 @@ class SpatialFilesystem:
         # Create parent directories
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        file_path.write_text(content, encoding='utf-8')
-        logger.info(f'[LOCAL] Wrote file: {workspace_ref}')
+        file_path.write_text(content, encoding="utf-8")
+        logger.info(f"[LOCAL] Wrote file: {workspace_ref}")
 
         # Update indexes
         self._index_file(file_path, ws_type, relative_path)
@@ -347,13 +363,14 @@ class SpatialFilesystem:
             workspace=ws_type,
             relative_path=relative_path,
             absolute_path=file_path,
-            metadata=self._extract_metadata(file_path)
+            metadata=self._extract_metadata(file_path),
         )
 
     def delete_file(self, workspace_ref: str) -> None:
         """Delete file from workspace."""
-        from core.services.user_service import is_ghost_mode
         import logging
+
+        from core.services.user_service import is_ghost_mode
 
         if is_ghost_mode():
             logger = logging.getLogger(__name__)
@@ -368,15 +385,15 @@ class SpatialFilesystem:
         file_path = self.get_workspace_path(ws_type) / relative_path
         if file_path.exists():
             file_path.unlink()
-            logger.info(f'[LOCAL] Deleted file: {workspace_ref}')
+            logger.info(f"[LOCAL] Deleted file: {workspace_ref}")
 
     # =========================================================================
     # Metadata & Front-Matter
     # =========================================================================
 
-    def _extract_metadata(self, file_path: Path) -> Optional[ContentMetadata]:
+    def _extract_metadata(self, file_path: Path) -> ContentMetadata | None:
         """Extract front-matter metadata from markdown file."""
-        if not file_path.suffix in ['.md', '.yaml', '.yml', '.json']:
+        if not file_path.suffix in [".md", ".yaml", ".yml", ".json"]:
             return None
 
         cache_key = str(file_path)
@@ -384,14 +401,14 @@ class SpatialFilesystem:
             return self.metadata_cache[cache_key]
 
         try:
-            content = file_path.read_text(encoding='utf-8')
+            content = file_path.read_text(encoding="utf-8")
 
-            frontmatter_str = ''
+            frontmatter_str = ""
             body = content
 
             # Extract YAML front-matter
-            if content.startswith('---'):
-                parts = content.split('---', 2)
+            if content.startswith("---"):
+                parts = content.split("---", 2)
                 if len(parts) >= 3:
                     frontmatter_str = parts[1]
                     body = parts[2]
@@ -401,17 +418,19 @@ class SpatialFilesystem:
             else:
                 metadata_dict = {}
 
-            tags = metadata_dict.get('tags', [])
+            tags = metadata_dict.get("tags", [])
             if isinstance(tags, str):
-                tags = [t.strip().lstrip('#') for t in re.split(r'[ ,]+', tags) if t.strip()]
+                tags = [
+                    t.strip().lstrip("#") for t in re.split(r"[ ,]+", tags) if t.strip()
+                ]
             elif tags is None:
                 tags = []
 
             inline_tags = self._extract_inline_tags(body)
-            merged_tags: List[str] = []
-            seen: Set[str] = set()
+            merged_tags: list[str] = []
+            seen: set[str] = set()
             for tag in tags + inline_tags:
-                tag_clean = str(tag).strip().lstrip('#')
+                tag_clean = str(tag).strip().lstrip("#")
                 if not tag_clean:
                     continue
                 key = tag_clean.lower()
@@ -420,34 +439,45 @@ class SpatialFilesystem:
                     merged_tags.append(tag_clean)
 
             metadata = ContentMetadata(
-                title=metadata_dict.get('title', ''),
-                description=metadata_dict.get('description', ''),
+                title=metadata_dict.get("title", ""),
+                description=metadata_dict.get("description", ""),
                 tags=merged_tags,
-                grid_locations=metadata_dict.get('grid_locations', []),
-                binder_id=metadata_dict.get('binder_id'),
-                chapter=metadata_dict.get('chapter'),
-                created_at=metadata_dict.get('created_at', ''),
-                updated_at=metadata_dict.get('updated_at', str(datetime.now().isoformat())),
-                author=metadata_dict.get('author', ''),
+                grid_locations=metadata_dict.get("grid_locations", []),
+                binder_id=metadata_dict.get("binder_id"),
+                chapter=metadata_dict.get("chapter"),
+                created_at=metadata_dict.get("created_at", ""),
+                updated_at=metadata_dict.get(
+                    "updated_at", str(datetime.now().isoformat())
+                ),
+                author=metadata_dict.get("author", ""),
                 custom_fields={
-                    k: v for k, v in metadata_dict.items()
-                    if k not in [
-                        'title', 'description', 'tags', 'grid_locations',
-                        'binder_id', 'chapter', 'created_at', 'updated_at', 'author'
+                    k: v
+                    for k, v in metadata_dict.items()
+                    if k
+                    not in [
+                        "title",
+                        "description",
+                        "tags",
+                        "grid_locations",
+                        "binder_id",
+                        "chapter",
+                        "created_at",
+                        "updated_at",
+                        "author",
                     ]
-                }
+                },
             )
 
             self.metadata_cache[cache_key] = metadata
             return metadata
         except Exception as e:
-            logger.warning(f'[LOCAL] Failed to extract metadata from {file_path}: {e}')
+            logger.warning(f"[LOCAL] Failed to extract metadata from {file_path}: {e}")
 
         return None
 
-    def _extract_inline_tags(self, body: str) -> List[str]:
+    def _extract_inline_tags(self, body: str) -> list[str]:
         """Extract Obsidian-style inline tags (#tag) from content body."""
-        tags: List[str] = []
+        tags: list[str] = []
         in_code = False
         for line in body.splitlines():
             if line.strip().startswith("```"):
@@ -455,11 +485,13 @@ class SpatialFilesystem:
                 continue
             if in_code:
                 continue
-            for match in re.finditer(r'(?<!\w)#([A-Za-z0-9_-]+)', line):
+            for match in re.finditer(r"(?<!\w)#([A-Za-z0-9_-]+)", line):
                 tags.append(match.group(1))
         return tags
 
-    def _index_file(self, file_path: Path, workspace: WorkspaceType, relative_path: str) -> None:
+    def _index_file(
+        self, file_path: Path, workspace: WorkspaceType, relative_path: str
+    ) -> None:
         """Index file in location/tag indexes."""
         metadata = self._extract_metadata(file_path)
         if not metadata:
@@ -480,7 +512,7 @@ class SpatialFilesystem:
         if metadata.binder_id:
             self.binder_index[metadata.binder_id].append(file_key)
 
-        logger.info(f'[LOCAL] Indexed file: {relative_path} (tags: {metadata.tags})')
+        logger.info(f"[LOCAL] Indexed file: {relative_path} (tags: {metadata.tags})")
 
     # =========================================================================
     # Grid Location Operations
@@ -493,15 +525,15 @@ class SpatialFilesystem:
 
         file_path = self.get_workspace_path(ws_type) / relative_path
         if not file_path.exists():
-            raise FileNotFoundError(f'File not found: {file_path}')
+            raise FileNotFoundError(f"File not found: {file_path}")
 
         # Parse location
         location = GridLocation.parse(location_str)
         if not location:
-            raise ValueError(f'Invalid grid location format: {location_str}')
+            raise ValueError(f"Invalid grid location format: {location_str}")
 
         # Update front-matter
-        content = file_path.read_text(encoding='utf-8')
+        content = file_path.read_text(encoding="utf-8")
         metadata = self._extract_metadata(file_path) or ContentMetadata()
 
         if str(location_str) not in metadata.grid_locations:
@@ -509,19 +541,19 @@ class SpatialFilesystem:
 
         # Write updated front-matter
         content_updated = self._update_frontmatter(content, metadata)
-        file_path.write_text(content_updated, encoding='utf-8')
+        file_path.write_text(content_updated, encoding="utf-8")
 
         # Update cache
         self.metadata_cache[str(file_path)] = metadata
         self.location_index[str(location_str)].add(str(file_path))
 
-        logger.info(f'[LOCAL] Tagged {workspace_ref} with location: {location_str}')
+        logger.info(f"[LOCAL] Tagged {workspace_ref} with location: {location_str}")
 
-    def find_by_location(self, location_str: str) -> List[FileLocation]:
+    def find_by_location(self, location_str: str) -> list[FileLocation]:
         """Find files at grid location."""
         location = GridLocation.parse(location_str)
         if not location:
-            raise ValueError(f'Invalid grid location format: {location_str}')
+            raise ValueError(f"Invalid grid location format: {location_str}")
 
         file_keys = self.location_index.get(location_str, set())
         results = []
@@ -534,13 +566,15 @@ class SpatialFilesystem:
                     ws_path = self.get_workspace_path(ws_type)
                     try:
                         relative_path = str(file_path.relative_to(ws_path))
-                        results.append(FileLocation(
-                            workspace=ws_type,
-                            relative_path=relative_path,
-                            absolute_path=file_path,
-                            grid_locations=[location_str],
-                            metadata=self._extract_metadata(file_path)
-                        ))
+                        results.append(
+                            FileLocation(
+                                workspace=ws_type,
+                                relative_path=relative_path,
+                                absolute_path=file_path,
+                                grid_locations=[location_str],
+                                metadata=self._extract_metadata(file_path),
+                            )
+                        )
                         break
                     except ValueError:
                         continue
@@ -551,7 +585,7 @@ class SpatialFilesystem:
     # Content Tagging
     # =========================================================================
 
-    def extract_tags(self, workspace_ref: str) -> List[str]:
+    def extract_tags(self, workspace_ref: str) -> list[str]:
         """Extract tags from file."""
         ws_type, relative_path = self.resolve_workspace_reference(workspace_ref)
         self.ensure_access(ws_type)
@@ -561,10 +595,10 @@ class SpatialFilesystem:
 
         return metadata.tags if metadata else []
 
-    def find_by_tags(self, tags: List[str]) -> List[FileLocation]:
+    def find_by_tags(self, tags: list[str]) -> list[FileLocation]:
         """Find files matching any of the given tags."""
         tags_lower = [t.lower() for t in tags]
-        file_keys: Set[str] = set()
+        file_keys: set[str] = set()
 
         for tag in tags_lower:
             file_keys.update(self.tag_index.get(tag, set()))
@@ -577,12 +611,14 @@ class SpatialFilesystem:
                     ws_path = self.get_workspace_path(ws_type)
                     try:
                         relative_path = str(file_path.relative_to(ws_path))
-                        results.append(FileLocation(
-                            workspace=ws_type,
-                            relative_path=relative_path,
-                            absolute_path=file_path,
-                            metadata=self._extract_metadata(file_path)
-                        ))
+                        results.append(
+                            FileLocation(
+                                workspace=ws_type,
+                                relative_path=relative_path,
+                                absolute_path=file_path,
+                                metadata=self._extract_metadata(file_path),
+                            )
+                        )
                         break
                     except ValueError:
                         continue
@@ -593,7 +629,7 @@ class SpatialFilesystem:
     # Binder Operations
     # =========================================================================
 
-    def open_binder(self, workspace_ref: str) -> 'Binder':
+    def open_binder(self, workspace_ref: str) -> Binder:
         """Open binder from workspace."""
         ws_type, relative_path = self.resolve_workspace_reference(workspace_ref)
         self.ensure_access(ws_type)
@@ -604,45 +640,43 @@ class SpatialFilesystem:
     def _update_frontmatter(self, content: str, metadata: ContentMetadata) -> str:
         """Update or create front-matter in markdown content."""
         frontmatter = {
-            'title': metadata.title,
-            'description': metadata.description,
-            'tags': metadata.tags,
-            'grid_locations': metadata.grid_locations,
-            'binder_id': metadata.binder_id,
-            'chapter': metadata.chapter,
-            'created_at': metadata.created_at,
-            'updated_at': metadata.updated_at or str(datetime.now().isoformat()),
-            'author': metadata.author,
-            **metadata.custom_fields
+            "title": metadata.title,
+            "description": metadata.description,
+            "tags": metadata.tags,
+            "grid_locations": metadata.grid_locations,
+            "binder_id": metadata.binder_id,
+            "chapter": metadata.chapter,
+            "created_at": metadata.created_at,
+            "updated_at": metadata.updated_at or str(datetime.now().isoformat()),
+            "author": metadata.author,
+            **metadata.custom_fields,
         }
 
         if HAS_YAML:
             frontmatter_yaml = yaml.dump(frontmatter, default_flow_style=False)
         else:
             # Fallback: simple key-value format
-            frontmatter_yaml = '\n'.join(f'{k}: {v}' for k, v in frontmatter.items())
+            frontmatter_yaml = "\n".join(f"{k}: {v}" for k, v in frontmatter.items())
 
         # Remove old front-matter if present
-        if content.startswith('---'):
-            parts = content.split('---', 2)
+        if content.startswith("---"):
+            parts = content.split("---", 2)
             if len(parts) >= 3:
                 content = parts[2]
 
-        return f'---\n{frontmatter_yaml}---\n{content}'
+        return f"---\n{frontmatter_yaml}---\n{content}"
 
 
 # =============================================================================
 # Binder Integration
 # =============================================================================
 
+
 class Binder:
-    """
-    Represents a Binder (folder-based project with chapters).
-    """
+    """Represents a Binder (folder-based project with chapters)."""
 
     def __init__(self, binder_path: Path, fs: SpatialFilesystem):
-        """
-        Initialize binder.
+        """Initialize binder.
 
         Args:
             binder_path: Path to binder folder
@@ -650,7 +684,7 @@ class Binder:
         """
         self.path = Path(binder_path)
         self.fs = fs
-        self.chapters: List[Dict[str, Any]] = []
+        self.chapters: list[dict[str, Any]] = []
 
         self._scan_chapters()
 
@@ -660,37 +694,38 @@ class Binder:
             self.path.mkdir(parents=True, exist_ok=True)
 
         self.chapters = []
-        for item in sorted(self.path.glob('*.md')):
+        for item in sorted(self.path.glob("*.md")):
             metadata = self.fs._extract_metadata(item)
             self.chapters.append({
-                'path': item,
-                'filename': item.name,
-                'chapter': metadata.chapter if metadata else None,
-                'title': metadata.title if metadata else item.stem,
-                'metadata': metadata
+                "path": item,
+                "filename": item.name,
+                "chapter": metadata.chapter if metadata else None,
+                "title": metadata.title if metadata else item.stem,
+                "metadata": metadata,
             })
 
         # Sort by chapter number
-        self.chapters.sort(key=lambda x: x['chapter'] or 999)
+        self.chapters.sort(key=lambda x: x["chapter"] or 999)
 
-    def list_chapters(self) -> List[Dict[str, Any]]:
+    def list_chapters(self) -> list[dict[str, Any]]:
         """List all chapters in binder."""
         return self.chapters
 
-    def add_chapter(self, filename: str, content: str, chapter_num: int, title: str = '') -> None:
+    def add_chapter(
+        self, filename: str, content: str, chapter_num: int, title: str = ""
+    ) -> None:
         """Add chapter to binder."""
         chapter_path = self.path / filename
 
         metadata = ContentMetadata(
-            title=title or filename.replace('.md', ''),
-            chapter=chapter_num
+            title=title or filename.replace(".md", ""), chapter=chapter_num
         )
 
         content_with_fm = self.fs._update_frontmatter(content, metadata)
-        chapter_path.write_text(content_with_fm, encoding='utf-8')
+        chapter_path.write_text(content_with_fm, encoding="utf-8")
 
         self._scan_chapters()
-        logger.info(f'[LOCAL] Added chapter to binder: {filename}')
+        logger.info(f"[LOCAL] Added chapter to binder: {filename}")
 
 
 # =============================================================================
@@ -698,12 +733,12 @@ class Binder:
 # =============================================================================
 
 __all__ = [
-    'SpatialFilesystem',
-    'Binder',
-    'UserRole',
-    'WorkspaceType',
-    'ContentMetadata',
-    'FileLocation',
-    'GridLocation',
-    'WORKSPACE_CONFIG'
+    "WORKSPACE_CONFIG",
+    "Binder",
+    "ContentMetadata",
+    "FileLocation",
+    "GridLocation",
+    "SpatialFilesystem",
+    "UserRole",
+    "WorkspaceType",
 ]

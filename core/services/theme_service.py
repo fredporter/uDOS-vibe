@@ -1,16 +1,14 @@
-"""
-Theme Service
+"""Theme Service
 =============
 
 Lightweight mapping that keeps the Core TUI voice simple and safe by
 replacing a handful of words before they reach the terminal.
 """
+from __future__ import annotations
 
 import json
-import os
-import shutil
 from pathlib import Path
-from typing import Dict, Optional, List
+import shutil
 
 from core.services.logging_api import get_logger, get_repo_root
 
@@ -22,7 +20,7 @@ class ThemeService:
 
     ENV_MESSAGE_THEME = "UDOS_TUI_MESSAGE_THEME"
     SEED_DIR = Path("core/framework/seed/bank/system/themes")
-    SIMPLE_TUI_PRESETS: Dict[str, Dict[str, str]] = {
+    SIMPLE_TUI_PRESETS: dict[str, dict[str, str]] = {
         "default": {},
         "dungeon": {
             "Tip:": "Delve Tip:",
@@ -127,7 +125,7 @@ class ThemeService:
             "WIZARD": "GUIDE CONSOLE",
         },
     }
-    THEME_ALIASES: Dict[str, str] = {
+    THEME_ALIASES: dict[str, str] = {
         "galxy": "galaxy",
         "roleplay": "role-play",
         "captainsailor": "captain-sailor",
@@ -139,7 +137,7 @@ class ThemeService:
         "fantastic": "fantasy",
         "hitchhiker": "hitchhikers",
     }
-    MAP_LEVEL_THEME: Dict[str, str] = {
+    MAP_LEVEL_THEME: dict[str, str] = {
         "dungeon": "dungeon",
         "sub": "dungeon",
         "subterranean": "dungeon",
@@ -169,19 +167,19 @@ class ThemeService:
 
     def __init__(self):
         self.repo_root = get_repo_root()
-        env_memory = os.environ.get("UDOS_MEMORY_ROOT")
-        if env_memory:
-            self.memory_root = Path(env_memory)
-        else:
-            self.memory_root = self.repo_root / "memory"
+        from core.services.paths import get_memory_root
+
+        self.memory_root = get_memory_root()
 
         self.theme_dir = self.memory_root / "bank" / "system" / "themes"
         self.seed_dir = self.repo_root / self.SEED_DIR
         self.theme_dir.mkdir(parents=True, exist_ok=True)
         self._seed_templates()
 
-        self.active_theme = os.environ.get("UDOS_THEME", "default")
-        self.replacements: Dict[str, str] = {}
+        from core.services.unified_config_loader import get_config
+
+        self.active_theme = get_config("UDOS_THEME", "default")
+        self.replacements: dict[str, str] = {}
         self.load_theme(self.active_theme)
 
     def _seed_templates(self) -> None:
@@ -198,7 +196,7 @@ class ThemeService:
                 except Exception as exc:
                     logger.warning("[THEME] Failed to seed %s: %s", seed_file, exc)
 
-    def list_themes(self) -> Dict[str, Path]:
+    def list_themes(self) -> dict[str, Path]:
         """Return available theme files."""
         return {theme.stem: theme for theme in self.theme_dir.glob("*.json")}
 
@@ -224,18 +222,20 @@ class ThemeService:
             logger.warning("[THEME] Failed to load %s: %s", theme_path, exc)
             self.replacements = {}
 
-    def _canonical_theme_name(self, name: Optional[str]) -> str:
+    def _canonical_theme_name(self, name: str | None) -> str:
         if not name:
             return "default"
         raw = str(name).strip().lower()
         return self.THEME_ALIASES.get(raw, raw)
 
-    def canonical_message_theme(self, name: Optional[str]) -> str:
+    def canonical_message_theme(self, name: str | None) -> str:
         """Return a canonical TUI message theme name."""
         return self._canonical_theme_name(name)
 
-    def _resolve_message_theme(self, map_level: Optional[str] = None) -> str:
-        override = os.environ.get(self.ENV_MESSAGE_THEME, "").strip().lower()
+    def _resolve_message_theme(self, map_level: str | None = None) -> str:
+        from core.services.unified_config_loader import get_config
+
+        override = get_config(self.ENV_MESSAGE_THEME, "").strip().lower()
         if override:
             return self._canonical_theme_name(override)
 
@@ -244,7 +244,7 @@ class ThemeService:
             if mapped:
                 return mapped
 
-        env_level = os.environ.get("UDOS_TUI_MAP_LEVEL", "").strip().lower()
+        env_level = get_config("UDOS_TUI_MAP_LEVEL", "").strip().lower()
         if env_level:
             mapped = self.MAP_LEVEL_THEME.get(env_level)
             if mapped:
@@ -252,21 +252,21 @@ class ThemeService:
 
         return self._canonical_theme_name(self.active_theme)
 
-    def get_active_message_theme(self, map_level: Optional[str] = None) -> str:
+    def get_active_message_theme(self, map_level: str | None = None) -> str:
         """Return the active TUI message theme name."""
         return self._resolve_message_theme(map_level=map_level)
 
-    def list_message_themes(self) -> List[str]:
+    def list_message_themes(self) -> list[str]:
         """Return supported TUI message theme names."""
         return sorted(self.SIMPLE_TUI_PRESETS.keys())
 
-    def _apply_replacements(self, text: str, replacements: Dict[str, str]) -> str:
+    def _apply_replacements(self, text: str, replacements: dict[str, str]) -> str:
         result = text
         for key, value in replacements.items():
             result = result.replace(key, value)
         return result
 
-    def format_for_theme(self, text: Optional[str], theme_name: Optional[str]) -> str:
+    def format_for_theme(self, text: str | None, theme_name: str | None) -> str:
         """Format text using a specific TUI message theme (no env override)."""
         if not text:
             return ""
@@ -274,9 +274,8 @@ class ThemeService:
         simple = self.SIMPLE_TUI_PRESETS.get(canonical) or {}
         return self._apply_replacements(text, simple)
 
-    def format(self, text: Optional[str], map_level: Optional[str] = None) -> str:
-        """
-        Return themed version of the provided text.
+    def format(self, text: str | None, map_level: str | None = None) -> str:
+        """Return themed version of the provided text.
 
         Default mode: simplified TUI message vocabulary only.
         Legacy mode: full historical replacements (`UDOS_TUI_LEGACY_REPLACEMENTS=1`).
@@ -284,12 +283,9 @@ class ThemeService:
         if not text:
             return ""
 
-        legacy_mode = os.environ.get("UDOS_TUI_LEGACY_REPLACEMENTS", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        from core.services.unified_config_loader import get_bool_config
+
+        legacy_mode = get_bool_config("UDOS_TUI_LEGACY_REPLACEMENTS")
         if legacy_mode:
             return self._apply_replacements(text, self.replacements)
 

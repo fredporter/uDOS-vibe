@@ -5,13 +5,11 @@ from __future__ import annotations
 import ast
 import json
 import os
-import shutil
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+import shutil
 
 from core.commands.base import BaseCommandHandler
-from core.services.mission_objective_registry import MissionObjectiveRegistry
-from core.tui.output import OutputToolkit
+from core.services.error_contract import CommandError
 from core.services.logging_api import get_repo_root
 from core.services.maintenance_utils import (
     clean,
@@ -19,7 +17,8 @@ from core.services.maintenance_utils import (
     get_memory_root,
     tidy,
 )
-from core.services.error_contract import CommandError
+from core.services.mission_objective_registry import MissionObjectiveRegistry
+from core.tui.output import OutputToolkit
 
 
 class HealthHandler(BaseCommandHandler):
@@ -39,7 +38,7 @@ class HealthHandler(BaseCommandHandler):
         "poplib",
     }
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
         if params and params[0].lower() in {"tidy", "clean"}:
             return self._handle_maintenance_action(params)
         if params and params[0].lower() == "check":
@@ -48,7 +47,7 @@ class HealthHandler(BaseCommandHandler):
         repo = get_repo_root()
         storage = self._storage_payload(repo)
 
-        checks: List[Tuple[str, bool]] = []
+        checks: list[tuple[str, bool]] = []
         checks.append(("repo root present", repo.exists()))
         checks.append(("core config present", (repo / "core" / "config").exists()))
         checks.append(("memory root present", (repo / "memory").exists()))
@@ -112,7 +111,7 @@ class HealthHandler(BaseCommandHandler):
             "storage": storage,
         }
 
-    def _handle_check(self, params: List[str]) -> Dict:
+    def _handle_check(self, params: list[str]) -> dict:
         target = params[0].lower() if params else ""
         fmt = "text"
         for idx, token in enumerate(params):
@@ -132,7 +131,7 @@ class HealthHandler(BaseCommandHandler):
             level="INFO",
         )
 
-    def _check_release_gates(self, fmt: str = "text") -> Dict:
+    def _check_release_gates(self, fmt: str = "text") -> dict:
         payload = MissionObjectiveRegistry().snapshot()
         summary = payload.get("summary", {})
         status = "success"
@@ -176,7 +175,7 @@ class HealthHandler(BaseCommandHandler):
             "release_gates": payload,
         }
 
-    def _check_storage(self, fmt: str = "text") -> Dict:
+    def _check_storage(self, fmt: str = "text") -> dict:
         payload = self._storage_payload(get_repo_root())
         status = "success" if payload.get("reserve_ok", False) else "warning"
 
@@ -217,7 +216,7 @@ class HealthHandler(BaseCommandHandler):
             "storage": payload,
         }
 
-    def _handle_maintenance_action(self, params: List[str]) -> Dict:
+    def _handle_maintenance_action(self, params: list[str]) -> dict:
         action = params[0].lower()
         scope, _remaining = self._parse_scope(params[1:])
         target_root, recursive = self._resolve_scope(scope)
@@ -264,7 +263,7 @@ class HealthHandler(BaseCommandHandler):
             "moved": moved,
         }
 
-    def _parse_scope(self, params: List[str]) -> Tuple[str, List[str]]:
+    def _parse_scope(self, params: list[str]) -> tuple[str, list[str]]:
         if not params:
             return "workspace", []
         scope = params[0].lower()
@@ -272,7 +271,7 @@ class HealthHandler(BaseCommandHandler):
             return scope, params[1:]
         return "workspace", params
 
-    def _resolve_scope(self, scope: str) -> Tuple[Path, bool]:
+    def _resolve_scope(self, scope: str) -> tuple[Path, bool]:
         if scope == "current":
             return Path.cwd(), False
         if scope == "+subfolders":
@@ -281,7 +280,7 @@ class HealthHandler(BaseCommandHandler):
             return get_repo_root(), True
         return get_memory_root(), True
 
-    def _default_repo_allowlist(self) -> List[str]:
+    def _default_repo_allowlist(self) -> list[str]:
         return [
             ".git",
             ".github",
@@ -311,10 +310,10 @@ class HealthHandler(BaseCommandHandler):
             "venv",
         ]
 
-    def _default_memory_allowlist(self) -> List[str]:
+    def _default_memory_allowlist(self) -> list[str]:
         return ["bindings", "flags", "rules", "scripts", "state", "temp", ".compost"]
 
-    def _storage_payload(self, repo_root: Path) -> Dict[str, object]:
+    def _storage_payload(self, repo_root: Path) -> dict[str, object]:
         try:
             usage = shutil.disk_usage(repo_root)
             total = int(usage.total)
@@ -332,7 +331,7 @@ class HealthHandler(BaseCommandHandler):
 
         compost_root = get_compost_root()
         compost_access_ok = compost_root.exists() and os.access(compost_root, os.W_OK)
-        tiers: Dict[str, int] = {}
+        tiers: dict[str, int] = {}
         tier_names = ("archive", "trash", "backups")
         for tier in tier_names:
             tiers[tier] = 0
@@ -386,7 +385,7 @@ class HealthHandler(BaseCommandHandler):
             return 0
         return 0
 
-    def _safe_float(self, value: Optional[str], default: float) -> float:
+    def _safe_float(self, value: str | None, default: float) -> float:
         if value is None:
             return default
         try:
@@ -403,13 +402,13 @@ class HealthHandler(BaseCommandHandler):
             idx += 1
         return f"{value:.1f}{units[idx]}"
 
-    def _scan_network_imports(self, repo_root: Path) -> List[Tuple[str, int, str]]:
+    def _scan_network_imports(self, repo_root: Path) -> list[tuple[str, int, str]]:
         target_dirs = [
             repo_root / "core" / "commands",
             repo_root / "core" / "tui",
             repo_root / "core" / "services",
         ]
-        violations: List[Tuple[str, int, str]] = []
+        violations: list[tuple[str, int, str]] = []
 
         for root in target_dirs:
             if not root.exists():

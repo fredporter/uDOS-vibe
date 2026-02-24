@@ -113,6 +113,14 @@ from core.tui.ui_elements import ProgressBar
 from core.tui.vibe_dispatch_adapter import get_vibe_adapter
 from core.ui.command_selector import CommandSelector
 from core.utils.text_width import truncate_ansi_to_width
+from vibe.core.command_engine import CommandEngine
+
+# New imports for v1.4.6 architecture fix
+from vibe.core.input_router import InputRouter
+from vibe.core.provider_engine import ProviderEngine, ProviderType
+from vibe.core.response_normaliser import ResponseNormaliser
+from wizard.services.adapters import MistralAdapter, OllamaAdapter
+from wizard.services.provider_registry import get_provider_registry
 
 
 class ComponentState(Enum):
@@ -358,6 +366,28 @@ class UCODE:
         self._io_phase = IOLifecyclePhase.BACKGROUND
         self._io_phase_lock = threading.RLock()
 
+        # Initialize routing components (v1.4.6 architecture fix)
+        try:
+            self.input_router = InputRouter(
+                shell_enabled=True, ucode_confidence_threshold=0.80
+            )
+            self.command_engine = CommandEngine()
+            self.response_normaliser = ResponseNormaliser()
+            self.provider_engine = ProviderEngine(
+                normaliser=self.response_normaliser, timeout=30
+            )
+            self.provider_registry = get_provider_registry()
+            self._register_providers()
+            self.logger.info("[v1.4.6] Routing components initialized")
+        except Exception as exc:
+            self.logger.warning(f"[v1.4.6] Failed to initialize routing: {exc}")
+            # Fallback to None - old routing will be used
+            self.input_router = None
+            self.command_engine = None
+            self.response_normaliser = None
+            self.provider_engine = None
+            self.provider_registry = None
+
         if self.prompt.use_fallback:
             self.logger.info(
                 f"[ContextualPrompt] Using fallback mode: {self.prompt.fallback_reason}"
@@ -387,6 +417,40 @@ class UCODE:
                 )
         except Exception as e:
             self.logger.warning(f"[LOCAL] System seed check failed: {e}")
+
+    def _register_providers(self) -> None:
+        """Register available providers with registry (v1.4.6)."""
+        import asyncio
+
+        # Try registering Ollama (local)
+        try:
+            ollama = OllamaAdapter()
+            if asyncio.run(ollama.is_available()):
+                self.provider_registry.register_provider(
+                    ProviderType.OLLAMA,
+                    endpoint="http://127.0.0.1:11434",
+                    default_model="devstral-small-2",
+                    priority=0,  # Highest priority (local-first)
+                )
+                self.logger.info("[v1.4.6] Registered Ollama provider")
+        except Exception as exc:
+            self.logger.warning(f"[v1.4.6] Failed to register Ollama: {exc}")
+
+        # Try registering Mistral (cloud)
+        try:
+            api_key = os.getenv("MISTRAL_API_KEY")
+            if api_key:
+                mistral = MistralAdapter(api_key=api_key)
+                if asyncio.run(mistral.is_available()):
+                    self.provider_registry.register_provider(
+                        ProviderType.MISTRAL,
+                        api_key=api_key,
+                        default_model="mistral-small-latest",
+                        priority=1,
+                    )
+                    self.logger.info("[v1.4.6] Registered Mistral provider")
+        except Exception as exc:
+            self.logger.warning(f"[v1.4.6] Failed to register Mistral: {exc}")
 
     def _handle_special_commands(self, command: str) -> bool:
         """Handle special REPL commands (EXIT/STATUS/HISTORY)."""
@@ -637,6 +701,147 @@ class UCODE:
 
         # Mode 3: Three-stage dispatch chain with Vibe skill routing (v1.4.4)
         return self._dispatch_with_vibe(user_input)
+
+    def _validate_shell_safety(self, command: str) -> bool:
+        """Validate shell command safety (v1.4.6).
+
+        Basic safety check for shell commands.
+        Returns True if command appears safe to execute.
+        """
+        # Block obviously dangerous commands
+        dangerous_patterns = [
+            "rm -rf /",
+            "mkfs",
+            ":(){ :|:& };:",  # fork bomb
+            "/dev/sd",  # direct disk access
+        ]
+
+        command_lower = command.lower()
+        for pattern in dangerous_patterns:
+            if pattern in command_lower:
+                return False
+
+        return True
+
+    def _execute_command_impl(self, command: str, args: str) -> tuple[bool, str, str]:
+        """Execute ucode command (adapter for CommandEngine).
+
+        Returns:
+            Tuple of (success, stdout, stderr)
+        """
+        try:
+            if command in self.commands:
+                # Route to existing command handler
+                self.commands[command](args)
+                return (True, "", "")
+            else:
+                return (False, "", f"Unknown command: {command}")
+        except Exception as exc:
+            return (False, "", str(exc))
+
+    def _route_to_provider(self, prompt: str) -> dict[str, Any]:
+        """Route natural language input to OK Provider (v1.4.6).
+
+        Uses ProviderRegistry for capability-based selection.
+        Normalises response before any execution.
+
+        Args:
+            prompt: Natural language prompt
+
+        Returns:
+            Dict with status and response
+        """
+        import asyncio
+
+        # Fallback to old system if new routing not available
+        if not self.provider_engine or not self.provider_registry:
+            self.logger.warning(
+                "[v1.4.6] Provider engine not available, using legacy routing"
+            )
+            self._run_ok_request(
+                prompt, mode="LOCAL", use_cloud=(self._ok_primary_provider() == "cloud")
+            )
+            return {"status": "success", "command": "OK"}
+
+        # Determine task mode (code, conversation, etc.)
+        mode = self._infer_task_mode(prompt)
+
+        # Select provider
+        try:
+            provider_type, model = self.provider_registry.select_provider_for_task(
+                mode=mode, prefer_local=True
+            )
+        except RuntimeError as exc:
+            return {"status": "error", "message": f"No provider available: {exc}"}
+
+        # Call provider
+        self._ui_line(f"OK → {provider_type.value} ({model})", level="info")
+
+        result = asyncio.run(
+            self.provider_engine.call_provider(
+                provider_type=provider_type.value,
+                model=model,
+                prompt=prompt,
+                system="You are a helpful coding assistant for uDOS.",
+            )
+        )
+
+        # Record telemetry
+        self.provider_registry.record_call(
+            provider_type, result.success, result.execution_time, result.status
+        )
+
+        if not result.success:
+            return {
+                "status": "error",
+                "message": result.error or "Provider call failed",
+            }
+
+        # Display response
+        self.renderer.stream_text(result.normalised.text, prefix="ok> ")
+
+        # Check for extracted ucode commands (but DO NOT auto-execute)
+        if result.normalised.contains_ucode:
+            self._ui_line(
+                f"Response contains {len(result.normalised.ucode_commands)} ucode commands",
+                level="warn",
+            )
+            # Future: Prompt user for confirmation before execution
+
+        return {
+            "status": "success",
+            "command": "OK",
+            "response": result.normalised.text,
+            "provider": provider_type.value,
+            "model": model,
+        }
+
+    def _infer_task_mode(self, prompt: str) -> str:
+        """Infer task mode from prompt (v1.4.6).
+
+        Simple heuristics for now. Future: Use OK Model for classification.
+
+        Args:
+            prompt: User prompt
+
+        Returns:
+            Task mode string (code, conversation, etc.)
+        """
+        prompt_lower = prompt.lower()
+
+        code_keywords = {
+            "write",
+            "code",
+            "function",
+            "class",
+            "refactor",
+            "debug",
+            "implement",
+        }
+        if any(kw in prompt_lower for kw in code_keywords):
+            return "code"
+
+        return "conversation"
 
     def _handle_slash_input(self, user_input: str) -> dict[str, Any]:
         """Handle slash-prefixed input.
@@ -1611,7 +1816,11 @@ class UCODE:
     def _get_ok_local_status(self) -> dict[str, Any]:
         """Return local provider status for OK Local / Vibe checks."""
         config = self.ai_modes_config or {}
-        ofvibe = config.get("modes", {}).get("ofvibe", {}) if isinstance(config, dict) else {}
+        ofvibe = (
+            config.get("modes", {}).get("ofvibe", {})
+            if isinstance(config, dict)
+            else {}
+        )
         raw_endpoint = str(ofvibe.get("ollama_endpoint") or "http://127.0.0.1:11434")
         endpoint = self._resolve_loopback_url(
             raw_endpoint, fallback="http://127.0.0.1:11434", context="OLLAMA_HOST"

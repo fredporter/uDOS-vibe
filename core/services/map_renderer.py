@@ -1,11 +1,8 @@
-"""
-Map Renderer (Core)
+"""Map Renderer (Core)
 
 Render location grids in ASCII form based on grid config.
 """
-
-from typing import Optional
-import os
+from __future__ import annotations
 
 from core.locations import Location
 from core.services.grid_config import load_grid_config
@@ -49,7 +46,9 @@ class MapRenderer:
         inner = box_width - 2
         header = f"{location.name}"
         header_line = f"{header:<{inner}}"
-        if os.getenv("UDOS_TUI_INVERT_HEADERS", "1").strip().lower() not in {"0", "false", "no"}:
+        from core.services.unified_config_loader import get_bool_config
+
+        if get_bool_config("UDOS_TUI_INVERT_HEADERS", default=True):
             header_line = OutputToolkit.invert(header_line)
         lines.append("+" + "-" * (box_width - 2) + "+")
         lines.append(f"| {header_line} |")
@@ -107,7 +106,7 @@ class MapRenderer:
         return " "
 
     @staticmethod
-    def _parse_row(cell_id: str) -> Optional[int]:
+    def _parse_row(cell_id: str) -> int | None:
         try:
             if len(cell_id) >= 3:
                 return int(cell_id[2:])
@@ -116,7 +115,7 @@ class MapRenderer:
         return None
 
     @staticmethod
-    def _parse_col(cell_id: str) -> Optional[int]:
+    def _parse_col(cell_id: str) -> int | None:
         try:
             if len(cell_id) >= 2:
                 col_char = cell_id[0]

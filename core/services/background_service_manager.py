@@ -57,7 +57,9 @@ class WizardProcessManager:
 
     @staticmethod
     def _base_url(value: str | None = None) -> str:
-        base_url = (value or os.getenv("WIZARD_BASE_URL") or _WIZARD_DEFAULT_BASE_URL).rstrip("/")
+        from core.services.unified_config_loader import get_config
+
+        base_url = (value or get_config("WIZARD_BASE_URL", "") or _WIZARD_DEFAULT_BASE_URL).rstrip("/")
         _assert_loopback_base_url(base_url)
         return base_url
 

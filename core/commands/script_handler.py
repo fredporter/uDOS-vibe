@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from typing import List, Dict, Optional
-from pathlib import Path
 import json
+from pathlib import Path
 
 from core.commands.base import BaseCommandHandler
+from core.services.error_contract import CommandError
 from core.services.logging_api import get_logger, get_repo_root
 from core.services.ts_runtime_service import TSRuntimeService
 from core.tui.output import OutputToolkit
-from core.services.error_contract import CommandError
 
 logger = get_logger("core", category="script-runner", name="script-handler")
 
@@ -29,7 +28,7 @@ class ScriptHandler(BaseCommandHandler):
             self.memory_root / "system",
         ]
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
         if not params:
             return self._list_scripts()
 
@@ -62,18 +61,18 @@ class ScriptHandler(BaseCommandHandler):
             ]
         )
 
-    def _help(self) -> Dict:
+    def _help(self) -> dict:
         return {"status": "success", "output": self._help_text()}
 
-    def _discover_scripts(self) -> List[Path]:
-        scripts: List[Path] = []
+    def _discover_scripts(self) -> list[Path]:
+        scripts: list[Path] = []
         for directory in self.script_dirs:
             if not directory.exists():
                 continue
             scripts.extend(sorted(p for p in directory.glob("*.md") if p.is_file()))
         return scripts
 
-    def _resolve_script(self, identifier: str) -> Optional[Path]:
+    def _resolve_script(self, identifier: str) -> Path | None:
         if not identifier:
             return None
         candidate = Path(identifier)
@@ -90,7 +89,7 @@ class ScriptHandler(BaseCommandHandler):
                 return target
         return None
 
-    def _list_scripts(self) -> Dict:
+    def _list_scripts(self) -> dict:
         banner = OutputToolkit.banner("SCRIPTS")
         scripts = self._discover_scripts()
         lines = [banner, ""]
@@ -105,7 +104,7 @@ class ScriptHandler(BaseCommandHandler):
             lines.append("")
         return {"status": "success", "output": "\n".join(lines)}
 
-    def _run_script(self, args: List[str]) -> Dict:
+    def _run_script(self, args: list[str]) -> dict:
         banner = OutputToolkit.banner("SCRIPT RUN")
         if not args:
             raise CommandError(
@@ -158,7 +157,7 @@ class ScriptHandler(BaseCommandHandler):
             lines.append(output.strip())
         return {"status": "success", "output": "\n".join(lines)}
 
-    def _show_logs(self, args: List[str]) -> Dict:
+    def _show_logs(self, args: list[str]) -> dict:
         banner = OutputToolkit.banner("SCRIPT LOGS")
         name_filter = args[0] if args else None
 
@@ -166,7 +165,7 @@ class ScriptHandler(BaseCommandHandler):
         if not log_dir.exists():
             return {"status": "success", "output": banner + "\n(no log directory found)"}
 
-        entries: List[Dict] = []
+        entries: list[dict] = []
         for log_file in sorted(log_dir.glob("*.jsonl")):
             try:
                 for line in log_file.read_text().splitlines():

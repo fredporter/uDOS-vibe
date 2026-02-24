@@ -1,5 +1,4 @@
-"""
-STORY command handler - parse and run -story.md files.
+"""STORY command handler - parse and run -story.md files.
 
 Story format is a sandboxed, interactive markdown format for:
 - Setup wizards
@@ -9,9 +8,9 @@ Story format is a sandboxed, interactive markdown format for:
 
 Uses Core's TypeScript runtime for execution.
 """
+from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from core.commands.base import BaseCommandHandler
 from core.services.logging_api import get_repo_root
@@ -22,9 +21,8 @@ from core.tui.output import OutputToolkit
 class StoryHandler(BaseCommandHandler):
     """Handler for STORY command - parse and execute story format files."""
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
-        """
-        STORY command dispatcher.
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
+        """STORY command dispatcher.
 
         Usage:
             STORY                    List all -story.md files
@@ -51,7 +49,7 @@ class StoryHandler(BaseCommandHandler):
             # Assume first param is the file to run
             return self._run_story(params[0], section_id=params[1] if len(params) > 1 else None)
 
-    def _list_stories(self) -> Dict:
+    def _list_stories(self) -> dict:
         """List all -story.md files in memory/story/."""
         repo_root = get_repo_root()
         story_dir = repo_root / "memory" / "story"
@@ -89,7 +87,7 @@ class StoryHandler(BaseCommandHandler):
             "output": output,
         }
 
-    def _parse_story(self, file_arg: str) -> Dict:
+    def _parse_story(self, file_arg: str) -> dict:
         """Parse a story file and show structure."""
         script_path = self._resolve_path(file_arg)
 
@@ -136,7 +134,7 @@ class StoryHandler(BaseCommandHandler):
             "sections": sections,
         }
 
-    def _run_story(self, file_arg: str, section_id: Optional[str] = None) -> Dict:
+    def _run_story(self, file_arg: str, section_id: str | None = None) -> dict:
         """Execute a story file and return parsed structure."""
         script_path = self._resolve_path(file_arg)
 
@@ -208,7 +206,7 @@ class StoryHandler(BaseCommandHandler):
                 "runtime": payload,
             }
 
-    def _create_story(self, name: str) -> Dict:
+    def _create_story(self, name: str) -> dict:
         """Create a new story template."""
         repo_root = get_repo_root()
         story_dir = repo_root / "memory" / "story"
@@ -281,9 +279,8 @@ set $user.completed true
             "output": f"Created: {story_file}\n\nRun with: STORY {safe_name}\nEdit with: FILE EDIT {story_file.relative_to(repo_root)}",
         }
 
-    def _process_interactive_form(self, form_spec: Dict) -> Dict:
-        """
-        Process interactive form with TUI form handler.
+    def _process_interactive_form(self, form_spec: dict) -> dict:
+        """Process interactive form with TUI form handler.
 
         Args:
             form_spec: Form specification with title, description, fields
@@ -292,9 +289,9 @@ set $user.completed true
             Dictionary with status and collected data
         """
         try:
-            from core.tui.story_form_handler import get_form_handler
             from core.services.logging_api import get_repo_root
             from core.services.paths import get_udos_root, get_vault_root
+            from core.tui.story_form_handler import get_form_handler
 
             # Inject dynamic defaults for known setup fields.
             repo_root = get_repo_root()

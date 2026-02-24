@@ -1,10 +1,9 @@
 """OAuth2 credential manager for external providers (Phase 8)."""
+from __future__ import annotations
 
-import os
-import json
-from typing import Dict, Optional, Tuple
 from datetime import datetime, timedelta
-import base64
+import json
+import os
 
 from core.services.logging_manager import get_logger
 
@@ -80,7 +79,7 @@ class OAuthManager:
         """Load credentials from storage."""
         if os.path.exists(self.storage_path):
             try:
-                with open(self.storage_path, 'r') as f:
+                with open(self.storage_path) as f:
                     self.credentials_cache = json.load(f)
                 logger.info(f"Loaded credentials for {len(self.credentials_cache)} providers")
             except Exception as e:
@@ -115,13 +114,14 @@ class OAuthManager:
             raise ValueError(f"Unknown provider: {provider}")
 
         config = self.PROVIDER_CONFIGS[provider]
-        client_id = os.getenv(f"{provider.upper()}_CLIENT_ID")
+        from core.services.unified_config_loader import get_config
+
+        client_id = get_config(f"{provider.upper()}_CLIENT_ID", "")
         if not client_id:
             raise ValueError(f"Missing {provider.upper()}_CLIENT_ID environment variable")
 
-        redirect_uri = redirect_uri or os.getenv(
-            f"{provider.upper()}_REDIRECT_URI",
-            "http://localhost:8000/oauth/callback",
+        redirect_uri = redirect_uri or get_config(
+            f"{provider.upper()}_REDIRECT_URI", "http://localhost:8000/oauth/callback"
         )
 
         params = {
@@ -140,7 +140,7 @@ class OAuthManager:
 
     async def handle_callback(
         self, provider: str, code: str, redirect_uri: str = None
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Handle OAuth2 callback and exchange code for tokens.
 
         Args:
@@ -155,15 +155,16 @@ class OAuthManager:
             raise ValueError(f"Unknown provider: {provider}")
 
         config = self.PROVIDER_CONFIGS[provider]
-        client_id = os.getenv(f"{provider.upper()}_CLIENT_ID")
-        client_secret = os.getenv(f"{provider.upper()}_CLIENT_SECRET")
+        from core.services.unified_config_loader import get_config
+
+        client_id = get_config(f"{provider.upper()}_CLIENT_ID", "")
+        client_secret = get_config(f"{provider.upper()}_CLIENT_SECRET", "")
 
         if not client_id or not client_secret:
             raise ValueError(f"Missing OAuth credentials for {provider}")
 
-        redirect_uri = redirect_uri or os.getenv(
-            f"{provider.upper()}_REDIRECT_URI",
-            "http://localhost:8000/oauth/callback",
+        redirect_uri = redirect_uri or get_config(
+            f"{provider.upper()}_REDIRECT_URI", "http://localhost:8000/oauth/callback"
         )
 
         # This would normally make an HTTP request to token_uri
@@ -184,7 +185,7 @@ class OAuthManager:
 
         return tokens
 
-    async def get_credentials(self, provider: str) -> Optional[Dict[str, str]]:
+    async def get_credentials(self, provider: str) -> dict[str, str] | None:
         """Get cached credentials for provider.
 
         Args:
@@ -209,7 +210,7 @@ class OAuthManager:
 
         return creds
 
-    async def refresh_token(self, provider: str) -> Optional[str]:
+    async def refresh_token(self, provider: str) -> str | None:
         """Refresh access token using refresh token.
 
         Args:
@@ -250,7 +251,7 @@ class OAuthManager:
         logger.info(f"Revoked credentials for {provider}")
         return True
 
-    async def check_auth_status(self, provider: str) -> Dict[str, any]:
+    async def check_auth_status(self, provider: str) -> dict[str, any]:
         """Check authentication status for provider.
 
         Args:
@@ -280,7 +281,7 @@ class OAuthManager:
             "has_refresh_token": "refresh_token" in creds,
         }
 
-    async def get_all_auth_status(self) -> Dict[str, any]:
+    async def get_all_auth_status(self) -> dict[str, any]:
         """Get authentication status for all providers.
 
         Returns:
@@ -291,7 +292,7 @@ class OAuthManager:
             for provider in self.PROVIDER_CONFIGS
         }
 
-    def set_credentials(self, provider: str, credentials: Dict[str, str]):
+    def set_credentials(self, provider: str, credentials: dict[str, str]):
         """Manually set credentials (for testing or manual setup).
 
         Args:

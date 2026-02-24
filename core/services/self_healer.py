@@ -1,5 +1,4 @@
-"""
-Self-Healing System for uDOS
+"""Self-Healing System for uDOS
 =============================
 
 Detects and automatically repairs common issues:
@@ -17,27 +16,25 @@ Usage:
     if result.success:
         logger.info("System healthy!")
 """
+from __future__ import annotations
 
-import sys
-import subprocess
-import warnings
-import importlib
-import ssl
-import json
-import time
-import threading
-import os
-import shutil
-import urllib.request
-import urllib.error
-from urllib.parse import urlparse
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from enum import Enum
+import importlib
+import json
+from pathlib import Path
+import shutil
+import ssl
+import subprocess
+import sys
+import threading
+import time
+from typing import Any
+import urllib.error
+from urllib.parse import urlparse
+import urllib.request
 
 from core.services.logging_api import get_logger
-from core.services.viewport_service import ViewportService
 from core.tui.ui_elements import Spinner
 
 logger = get_logger("self-healer")
@@ -47,6 +44,7 @@ logger = get_logger("self-healer")
 
 class IssueType(Enum):
     """Types of issues that can be detected and repaired."""
+
     MISSING_DEPENDENCY = "missing_dependency"
     LEGACY_CODE = "legacy_code"
     CONFIG_ERROR = "config_error"
@@ -57,6 +55,7 @@ class IssueType(Enum):
 
 class IssueSeverity(Enum):
     """Severity levels for detected issues."""
+
     CRITICAL = "critical"  # Blocks startup
     WARNING = "warning"    # Works but needs attention
     INFO = "info"          # Optional improvement
@@ -65,33 +64,35 @@ class IssueSeverity(Enum):
 @dataclass
 class Issue:
     """Represents a detected issue."""
+
     type: IssueType
     severity: IssueSeverity
     description: str
     component: str
     repairable: bool = False
     auto_repairable: bool = False  # Can be fixed without user confirmation
-    repair_action: Optional[str] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    repair_action: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class RepairResult:
     """Result of a repair operation."""
+
     success: bool
-    issues_found: List[Issue] = field(default_factory=list)
-    issues_repaired: List[Issue] = field(default_factory=list)
-    issues_remaining: List[Issue] = field(default_factory=list)
-    messages: List[str] = field(default_factory=list)
+    issues_found: list[Issue] = field(default_factory=list)
+    issues_repaired: list[Issue] = field(default_factory=list)
+    issues_remaining: list[Issue] = field(default_factory=list)
+    messages: list[str] = field(default_factory=list)
 
 
 class SelfHealer:
     """Self-healing system for uDOS components."""
+
     _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
     def __init__(self, component: str = "core", auto_repair: bool = True):
-        """
-        Initialize self-healer.
+        """Initialize self-healer.
 
         Args:
             component: Component name (core, wizard, goblin, app)
@@ -100,7 +101,7 @@ class SelfHealer:
         self.component = component
         self.auto_repair = auto_repair
         self.repo_root = self._find_repo_root()
-        self.issues: List[Issue] = []
+        self.issues: list[Issue] = []
 
     def _find_repo_root(self) -> Path:
         """Find uDOS repository root."""
@@ -112,8 +113,7 @@ class SelfHealer:
         return Path.cwd()
 
     def diagnose_and_repair(self) -> RepairResult:
-        """
-        Run full diagnostic and repair cycle.
+        """Run full diagnostic and repair cycle.
 
         Returns:
             RepairResult with details of issues found and repaired
@@ -378,10 +378,12 @@ class SelfHealer:
         if self.component not in {"core", "wizard"}:
             return
 
-        if os.getenv("UDOS_OLLAMA_AUTOSTART", "1").strip().lower() in {"0", "false", "no"}:
+        from core.services.unified_config_loader import get_bool_config, get_config
+
+        if not get_bool_config("UDOS_OLLAMA_AUTOSTART", default=True):
             return
 
-        host = self._sanitize_loopback_ollama_host(os.getenv("OLLAMA_HOST"))
+        host = self._sanitize_loopback_ollama_host(get_config("OLLAMA_HOST", ""))
         if not host:
             return
 
@@ -414,9 +416,11 @@ class SelfHealer:
 
     def _check_ollama_default_model(self, host: str) -> None:
         """Ensure configured local default model exists in Ollama model list."""
+        from core.services.unified_config_loader import get_config
+
         default_model = (
-            os.getenv("OLLAMA_DEFAULT_MODEL", "").strip()
-            or os.getenv("VIBE_ASK_MODEL", "").strip()
+            get_config("OLLAMA_DEFAULT_MODEL", "").strip()
+            or get_config("VIBE_ASK_MODEL", "").strip()
             or "devstral-small-2"
         )
         if not default_model:
@@ -477,8 +481,7 @@ class SelfHealer:
             return False
 
     def _attempt_repair(self, issue: Issue) -> bool:
-        """
-        Attempt to repair an issue.
+        """Attempt to repair an issue.
 
         Args:
             issue: Issue to repair
@@ -713,7 +716,7 @@ class SelfHealer:
             logger.warning(f"[HEAL] stdin error; auto-repairing if safe: {issue.description}")
             return issue.auto_repairable
 
-    def _get_required_dependencies(self) -> Dict[str, Optional[str]]:
+    def _get_required_dependencies(self) -> dict[str, str | None]:
         """Get required dependencies for component."""
         deps = {
             "core": {
@@ -738,8 +741,8 @@ class SelfHealer:
         return installed.startswith(required.split(".")[0])
 
     def _generate_summary(
-        self, repaired: List[Issue], remaining: List[Issue]
-    ) -> List[str]:
+        self, repaired: list[Issue], remaining: list[Issue]
+    ) -> list[str]:
         """Generate human-readable summary."""
         messages = []
 
@@ -769,8 +772,7 @@ class SelfHealer:
 
 
 def run_self_heal(component: str, auto_repair: bool = True) -> RepairResult:
-    """
-    Convenience function to run self-healing check.
+    """Convenience function to run self-healing check.
 
     Args:
         component: Component name (core, wizard, goblin, app)
@@ -783,7 +785,7 @@ def run_self_heal(component: str, auto_repair: bool = True) -> RepairResult:
     return healer.diagnose_and_repair()
 
 
-def summarize_self_heal_result(result: RepairResult) -> Dict[str, Any]:
+def summarize_self_heal_result(result: RepairResult) -> dict[str, Any]:
     """Return a serializable summary of a RepairResult."""
     return {
         "success": result.success,
@@ -795,7 +797,7 @@ def summarize_self_heal_result(result: RepairResult) -> Dict[str, Any]:
     }
 
 
-def collect_self_heal_summary(component: str = "core", auto_repair: bool = False) -> Dict[str, Any]:
+def collect_self_heal_summary(component: str = "core", auto_repair: bool = False) -> dict[str, Any]:
     """Run SelfHealer and return both the result and the summary."""
     result = run_self_heal(component=component, auto_repair=auto_repair)
     summary = summarize_self_heal_result(result)

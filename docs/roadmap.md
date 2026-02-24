@@ -19,17 +19,27 @@ Previous roadmap snapshot is archived at:
 
 **Primary Focus:** Environment configuration consolidation, testing phase verification, config alignment
 
+### Completed Features
+- ✅ Centralized `UnifiedConfigLoader` for all config sources (.env → TOML → JSON)
+- ✅ Centralized `AIProviderHandler` for Ollama/Mistral status checking
+- ⚠️ Centralized `PermissionHandler` created but requires bugfix (class definition)
+- ⏳ Partial TUI migration to config loader (7 os.getenv() → get_config())
+- ⏳ Wizard provider routes migrated to AIProviderHandler
+
 ### Planned Features
-- Centralized `AppConfig` loader for `core/config/config.toml`
-- Consolidation of environment variable handling across TUI, logging, and app services
-- Unified path constants for user data and secrets
-- Config-driven logging instead of scattered `os.getenv()` calls
+- Complete config loader migration (100+ remaining `os.getenv()` calls)
+- Path constants handler (`core/services/paths.py`)
+- Fix PermissionHandler class definition
+- Unit tests for all 3 central handlers (0% coverage currently)
 - Documentation: ENV-STRUCTURE spec completion
 
 ### Exit Criteria
-- [ ] Config loader implementation complete with type-safe accessors
-- [ ] All logging config reads from `core/config/config.toml`
-- [ ] All TUI config centralized (no duplicate `os.getenv()` calls across 7 files)
+- [x] Config loader implementation complete with type-safe accessors
+- [ ] **FIX:** PermissionHandler class definition (critical bug)
+- [ ] **CREATE:** Unit tests for 3 central handlers (test_permission_handler.py, test_ai_provider_handler.py, test_unified_config_loader.py)
+- [ ] All TUI config centralized (no duplicate `os.getenv()` calls across files) - **30% complete**
+- [ ] All Wizard config centralized - **10% complete**
+- [ ] Path constants handler created (core/services/paths.py)
 - [ ] User data paths aligned (API routes + user_service use same location)
 - [ ] Secrets location documented with path constants
 - [ ] Profile matrix tests pass with new config structure

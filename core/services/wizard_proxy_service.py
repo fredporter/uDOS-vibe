@@ -6,22 +6,22 @@ All proxy traffic is restricted to loopback hosts.
 
 from __future__ import annotations
 
-import os
 from urllib.parse import urlparse
 
 from core.services.background_service_manager import get_wizard_process_manager
 from core.services.error_contract import CommandError
 from core.services.stdlib_http import HTTPError, http_get, http_post
+from core.services.unified_config_loader import get_config
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
 def _wizard_base_url() -> str:
-    return (os.getenv("WIZARD_BASE_URL") or "http://localhost:8765").rstrip("/")
+    return (get_config("WIZARD_BASE_URL", "") or "http://localhost:8765").rstrip("/")
 
 
 def _admin_headers() -> dict[str, str]:
-    if not (token := (os.getenv("WIZARD_ADMIN_TOKEN") or "").strip()):
+    if not (token := get_config("WIZARD_ADMIN_TOKEN", "").strip()):
         return {}
     return {"X-Admin-Token": token}
 

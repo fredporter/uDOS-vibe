@@ -1,202 +1,195 @@
-# python312.rule
-# Rule for enforcing modern Python 3.12+ best practices.
-# Applies to all Python files (*.py) in the project.
-#
-# Guidelines covered:
-# - Use match-case syntax instead of if/elif/else for pattern matching.
-# - Use the walrus operator (:=) when it simplifies assignments and tests.
-# - Favor a "never nester" approach by avoiding deep nesting with early returns or guard clauses.
-# - Employ modern type hints using built-in generics (list, dict) and the union pipe (|) operator,
-#   rather than deprecated types from the typing module (e.g., Optional, Union, Dict, List).
-# - Ensure code adheres to strong static typing practices compatible with static analyzers like pyright.
-# - Favor pathlib.Path methods for file system operations over older os.path functions.
-# - Write code in a declarative and minimalist style that clearly expresses its intent.
-# - Additional best practices including f-string formatting, comprehensions, context managers, and overall PEP 8 compliance.
+# AGENTS.md — uDOS Root Governance
 
-description: "Modern Python 3.12+ best practices and style guidelines for coding."
-files: "**/*.py"
-
-guidelines:
-  - title: "Match-Case Syntax"
-    description: >
-      Prefer using the match-case construct over traditional if/elif/else chains when pattern matching
-      is applicable. This leads to clearer, more concise, and more maintainable code.
-
-  - title: "Walrus Operator"
-    description: >
-      Utilize the walrus operator (:=) to streamline code where assignment and conditional testing can be combined.
-      Use it judiciously when it improves readability and reduces redundancy.
-
-  - title: "Never Nester"
-    description: >
-      Aim to keep code flat by avoiding deep nesting. Use early returns, guard clauses, and refactoring to
-      minimize nested structures, making your code more readable and maintainable.
-
-  - title: "Modern Type Hints"
-    description: >
-      Adopt modern type hinting by using built-in generics like list and dict, along with the pipe (|) operator
-      for union types (e.g., int | None). Avoid older, deprecated constructs such as Optional, Union, Dict, and List
-      from the typing module.
-
-  - title: "Strong Static Typing"
-    description: >
-      Write code with explicit and robust type annotations that are fully compatible with static type checkers
-      like pyright. This ensures higher code reliability and easier maintenance.
-
-  - title: "Pydantic-First Parsing"
-    description: >
-      Prefer Pydantic v2's native validation over ad-hoc parsing. Use `model_validate`,
-      `field_validator`, `from_attributes`, and field aliases to coerce external SDK/DTO objects.
-      Avoid manual `getattr`/`hasattr` flows and custom constructors like `from_sdk` unless they are
-      thin wrappers over `model_validate`. Keep normalization logic inside model validators so call sites
-      remain declarative and typed.
-
-  - title: "Pathlib for File Operations"
-    description: >
-      Favor the use of pathlib.Path methods for file system operations. This approach offers a more
-      readable, object-oriented way to handle file paths and enhances cross-platform compatibility,
-      reducing reliance on legacy os.path functions.
-
-  - title: "Declarative and Minimalist Code"
-    description: >
-      Write code that is declarative—clearly expressing its intentions rather than focusing on implementation details.
-      Strive to keep your code minimalist by removing unnecessary complexity and boilerplate. This approach improves
-      readability, maintainability, and aligns with modern Python practices.
-
-  - title: "Additional Best Practices"
-    description: >
-      Embrace other modern Python idioms such as:
-      - Using f-strings for string formatting.
-      - Favoring comprehensions for building lists and dictionaries.
-      - Employing context managers (with statements) for resource management.
-      - Following PEP 8 guidelines to maintain overall code style consistency.
-
-  - title: "Exception Documentation"
-    description: >
-      Document exceptions accurately and minimally in docstrings:
-      - Only document exceptions that are explicitly raised in the function implementation
-      - Remove Raises entries for exceptions that are not directly raised
-      - Include all possible exceptions from explicit raise statements
-      - For public APIs, document exceptions from called functions if they are allowed to propagate
-      - Avoid documenting built-in exceptions that are obvious (like TypeError from type hints)
-      This ensures documentation stays accurate and maintainable, avoiding the common pitfall
-      of listing every possible exception that could theoretically occur.
-
-  - title: "Modern Enum Usage"
-    description: >
-      Leverage Python's enum module effectively following modern practices:
-      - Use StrEnum for string-based enums that need string comparison
-      - Use IntEnum/IntFlag for performance-critical integer-based enums
-      - Use auto() for automatic value assignment to maintain clean code
-      - Always use UPPERCASE for enum members to avoid name clashes
-      - Add methods to enums when behavior needs to be associated with values
-      - Use @property for computed attributes rather than storing values
-      - For type mixing, ensure mix-in types appear before Enum in base class sequence
-      - Consider Flag/IntFlag for bit field operations
-      - Use _generate_next_value_ for custom value generation
-      - Implement __bool__ when enum boolean evaluation should depend on value
-      This promotes type-safe constants, self-documenting code, and maintainable value sets.
-
-  - title: "No Inline Ignores"
-    description: >
-      Do not use inline suppressions like `# type: ignore[...]` or `# noqa[...]` in production code.
-      Instead, fix types and lint warnings at the source by:
-      - Refining signatures with generics (TypeVar), Protocols, or precise return types
-      - Guarding with `isinstance` checks before attribute access
-      - Using `typing.cast` when control flow guarantees the type
-      - Extracting small helpers to create clearer, typed boundaries
-      If a suppression is truly unavoidable at an external boundary, prefer a narrow, well-typed wrapper
-      over in-line ignores, and document the rationale in code comments.
-
-  - title: "Pydantic Discriminated Unions"
-    description: >
-      When modeling variants with a discriminated union (e.g., on a `transport` field), do not narrow a
-      field type in a subclass (e.g., overriding `transport: Literal['http']` with `Literal['streamable-http']`).
-      This violates Liskov substitution and triggers type checker errors due to invariance of class attributes.
-      Prefer sibling classes plus a shared mixin for common fields and helpers, and compose the union with
-      `Annotated[Union[...], Field(discriminator='transport')]`.
-      Example pattern:
-      - Create a base with shared non-discriminator fields (e.g., `_MCPBase`).
-      - Create a mixin with protocol-specific fields/methods (e.g., `_MCPHttpFields`), without a `transport`.
-      - Define sibling final classes per variant (e.g., `MCPHttp`, `MCPStreamableHttp`, `MCPStdio`) that set
-        `transport: Literal[...]` once in each final class.
-      - Use `match` on the discriminator to narrow types at call sites.
-
-  - title: "Use uv for All Commands"
-    description: >
-      We use uv to manage our python environment. You should never run bare python commands.
-      Always run commands using `uv` instead of invoking `python` or `pip` directly.
-      For example, use `uv add package` and `uv run script.py` rather than `pip install package` or `python script.py`.
-      This practice helps avoid environment drift and leverages modern Python packaging best practices.
-      Useful uv commands are:
-      - uv add/remove <package> to manage dependencies
-      - uv sync to install dependencies declared in pyproject.toml and uv.lock
-      - uv run script.py to run a script within the uv environment
-      - uv run pytest (or any other python tool) to run the tool within the uv environment
-
-  - title: "Pytest CI Profile Matrix"
-    description: >
-      Keep test execution aligned with profile-based CI lanes:
-      - core profile: `uv sync --group dev --extra udos`
-      - wizard profile: `uv sync --group dev --extra udos-wizard`
-      - full profile: `uv sync --group dev --extra udos-full`
-      Use matching test scopes from `docs/howto/CI-TEST-MATRIX.md` and `.github/workflows/ci-profiles.yml`.
-      Do not widen test scope beyond configured profile targets unless explicitly required.
-
-  - title: "Pytest Plugin Collision Prevention"
-    description: >
-      For deterministic CI runs and to avoid plugin registration collisions:
-      - Set `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`
-      - Load required plugins explicitly:
-        `-p pytest_asyncio.plugin -p pytest_timeout -p xdist.plugin -p anyio.pytest_plugin -p respx.plugin -p syrupy -p pytest_textual_snapshot`
-      Keep this plugin list synchronized with `.github/workflows/ci-profiles.yml`.
-
-  - title: "Imports in Cursor (no Pylance)"
-    description: >
-      Cursor's built-in Pyright does not offer the "Add import" quick fix (Ctrl+.). To add a missing import:
-      - Use the workspace snippets: type the prefix (e.g. acpschema, acphelpers, vibetypes, vibeconfig) and accept the suggestion to insert the import line, then change the symbol name.
-      - Or ask Cursor: select the undefined symbol, then Cmd+K and request "Add the missing import for <symbol>".
-      - Or copy the import from an existing file in the repo (e.g. acp.schema, acp.helpers, vibe.core.*).
+Last Updated: 2026-02-24
+Milestone: v1.4.6 Architecture Stabilisation Phase
+Status: Stable
 
 ---
 
-# Documentation Guidelines
+## 1. Purpose
 
-description: "Documentation organization and AI assistant output standards"
-files: "**/*.md"
+This file defines the authoritative behavioural and architectural rules for all OK Agents, OK Assistants, OK Helpers, OK Models, and OK Providers operating within the uDOS repository.
 
-guidelines:
-  - title: "DevLog Location"
-    description: >
-      All development logs, implementation summaries, test reports, and completion notes must be saved
-      in `docs/devlog/` directory. This includes:
-      - Implementation completion summaries
-      - Test reports and validation logs
-      - Development progress notes
-      - AI assistant session summaries
-      - Installation/setup completion reports
-      Never create devlog or summary files in the repository root or other docs/ subdirectories.
-      Examples: docs/devlog/2026-02-22-vibe-integration.md, docs/devlog/installer-test-report.md
+This document governs:
 
-  - title: "Documentation Organization"
-    description: >
-      Follow the established documentation structure:
-      - `docs/` - Root documentation (ARCHITECTURE.md, README.md, roadmap.md, INDEX.md)
-      - `docs/decisions/` - Architecture decision records and specifications
-      - `docs/specs/` - Detailed technical specifications and contracts
-      - `docs/howto/` - User guides and how-to documentation
-      - `docs/features/` - Feature documentation and references
-      - `docs/examples/` - Example scripts and workflows
-      - `docs/devlog/` - Development logs and summaries
-      - `docs/.archive/` - Deprecated/superseded documentation
-      - `wiki/` - Beginner-friendly end-user documentation
-      Avoid creating duplicate files across directories. Check for existing documentation before creating new files.
+- Architecture boundaries
+- Runtime separation
+- OK Agent integration rules
+- Vibe-CLI interaction model
+- ucode command enforcement
+- Branding terminology policy
 
-  - title: "Archive Policy"
-    description: >
-      Do not delete obsolete documentation. Instead, move it to the appropriate archive location:
-      - `docs/.archive/historic/` - Phase/milestone docs, outdated specs
-      - `docs/.archive/tui-legacy-2026-02/` - Standalone TUI documentation
-      - `docs/.archive/releases/v1.3.x/` - Version 1.3.x release documents
-      - `docs/.archive/releases/v1.4.0/` - Version 1.4.0 release documents
-      See docs/.archive/README.md for complete policy and rationale.
+Deeper scoped AGENTS.md files override this document within their folder scope.
+
+---
+
+## 2. Branding & Terminology Policy (Mandatory)
+
+uDOS does NOT use the term "AI".
+
+Approved terms:
+- OK Assistant
+- OK Agent
+- OK Helper
+- OK Model
+- OK Provider
+- Agent / Helper / Model / Provider / Assistant
+
+Prohibited:
+- AI (in documentation, code comments, commit messages, CLI output, or user interfaces)
+
+If legacy terminology exists, it must be refactored.
+
+---
+
+## 3. Core Architecture Model
+
+uDOS consists of clearly separated layers:
+
+### Core (Minimal / Deterministic)
+- Stdlib Python only
+- No external networking logic
+- No web responsibilities
+- Deterministic execution
+- Logging centralised
+- No hidden runtime side-effects
+
+### Wizard (Extended / Networked)
+- Full venv
+- Networking + web responsibilities
+- OK Provider integrations
+- Extended automation
+- External service interaction
+
+### TypeScript Runtime (If Enabled)
+- Lightweight execution partner
+- No duplication of Python core logic
+- Works alongside core, not replacing it
+
+Cross-boundary violations are prohibited.
+
+---
+
+## 4. Vibe-CLI Integration Model
+
+Mistral Vibe-CLI is the official TUI interaction layer.
+
+All terminal-based OK Agent interactions must route through:
+
+User
+↓
+Vibe-CLI
+↓
+OK Provider / OK Model
+↓
+ucode commands
+↓
+uDOS subsystems
+
+Rules:
+- No direct mutation of subsystems outside command boundary.
+- OK Agents must emit ucode-compatible instructions where possible.
+- Raw script dumping is discouraged if a ucode command exists.
+
+Vibe-CLI is the canonical interaction bridge.
+
+---
+
+## 5. ucode Command Enforcement
+
+ucode is the automation interface for uDOS.
+
+OK Agents must:
+
+- Prefer emitting valid UCODE commands.
+- Avoid bypassing logging hooks.
+- Avoid direct file manipulation unless explicitly required.
+- Respect core vs wizard boundaries.
+
+If a subsystem exposes a command, use it.
+
+---
+
+## 6. Logging Model
+
+All logs are centralised:
+
+~/memory/logs/
+
+Rules:
+- No shadow logging systems.
+- No duplicate logging frameworks.
+- Dev verbosity must be suppressible in production mode.
+- Logging API must be respected.
+
+---
+
+## 7. Binder System
+
+Binders group related projects.
+
+Each Binder must contain:
+
+- AGENTS.md
+- DEVLOG.md
+- project.json
+- tasks.md
+- completed.json
+
+Binder AGENTS.md may refine behaviour but cannot contradict root architecture.
+
+---
+
+## 8. Milestone Governance
+
+AGENTS.md must reflect:
+
+- Confirmed architecture
+- Fully tested systems (100% passing)
+- Pushed milestone state
+
+AGENTS.md must NOT contain:
+- Speculation
+- Roadmaps
+- TODO items
+- Historical commentary
+
+Milestone completion requires:
+1. Update relevant AGENTS.md files
+2. Update DEVLOG.md
+3. Move tasks to completed.json
+4. Remove stale architectural guidance
+
+---
+
+## 9. OK Agent Behaviour Constraints
+
+OK Agents operating within uDOS must:
+
+- Read nearest AGENTS.md before generating code
+- Prefer deeper scoped AGENTS.md over root
+- Not reintroduce deprecated patterns
+- Not duplicate subsystems
+- Not bypass ucode
+- Not violate core/wizard separation
+- Not generate legacy architecture
+- Not use prohibited terminology
+
+If instructions conflict:
+→ Prefer deeper scoped AGENTS.md.
+
+---
+
+## 10. Drift Prevention
+
+- Keep AGENTS.md concise and authoritative
+- Audit quarterly
+- Update immediately after milestone completion
+- Remove obsolete patterns immediately
+
+Architecture truth lives here.
+Speculation lives elsewhere.
+
+---
+
+End of File

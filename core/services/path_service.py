@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Final
 
@@ -15,7 +14,9 @@ def _home_root() -> Path:
 
 
 def _enforce_home_root(candidate: Path) -> Path:
-    if os.getenv("UDOS_HOME_ROOT_ENFORCE") != "1":
+    from core.services.unified_config_loader import get_bool_config
+
+    if not get_bool_config("UDOS_HOME_ROOT_ENFORCE"):
         return candidate
 
     home_root = _home_root()
@@ -55,7 +56,9 @@ def find_repo_root(start_path: Path | None = None, marker: str = DEFAULT_REPO_MA
             if (parent / marker).exists():
                 return _enforce_home_root(parent)
 
-    env_root = os.getenv("UDOS_ROOT")
+    from core.services.unified_config_loader import get_config
+
+    env_root = get_config("UDOS_ROOT", "")
     if env_root:
         env_path = Path(env_root).expanduser()
         if not env_path.is_absolute():

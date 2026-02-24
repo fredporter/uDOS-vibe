@@ -1,7 +1,7 @@
 # .env Refactoring Alignment Audit
 
-**Status:** ⚠️ PARTIAL ALIGNMENT  
-**Date:** 2026-02-24  
+**Status:** ⚠️ PARTIAL ALIGNMENT
+**Date:** 2026-02-24
 **Issue:** Codebase still reads moved variables from `.env` instead of `config.toml`
 
 ---
@@ -137,7 +137,7 @@ user_json_path = project_root / "core" / "data" / "variables" / "user.json"  # D
 
 ### Problem B: Secrets Location Not Documented
 
-**Current:** `wizard/secrets.tomb` (encrypted)  
+**Current:** `wizard/secrets.tomb` (encrypted)
 **Usage:** Referenced in docs but no code path constants defined
 
 ### Action Required
@@ -175,23 +175,23 @@ from typing import Any, Dict, Optional
 
 class AppConfig:
     """Centralized config from core/config/config.toml"""
-    
+
     def __init__(self, config_path: Optional[Path] = None):
         if config_path is None:
             from core.services.logging_api import get_repo_root
             config_path = Path(get_repo_root()) / "core" / "config" / "config.toml"
-        
+
         self.config_path = config_path
         self.data: Dict[str, Any] = self._load()
-    
+
     def _load(self) -> Dict[str, Any]:
         """Load config.toml with fallback defaults"""
         if not self.config_path.exists():
             return self._defaults()
-        
+
         with open(self.config_path, 'rb') as f:
             return tomllib.load(f)
-    
+
     @staticmethod
     def _defaults() -> Dict[str, Any]:
         """Return default config structure"""
@@ -205,14 +205,14 @@ class AppConfig:
             'ui': { ... },
             'app': { ... },
         }
-    
+
     # Typed accessors
     def log_level(self) -> str:
         return self.data.get('logging', {}).get('level', 'INFO')
-    
+
     def tui_quiet(self) -> bool:
         return self.data.get('ui', {}).get('tui', {}).get('quiet', False)
-    
+
     # ... more accessors
 ```
 

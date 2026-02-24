@@ -1,5 +1,4 @@
-"""
-Interactive Menu System for uDOS TUI
+"""Interactive Menu System for uDOS TUI
 
 Provides:
 - Single-select menus with numeric/arrow navigation
@@ -8,21 +7,23 @@ Provides:
 - Input validation and guided selection
 - Terminal-agnostic (fallback to numeric if arrows fail)
 """
+from __future__ import annotations
 
-import sys
-import os
-from typing import List, Dict, Optional, Tuple, Callable, Any
-from core.input.keymap import decode_key_input
-from core.utils.tty import interactive_tty_status
-from core.services.viewport_service import ViewportService
-from core.utils.text_width import pad_to_width, truncate_to_width
-from core.tui.stdout_guard import atomic_print, atomic_stdout_write
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+import sys
+
+from core.input.keymap import decode_key_input
+from core.services.viewport_service import ViewportService
+from core.tui.stdout_guard import atomic_print, atomic_stdout_write
+from core.utils.text_width import pad_to_width, truncate_to_width
+from core.utils.tty import interactive_tty_status
 
 
 class MenuStyle(Enum):
     """Menu display styles."""
+
     NUMBERED = "numbered"  # 1-9 numeric selection
     ARROW = "arrow"        # Arrow keys + Enter
     HYBRID = "hybrid"      # Numeric + Arrow keys
@@ -31,18 +32,18 @@ class MenuStyle(Enum):
 @dataclass
 class MenuItem:
     """Single menu item."""
+
     label: str
-    value: Optional[str] = None  # Return value if selected
+    value: str | None = None  # Return value if selected
     help_text: str = ""
     enabled: bool = True
-    submenu: Optional['InteractiveMenu'] = None
-    action: Optional[Callable] = None  # Direct action on selection
+    submenu: InteractiveMenu | None = None
+    action: Callable | None = None  # Direct action on selection
 
 
 class InteractiveMenu:
-    """
-    Interactive menu for terminal UIs.
-    
+    """Interactive menu for terminal UIs.
+
     Usage:
         menu = InteractiveMenu("Choose action", items=[
             MenuItem("Start Server", value="start", help_text="Launch the wizard server"),
@@ -51,18 +52,17 @@ class InteractiveMenu:
         ])
         selected = menu.show()
     """
-    
+
     def __init__(
         self,
         title: str,
-        items: List[MenuItem],
+        items: list[MenuItem],
         style: MenuStyle = MenuStyle.NUMBERED,
         allow_cancel: bool = True,
         show_help: bool = True,
     ):
-        """
-        Initialize menu.
-        
+        """Initialize menu.
+
         Args:
             title: Menu header text
             items: List of MenuItem objects
@@ -79,10 +79,12 @@ class InteractiveMenu:
         self.logger = None
         self._raw_mode = False
         self._alt_screen = False
-        self._use_alt_screen = os.getenv("UDOS_MENU_ALT_SCREEN", "0").lower() in ("1", "true", "yes", "on")
-        self._raw_nav_enabled = os.getenv("UDOS_MENU_ENABLE_RAW_NAV", "0").lower() in ("1", "true", "yes", "on")
+        from core.services.unified_config_loader import get_bool_config
+
+        self._use_alt_screen = get_bool_config("UDOS_MENU_ALT_SCREEN")
+        self._raw_nav_enabled = get_bool_config("UDOS_MENU_ENABLE_RAW_NAV")
         self._ascii_only = self._should_use_ascii()
-        
+
         try:
             from core.services.logging_api import get_logger
             self.logger = get_logger("interactive-menu")
@@ -91,20 +93,24 @@ class InteractiveMenu:
 
     def _resolve_style(self, style: MenuStyle) -> MenuStyle:
         """Apply env overrides for menu style."""
-        env_style = os.getenv("UDOS_MENU_STYLE", "").strip().lower()
+        from core.services.unified_config_loader import get_bool_config, get_config
+
+        env_style = get_config("UDOS_MENU_STYLE", "").strip().lower()
         if env_style in ("numbered", "numeric"):
             return MenuStyle.NUMBERED
         if env_style == "arrow":
             return MenuStyle.ARROW
         if env_style == "hybrid":
             return MenuStyle.HYBRID
-        if os.getenv("UDOS_MENU_NO_ARROWS", "").strip().lower() in ("1", "true", "yes"):
+        if get_bool_config("UDOS_MENU_NO_ARROWS"):
             return MenuStyle.NUMBERED
         return style
 
     def _should_use_ascii(self) -> bool:
         """Return True if we should avoid emoji/box-drawing glyphs."""
-        ascii_only = os.getenv("UDOS_ASCII_ONLY", "").strip().lower() in ("1", "true", "yes")
+        from core.services.unified_config_loader import get_bool_config
+
+        ascii_only = get_bool_config("UDOS_ASCII_ONLY")
         encoding = (getattr(sys.stdout, "encoding", "") or "").lower()
         return ascii_only or not encoding.startswith("utf")
 
@@ -129,10 +135,9 @@ class InteractiveMenu:
         """Clear visible screen area."""
         atomic_stdout_write("\033[2J\033[H")
 
-    def show(self) -> Optional[str]:
-        """
-        Display menu and get user selection.
-        
+    def show(self) -> str | None:
+        """Display menu and get user selection.
+
         Returns:
             Selected item's value, or None if cancelled
         """
@@ -199,7 +204,7 @@ class InteractiveMenu:
         # to avoid stacked/garbled layouts when handling arrow keys.
         if self.style in (MenuStyle.ARROW, MenuStyle.HYBRID):
             self._clear_screen()
-        lines: List[str] = []
+        lines: list[str] = []
         width = ViewportService().get_cols()
         inner_width = max(10, width - 2)
         if self._ascii_only:
@@ -246,7 +251,7 @@ class InteractiveMenu:
         lines.extend(self._get_instructions_lines())
         self._emit_lines(lines)
 
-    def _get_instructions_lines(self) -> List[str]:
+    def _get_instructions_lines(self) -> list[str]:
         """Get input instructions."""
         if self.style == MenuStyle.NUMBERED:
             return ["  Enter number and press Enter (0-9)"]
@@ -255,17 +260,16 @@ class InteractiveMenu:
         # HYBRID
         return ["  Use 1-9 or up/down arrows, then press Enter" if self._ascii_only else "  Use 1-9 or ↑↓ arrows, then press Enter"]
 
-    def _emit_lines(self, lines: List[str]) -> None:
+    def _emit_lines(self, lines: list[str]) -> None:
         """Write menu output with correct newlines for raw mode."""
         newline = "\r\n" if self._raw_mode else "\n"
         width = ViewportService().get_cols()
         padded = [pad_to_width(line, width) for line in lines]
         atomic_stdout_write(newline.join(padded) + newline)
 
-    def _get_choice(self) -> Optional[int]:
-        """
-        Get user choice from input.
-        
+    def _get_choice(self) -> int | None:
+        """Get user choice from input.
+
         Returns:
             Index of selected item, -1 to cancel, or None for error
         """
@@ -287,17 +291,17 @@ class InteractiveMenu:
                 self.logger.debug(f"Error getting choice: {e}")
             return self._get_choice_numeric()  # Fallback
 
-    def _get_choice_numeric(self) -> Optional[int]:
+    def _get_choice_numeric(self) -> int | None:
         """Get numeric input (1-9, 0 for cancel)."""
         try:
             response = input("  Choice: ").strip()
-            
+
             if not response:
                 return None
-            
+
             if response.lower() in ('q', 'quit', 'exit', 'cancel', 'x'):
                 return -1
-            
+
             try:
                 choice = int(response)
                 if choice == 0:
@@ -308,24 +312,24 @@ class InteractiveMenu:
         except (KeyboardInterrupt, EOFError):
             return -1
 
-    def _get_choice_arrow(self) -> Optional[int]:
+    def _get_choice_arrow(self) -> int | None:
         """Get input with arrow key support."""
         if not self._is_interactive():
             return self._get_choice_numeric()
         try:
             # Try to use readline for arrow key support
-            import tty
             import termios
-            
+            import tty
+
             original_settings = termios.tcgetattr(sys.stdin)
-            
+
             try:
                 tty.setraw(sys.stdin.fileno())
                 self._raw_mode = True
-                
+
                 while True:
                     char = sys.stdin.read(1)
-                    
+
                     # Escape sequence detected
                     if char == '\x1b':
                         next_char = sys.stdin.read(1)
@@ -346,11 +350,11 @@ class InteractiveMenu:
                                 self.selected_index = (self.selected_index + 1) % len(self.items)
                                 self._display()
                             continue
-                    
+
                     # Enter key
                     elif char == '\r':
                         return self.selected_index
-                    
+
                     # Numeric input (1-9)
                     elif char.isdigit():
                         try:
@@ -360,19 +364,19 @@ class InteractiveMenu:
                             return choice - 1
                         except ValueError:
                             continue
-                    
+
                     # Cancel keys
                     elif char in ('q', 'Q', 'x', 'X'):
                         return -1 if self.allow_cancel else None
-                    
+
                     # Ctrl+C
                     elif char == '\x03':
                         return -1
-                        
+
             finally:
                 self._raw_mode = False
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, original_settings)
-                
+
         except Exception:
             # Fallback to numeric
             return self._get_choice_numeric()
@@ -387,21 +391,21 @@ class InteractiveMenu:
 
 class MenuBuilder:
     """Builder pattern for creating menus."""
-    
+
     def __init__(self, title: str):
         self.title = title
-        self.items: List[MenuItem] = []
+        self.items: list[MenuItem] = []
         self.style = MenuStyle.HYBRID
         self.allow_cancel = True
         self.show_help = True
-    
+
     def add_item(
         self,
         label: str,
-        value: Optional[str] = None,
+        value: str | None = None,
         help_text: str = "",
         enabled: bool = True
-    ) -> 'MenuBuilder':
+    ) -> MenuBuilder:
         """Add menu item."""
         self.items.append(MenuItem(
             label=label,
@@ -410,13 +414,13 @@ class MenuBuilder:
             enabled=enabled
         ))
         return self
-    
+
     def add_action(
         self,
         label: str,
         action: Callable,
         help_text: str = "",
-    ) -> 'MenuBuilder':
+    ) -> MenuBuilder:
         """Add item with direct action callback."""
         self.items.append(MenuItem(
             label=label,
@@ -424,13 +428,13 @@ class MenuBuilder:
             help_text=help_text
         ))
         return self
-    
+
     def add_submenu(
         self,
         label: str,
-        submenu: 'InteractiveMenu',
+        submenu: InteractiveMenu,
         help_text: str = "",
-    ) -> 'MenuBuilder':
+    ) -> MenuBuilder:
         """Add submenu."""
         self.items.append(MenuItem(
             label=label,
@@ -438,22 +442,22 @@ class MenuBuilder:
             help_text=help_text
         ))
         return self
-    
-    def with_style(self, style: MenuStyle) -> 'MenuBuilder':
+
+    def with_style(self, style: MenuStyle) -> MenuBuilder:
         """Set menu style."""
         self.style = style
         return self
-    
-    def with_cancel(self, allow: bool) -> 'MenuBuilder':
+
+    def with_cancel(self, allow: bool) -> MenuBuilder:
         """Allow/disallow cancel."""
         self.allow_cancel = allow
         return self
-    
-    def with_help(self, show: bool) -> 'MenuBuilder':
+
+    def with_help(self, show: bool) -> MenuBuilder:
         """Show/hide help text."""
         self.show_help = show
         return self
-    
+
     def build(self) -> InteractiveMenu:
         """Build menu."""
         return InteractiveMenu(
@@ -469,20 +473,19 @@ class MenuBuilder:
 
 def show_menu(
     title: str,
-    options: List[Tuple[str, str, str]],
+    options: list[tuple[str, str, str]],
     allow_cancel: bool = True,
-) -> Optional[str]:
-    """
-    Quick menu display.
-    
+) -> str | None:
+    """Quick menu display.
+
     Args:
         title: Menu title
         options: List of (label, value, help_text) tuples
         allow_cancel: Allow cancellation
-    
+
     Returns:
         Selected value or None
-    
+
     Example:
         result = show_menu(
             "Choose action",
@@ -501,13 +504,12 @@ def show_menu(
 
 
 def show_confirm(title: str, help_text: str = "") -> bool:
-    """
-    Quick confirmation menu.
-    
+    """Quick confirmation menu.
+
     Args:
         title: Question text
         help_text: Optional help
-    
+
     Returns:
         True if confirmed
     """

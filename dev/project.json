@@ -1,0 +1,30 @@
+{
+  "id": "example-project",
+  "name": "Example Project",
+  "description": "Template project configuration",
+  "goal": "Define project objectives and success criteria",
+  "definition_of_done": "List concrete deliverables and acceptance criteria",
+  "constraints": {
+    "budget": null,
+    "max_daily_calls": null,
+    "privacy": "local-first",
+    "deadlines": []
+  },
+  "policy": {
+    "routing_rules": [],
+    "escalation_thresholds": {}
+  },
+  "promptsets": [],
+  "binders": {
+    "chapter_outline": [],
+    "exports": ["markdown", "json"]
+  },
+  "task_graph": {
+    "tasks": [],
+    "dependencies": []
+  },
+  "guidelines": "1. Define clear objectives\n2. Break down into tasks\n3. Track progress\n4. Document decisions\n5. Review and iterate",
+  "process": "1. Plan → 2. Implement → 3. Test → 4. Document → 5. Review",
+  "created": "YYYY-MM-DD",
+  "updated": "YYYY-MM-DD"
+}

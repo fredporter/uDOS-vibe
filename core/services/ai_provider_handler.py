@@ -1,5 +1,4 @@
-"""
-Unified AI Provider Handler
+"""Unified AI Provider Handler
 
 Central source of truth for AI provider availability checking.
 Replaces scattered status checks in:
@@ -37,10 +36,10 @@ for provider, status in all_status.items():
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -213,6 +212,7 @@ class AIProviderHandler:
         # Check 2: Ollama config exists (optional, but indicates setup intent)
         try:
             from pathlib import Path
+
             config_dir = Path.home() / ".ollama"
             if not config_dir.exists():
                 return False
@@ -228,11 +228,11 @@ class AIProviderHandler:
         Returns:
             True if Mistral API key found
         """
-        import os
         from core.services.admin_secret_contract import SecureVault
+        from core.services.unified_config_loader import get_config
 
         # Check 1: Environment variable
-        if os.getenv("MISTRAL_API_KEY"):
+        if get_config("MISTRAL_API_KEY", ""):
             return True
 
         # Check 2: Secret store
@@ -255,11 +255,15 @@ class AIProviderHandler:
             (is_running, models_list, issue_string_or_none)
         """
         try:
-            from wizard.routes.ollama_route_utils import get_installed_ollama_models_payload
+            from wizard.routes.ollama_route_utils import (
+                get_installed_ollama_models_payload,
+            )
 
             result = get_installed_ollama_models_payload()
             if result.get("success"):
-                models = [m.get("name") for m in result.get("models", []) if m.get("name")]
+                models = [
+                    m.get("name") for m in result.get("models", []) if m.get("name")
+                ]
                 return True, models, None
             else:
                 issue = result.get("error", "ollama not reachable")
@@ -275,8 +279,9 @@ class AIProviderHandler:
             (is_reachable, available_models, issue_string_or_none)
         """
         try:
-            import os
-            api_key = os.getenv("MISTRAL_API_KEY")
+            from core.services.unified_config_loader import get_config
+
+            api_key = get_config("MISTRAL_API_KEY", "")
             if not api_key:
                 return False, [], "no api key"
 
@@ -285,7 +290,7 @@ class AIProviderHandler:
             # Full implementation would do actual API health check
             return True, ["mistral-small", "mistral-medium", "mistral-large"], None
         except Exception as exc:
-            return False, [], f"mistral check failed: {str(exc)}"
+            return False, [], f"mistral check failed: {exc!s}"
 
     @staticmethod
     def _get_configured_default_model() -> str | None:
@@ -296,6 +301,7 @@ class AIProviderHandler:
         """
         try:
             from core.tui.ucode import UCODE
+
             ucode = UCODE()
             return ucode._get_ok_default_model()
         except Exception:
@@ -332,8 +338,9 @@ class AIProviderHandler:
         Returns:
             Endpoint URL
         """
-        import os
-        return os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+        from core.services.unified_config_loader import get_config
+
+        return get_config("OLLAMA_HOST", "http://127.0.0.1:11434")
 
     @staticmethod
     def _get_ollama_config_profiles() -> list[str]:
@@ -379,6 +386,7 @@ def get_ai_provider_handler() -> AIProviderHandler:
 
 
 # Convenience functions for TUI
+
 
 def check_local_provider() -> ProviderStatus:
     """Convenience wrapper to check local provider.

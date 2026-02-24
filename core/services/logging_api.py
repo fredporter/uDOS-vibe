@@ -1,5 +1,4 @@
-"""
-uDOS Logging API (v1.3)
+"""uDOS Logging API (v1.3)
 
 Structured, switchable, low-overhead logging for Core + Wizard.
 Defaults to JSONL file sink with optional pretty console output.
@@ -7,25 +6,24 @@ Defaults to JSONL file sink with optional pretty console output.
 
 from __future__ import annotations
 
-import json
-import os
-import random
-import sys
-import threading
-import time
-import traceback
 import contextvars
 from dataclasses import dataclass
 from datetime import datetime
+import json
+import os
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+import random
+import threading
+import time
+import traceback
+from typing import Any
 
 from core.services.id_utils import generate_runtime_id
 from core.services.path_service import get_repo_root as _resolve_repo_root
 
 LOG_SCHEMA_ID = "udos-log-v1.3"
 
-_CORR_ID: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+_CORR_ID: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "udos_corr_id", default=None
 )
 
@@ -95,7 +93,7 @@ def _coerce_bool(value: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _safe_float(value: Optional[str], default: float) -> float:
+def _safe_float(value: str | None, default: float) -> float:
     if value is None:
         return default
     try:
@@ -104,7 +102,7 @@ def _safe_float(value: Optional[str], default: float) -> float:
         return default
 
 
-def _safe_int(value: Optional[str], default: int) -> int:
+def _safe_int(value: str | None, default: int) -> int:
     if value is None:
         return default
     try:
@@ -113,7 +111,7 @@ def _safe_int(value: Optional[str], default: int) -> int:
         return default
 
 
-def _split_csv(value: Optional[str]) -> Optional[set[str]]:
+def _split_csv(value: str | None) -> set[str] | None:
     if not value:
         return None
     items = [v.strip() for v in value.split(",") if v.strip()]
@@ -121,9 +119,10 @@ def _split_csv(value: Optional[str]) -> Optional[set[str]]:
 
 
 def _default_log_root() -> Path:
-    env_root = os.getenv("UDOS_LOG_ROOT")
-    if env_root:
-        return Path(env_root).expanduser()
+    from core.services.unified_config_loader import get_path_config
+
+    if env_root := get_path_config("UDOS_LOG_ROOT"):
+        return env_root.expanduser()
     try:
         return get_repo_root() / "memory" / "logs" / "udos"
     except Exception:
@@ -135,7 +134,7 @@ def get_repo_root() -> Path:
     return _resolve_repo_root(marker="uDOS.py")
 
 
-def get_subprocess_env(base_env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def get_subprocess_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
     """Return env for subprocesses, ensuring UDOS_ROOT is set."""
     env = dict(base_env or os.environ)
     if "UDOS_ROOT" not in env:
@@ -166,7 +165,7 @@ def _redact(obj: Any) -> Any:
     return obj
 
 
-def _drop_payloads(ctx: Dict[str, Any]) -> Dict[str, Any]:
+def _drop_payloads(ctx: dict[str, Any]) -> dict[str, Any]:
     if not ctx:
         return ctx
     scrubbed = {}
@@ -184,23 +183,25 @@ class LogConfig:
     dest: str = "file"
     root: Path = None
     redact: bool = True
-    categories: Optional[set[str]] = None
+    categories: set[str] | None = None
     sampling: float = 1.0
     payloads: str = "dev-only"
     ring_size: int = 1000
 
     @classmethod
-    def from_env(cls) -> "LogConfig":
+    def from_env(cls) -> LogConfig:
+        from core.services.unified_config_loader import get_config
+
         return cls(
-            level=os.getenv("UDOS_LOG_LEVEL", "info").lower(),
-            format=os.getenv("UDOS_LOG_FORMAT", "json").lower(),
-            dest=os.getenv("UDOS_LOG_DEST", "file").lower(),
+            level=get_config("UDOS_LOG_LEVEL", "info").lower(),
+            format=get_config("UDOS_LOG_FORMAT", "json").lower(),
+            dest=get_config("UDOS_LOG_DEST", "file").lower(),
             root=_default_log_root(),
-            redact=_coerce_bool(os.getenv("UDOS_LOG_REDACT"), True),
-            categories=_split_csv(os.getenv("UDOS_LOG_CATEGORIES")),
-            sampling=_safe_float(os.getenv("UDOS_LOG_SAMPLING"), 1.0),
-            payloads=os.getenv("UDOS_LOG_PAYLOADS", "dev-only").lower(),
-            ring_size=_safe_int(os.getenv("UDOS_LOG_RING"), 1000),
+            redact=_coerce_bool(get_config("UDOS_LOG_REDACT"), True),
+            categories=_split_csv(get_config("UDOS_LOG_CATEGORIES")),
+            sampling=_safe_float(get_config("UDOS_LOG_SAMPLING"), 1.0),
+            payloads=get_config("UDOS_LOG_PAYLOADS", "dev-only").lower(),
+            ring_size=_safe_int(get_config("UDOS_LOG_RING"), 1000),
         )
 
 
@@ -240,9 +241,11 @@ class FileSink:
 
 
 class LogManager:
-    def __init__(self, config: Optional[LogConfig] = None) -> None:
+    def __init__(self, config: LogConfig | None = None) -> None:
         self.config = config or LogConfig.from_env()
-        self.session_id = os.getenv("UDOS_SESSION_ID") or _short_id("S")
+        from core.services.unified_config_loader import get_config
+
+        self.session_id = get_config("UDOS_SESSION_ID", "") or _short_id("S")
         self._ring: list[dict[str, Any]] = []
         self._ring_size = max(1, self.config.ring_size)
         self._sinks: dict[tuple[str, str], FileSink] = {}
@@ -272,7 +275,7 @@ class LogManager:
         if len(self._ring) > self._ring_size:
             self._ring = self._ring[-self._ring_size :]
 
-    def dump_ring(self, path: Optional[Path] = None) -> Path:
+    def dump_ring(self, path: Path | None = None) -> Path:
         if path is None:
             crash_dir = self.config.root / "crash"
             crash_dir.mkdir(parents=True, exist_ok=True)
@@ -337,9 +340,9 @@ class Logger:
         manager: LogManager,
         component: str,
         category: str = "general",
-        name: Optional[str] = None,
-        base_ctx: Optional[Dict[str, Any]] = None,
-        corr_id: Optional[str] = None,
+        name: str | None = None,
+        base_ctx: dict[str, Any] | None = None,
+        corr_id: str | None = None,
     ) -> None:
         self._manager = manager
         self._component = component
@@ -354,7 +357,7 @@ class Logger:
     def isDebug(self) -> bool:
         return self._manager._should_log("debug", self._category)
 
-    def child(self, ctx: Dict[str, Any]) -> "Logger":
+    def child(self, ctx: dict[str, Any]) -> Logger:
         merged = dict(self._base_ctx)
         merged.update(ctx or {})
         return Logger(
@@ -372,34 +375,34 @@ class Logger:
         event: str,
         msg: str,
         *args: Any,
-        ctx: Optional[Dict[str, Any]] = None,
-        err: Optional[Any] = None,
+        ctx: dict[str, Any] | None = None,
+        err: Any | None = None,
         **kwargs: Any,
     ) -> None:
         self._emit(level, msg, args=args, ctx=ctx, err=err, **kwargs, event=event)
 
-    def trace(self, msg: str, *args: Any, ctx: Optional[Any] = None, err: Optional[Any] = None, **kwargs: Any) -> None:
+    def trace(self, msg: str, *args: Any, ctx: Any | None = None, err: Any | None = None, **kwargs: Any) -> None:
         self._emit("trace", msg, args=args, ctx=ctx, err=err, **kwargs)
 
-    def debug(self, msg: str, *args: Any, ctx: Optional[Any] = None, err: Optional[Any] = None, **kwargs: Any) -> None:
+    def debug(self, msg: str, *args: Any, ctx: Any | None = None, err: Any | None = None, **kwargs: Any) -> None:
         self._emit("debug", msg, args=args, ctx=ctx, err=err, **kwargs)
 
-    def info(self, msg: str, *args: Any, ctx: Optional[Any] = None, err: Optional[Any] = None, **kwargs: Any) -> None:
+    def info(self, msg: str, *args: Any, ctx: Any | None = None, err: Any | None = None, **kwargs: Any) -> None:
         self._emit("info", msg, args=args, ctx=ctx, err=err, **kwargs)
 
-    def warn(self, msg: str, *args: Any, ctx: Optional[Any] = None, err: Optional[Any] = None, **kwargs: Any) -> None:
+    def warn(self, msg: str, *args: Any, ctx: Any | None = None, err: Any | None = None, **kwargs: Any) -> None:
         self._emit("warn", msg, args=args, ctx=ctx, err=err, **kwargs)
 
-    def warning(self, msg: str, *args: Any, ctx: Optional[Any] = None, err: Optional[Any] = None, **kwargs: Any) -> None:
+    def warning(self, msg: str, *args: Any, ctx: Any | None = None, err: Any | None = None, **kwargs: Any) -> None:
         self._emit("warn", msg, args=args, ctx=ctx, err=err, **kwargs)
 
-    def error(self, msg: str, *args: Any, ctx: Optional[Any] = None, err: Optional[Any] = None, **kwargs: Any) -> None:
+    def error(self, msg: str, *args: Any, ctx: Any | None = None, err: Any | None = None, **kwargs: Any) -> None:
         self._emit("error", msg, args=args, ctx=ctx, err=err, **kwargs)
 
-    def fatal(self, msg: str, *args: Any, ctx: Optional[Any] = None, err: Optional[Any] = None, **kwargs: Any) -> None:
+    def fatal(self, msg: str, *args: Any, ctx: Any | None = None, err: Any | None = None, **kwargs: Any) -> None:
         self._emit("fatal", msg, args=args, ctx=ctx, err=err, **kwargs)
 
-    def exception(self, msg: str, *args: Any, ctx: Optional[Any] = None, err: Optional[Any] = None, **kwargs: Any) -> None:
+    def exception(self, msg: str, *args: Any, ctx: Any | None = None, err: Any | None = None, **kwargs: Any) -> None:
         """Stdlib-compatible alias for error logging with stack capture."""
         self._emit("error", msg, args=args, ctx=ctx, err=err, exc_info=True, **kwargs)
 
@@ -407,11 +410,11 @@ class Logger:
         self,
         level: str,
         msg: str,
-        args: Optional[tuple[Any, ...]] = None,
-        ctx: Optional[Any] = None,
-        err: Optional[Any] = None,
-        event: Optional[str] = None,
-        exc_info: Optional[bool] = None,
+        args: tuple[Any, ...] | None = None,
+        ctx: Any | None = None,
+        err: Any | None = None,
+        event: str | None = None,
+        exc_info: bool | None = None,
         **kwargs: Any,
     ) -> None:
         if not self._manager._should_log(level, self._category):
@@ -427,7 +430,7 @@ class Logger:
             except Exception:
                 msg = f"{msg} {' '.join(str(a) for a in args)}"
 
-        resolved_ctx: Dict[str, Any] = {}
+        resolved_ctx: dict[str, Any] = {}
         if callable(ctx):
             resolved_ctx = ctx()
         elif isinstance(ctx, dict):
@@ -440,7 +443,9 @@ class Logger:
 
         # Enforce payload policy before redaction.
         payloads_policy = self._manager.config.payloads
-        dev_mode = os.getenv("UDOS_DEV_MODE", "").strip().lower() in {"1", "true", "yes"}
+        from core.services.unified_config_loader import get_bool_config
+
+        dev_mode = get_bool_config("UDOS_DEV_MODE")
 
         allow_payloads = False
         if payloads_policy == "on":
@@ -500,7 +505,7 @@ class Logger:
         self._manager.emit(record, component=self._component, name=self._name)
 
 
-_LOG_MANAGER: Optional[LogManager] = None
+_LOG_MANAGER: LogManager | None = None
 
 
 def get_log_manager() -> LogManager:
@@ -513,9 +518,9 @@ def get_log_manager() -> LogManager:
 def get_logger(
     component: str,
     category: str = "general",
-    name: Optional[str] = None,
-    ctx: Optional[Dict[str, Any]] = None,
-    corr_id: Optional[str] = None,
+    name: str | None = None,
+    ctx: dict[str, Any] | None = None,
+    corr_id: str | None = None,
     default_component: str = "core",
 ) -> Logger:
     # Backward compatibility: allow get_logger("category") usage.
@@ -541,7 +546,7 @@ def new_corr_id(prefix: str = "C") -> str:
     return _short_id(prefix)
 
 
-def set_corr_id(corr_id: Optional[str]) -> contextvars.Token:
+def set_corr_id(corr_id: str | None) -> contextvars.Token:
     """Set corr_id in context for implicit logger usage."""
     return _CORR_ID.set(corr_id)
 
@@ -554,7 +559,7 @@ def reset_corr_id(token: contextvars.Token) -> None:
         pass  # Ignore if token already used
 
 
-def get_corr_id() -> Optional[str]:
+def get_corr_id() -> str | None:
     """Get current corr_id from context."""
     return _CORR_ID.get()
 
@@ -570,12 +575,12 @@ class DevTrace:
         self.start_time = datetime.now()
         self.logger = get_logger("core", category=f"dev-trace-{category}", name="trace")
 
-    def span(self, name: str, metadata: Optional[Dict[str, Any]] = None):
+    def span(self, name: str, metadata: dict[str, Any] | None = None):
         if not self.enabled:
             return self._NoOpContext()
         return self._SpanContext(self, name, metadata)
 
-    def log(self, message: str, level: str = "INFO", metadata: Optional[Dict[str, Any]] = None):
+    def log(self, message: str, level: str = "INFO", metadata: dict[str, Any] | None = None):
         if not self.enabled:
             return
 
@@ -591,7 +596,7 @@ class DevTrace:
         log_method(f"[TRACE] {message} | {metadata or ''}")
 
     class _SpanContext:
-        def __init__(self, trace: "DevTrace", name: str, metadata: Optional[Dict[str, Any]]):
+        def __init__(self, trace: DevTrace, name: str, metadata: dict[str, Any] | None):
             self.trace = trace
             self.name = name
             self.metadata = metadata or {}
@@ -626,7 +631,7 @@ class DevTrace:
         def __exit__(self, *args):
             pass
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         total_duration = (datetime.now() - self.start_time).total_seconds()
         return {
             "category": self.category,
@@ -637,7 +642,7 @@ class DevTrace:
             "decisions": self.decisions,
         }
 
-    def save(self, filepath: Optional[Path] = None):
+    def save(self, filepath: Path | None = None):
         if not self.enabled:
             return
 

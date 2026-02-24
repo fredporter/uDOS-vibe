@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from enum import StrEnum
-import os
 
 from core.services.dev_state import get_dev_active
 from core.services.permission_handler import Permission
@@ -41,12 +40,9 @@ def resolve_runtime_mode() -> RuntimeMode:
 
 def boundaries_enforced() -> bool:
     """Return True when mode boundaries should be hard-enforced."""
-    raw = os.environ.get("UDOS_ENFORCE_MODE_BOUNDARIES", "").strip().lower()
-    if raw in {"0", "false", "no", "off"}:
-        return False
-    if raw in {"1", "true", "yes", "on"}:
-        return True
-    return True
+    from core.services.unified_config_loader import get_bool_config
+
+    return get_bool_config("UDOS_ENFORCE_MODE_BOUNDARIES", default=True)
 
 
 def mode_summary() -> dict[str, str]:

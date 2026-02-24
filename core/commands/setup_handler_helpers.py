@@ -1,20 +1,16 @@
-"""
-Helper utilities for SETUP command handling.
+"""Helper utilities for SETUP command handling.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
-import uuid
 
 from core.services.unified_config_loader import get_config
 
 
-def detect_udos_root(reference_file: Optional[Path] = None, logger=None) -> Path:
-    """
-    Auto-detect uDOS repository root for UDOS_ROOT .env variable.
+def detect_udos_root(reference_file: Path | None = None, logger=None) -> Path:
+    """Auto-detect uDOS repository root for UDOS_ROOT .env variable.
     """
     env_root = get_config("UDOS_ROOT", "")
     if env_root:
@@ -65,7 +61,7 @@ def initialize_env_from_example(env_file: Path, logger=None) -> None:
             logger.warning(f"[LOCAL] Could not initialize .env: {exc}")
 
 
-def load_setup_env_vars(env_file: Path) -> Dict:
+def load_setup_env_vars(env_file: Path) -> dict:
     """Load setup-related variables from .env file."""
     try:
         if not env_file.exists():
@@ -92,7 +88,7 @@ def load_setup_env_vars(env_file: Path) -> Dict:
         return {}
 
 
-def save_setup_to_env(env_file: Path, data: Dict, logger=None) -> bool:
+def save_setup_to_env(env_file: Path, data: dict, logger=None) -> bool:
     """Save setup data to .env file, preserving non-setup vars."""
     try:
         from core.services.uid_generator import generate_uid, scramble_uid
@@ -149,7 +145,7 @@ def save_setup_to_env(env_file: Path, data: Dict, logger=None) -> bool:
 
         if "UDOS_ROOT" not in existing:
             repo_root = Path(__file__).parent.parent.parent.resolve()
-            existing["UDOS_ROOT"] = f'"{str(repo_root)}"'
+            existing["UDOS_ROOT"] = f'"{repo_root!s}"'
 
         wizard_key = existing.get("WIZARD_KEY", "").strip().strip('"\'')
         if not wizard_key:

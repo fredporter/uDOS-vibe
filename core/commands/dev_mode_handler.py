@@ -1,17 +1,15 @@
 """DEV MODE command handler - Activate/deactivate development mode via Wizard Server."""
+from __future__ import annotations
 
-from typing import List, Dict, Optional
-from pathlib import Path
-from core.services.stdlib_http import http_get, http_post, HTTPError
 import json
 
 from core.services.logging_manager import get_logger
+from core.services.stdlib_http import HTTPError, http_get, http_post
 
 logger = get_logger("core", category="dev-mode", name="dev-mode-handler")
 
-from core.services.rate_limit_helpers import guard_wizard_endpoint
-
 from core.commands.base import BaseCommandHandler
+from core.services.rate_limit_helpers import guard_wizard_endpoint
 from core.tui.output import OutputToolkit
 
 
@@ -29,16 +27,19 @@ class DevModeHandler(BaseCommandHandler):
 
         return get_config("WIZARD_ADMIN_TOKEN", "").strip()
 
-    def _headers(self) -> Dict[str, str]:
-        headers: Dict[str, str] = {}
+    def _headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {}
         token = self._admin_token()
         if token:
             headers["X-Admin-Token"] = token
         return headers
 
-    def _admin_guard(self) -> Optional[Dict]:
+    def _admin_guard(self) -> dict | None:
         try:
-            from core.services.permission_handler import Permission, get_permission_handler
+            from core.services.permission_handler import (
+                Permission,
+                get_permission_handler,
+            )
 
             if not get_permission_handler().require(Permission.ADMIN, action="dev_mode"):
                 output = "\n".join(
@@ -60,7 +61,7 @@ class DevModeHandler(BaseCommandHandler):
             }
         return None
 
-    def _dev_templates_guard(self) -> Optional[Dict]:
+    def _dev_templates_guard(self) -> dict | None:
         try:
             from core.services.logging_api import get_repo_root
 
@@ -108,14 +109,14 @@ class DevModeHandler(BaseCommandHandler):
             }
         return None
 
-    def _dev_manifest(self) -> Dict:
+    def _dev_manifest(self) -> dict:
         try:
             from core.services.logging_api import get_repo_root
 
             manifest_path = get_repo_root() / "dev" / "goblin" / "dev_mode_commands.json"
             if not manifest_path.exists():
                 return {}
-            with open(manifest_path, "r", encoding="utf-8") as handle:
+            with open(manifest_path, encoding="utf-8") as handle:
                 payload = json.load(handle)
             return payload if isinstance(payload, dict) else {}
         except Exception:
@@ -140,13 +141,12 @@ class DevModeHandler(BaseCommandHandler):
             return syntax.strip()
         return "DEV [on|off|status|restart|logs|health|clear]"
 
-    def _throttle_guard(self, endpoint: str) -> Optional[Dict]:
+    def _throttle_guard(self, endpoint: str) -> dict | None:
         """Return throttle response when rate limit exceeded."""
         return guard_wizard_endpoint(endpoint)
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
-        """
-        Handle DEV MODE command.
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
+        """Handle DEV MODE command.
 
         Args:
             command: Command name (DEV MODE)
@@ -185,7 +185,7 @@ class DevModeHandler(BaseCommandHandler):
             "output": output,
         }
 
-    def _activate_dev_mode(self) -> Dict:
+    def _activate_dev_mode(self) -> dict:
         """Activate dev mode via Wizard."""
         try:
             guard = self._admin_guard()
@@ -259,7 +259,7 @@ class DevModeHandler(BaseCommandHandler):
                 "message": str(exc),
             }
 
-    def _deactivate_dev_mode(self) -> Dict:
+    def _deactivate_dev_mode(self) -> dict:
         """Deactivate dev mode via Wizard."""
         try:
             guard = self._admin_guard()
@@ -314,7 +314,7 @@ class DevModeHandler(BaseCommandHandler):
                 "message": str(exc),
             }
 
-    def _get_dev_status(self) -> Dict:
+    def _get_dev_status(self) -> dict:
         """Get dev mode status from Wizard."""
         try:
             guard = self._admin_guard()
@@ -393,7 +393,7 @@ class DevModeHandler(BaseCommandHandler):
                 "message": str(exc),
             }
 
-    def _restart_dev_mode(self) -> Dict:
+    def _restart_dev_mode(self) -> dict:
         """Restart dev mode via Wizard."""
         try:
             guard = self._admin_guard()
@@ -457,7 +457,7 @@ class DevModeHandler(BaseCommandHandler):
                 "message": str(exc),
             }
 
-    def _get_dev_logs(self, lines: int = 50) -> Dict:
+    def _get_dev_logs(self, lines: int = 50) -> dict:
         """Get dev mode logs from Wizard."""
         try:
             guard = self._admin_guard()
@@ -520,7 +520,7 @@ class DevModeHandler(BaseCommandHandler):
                 "message": str(exc),
             }
 
-    def _get_dev_health(self) -> Dict:
+    def _get_dev_health(self) -> dict:
         """Get dev mode health from Wizard."""
         try:
             guard = self._admin_guard()
@@ -600,7 +600,7 @@ class DevModeHandler(BaseCommandHandler):
                 "message": str(exc),
             }
 
-    def _clear_dev_mode(self) -> Dict:
+    def _clear_dev_mode(self) -> dict:
         """Clear dev mode caches/rebuilds via Wizard."""
         try:
             guard = self._admin_guard()

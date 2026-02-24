@@ -1,0 +1,24 @@
+{
+  "completed_milestones": [
+    {
+      "id": "example-milestone-1",
+      "name": "Example Milestone",
+      "completed_date": "YYYY-MM-DD",
+      "summary": "Brief description of what was accomplished",
+      "tasks": [
+        {
+          "id": "task-1",
+          "name": "Example Task",
+          "completed_date": "YYYY-MM-DD",
+          "owner": "Team Member Name"
+        }
+      ],
+      "metrics": {
+        "tests_passing": "100%",
+        "coverage": "90%",
+        "files_changed": 0
+      },
+      "notes": "Any relevant notes or learnings"
+    }
+  ]
+}

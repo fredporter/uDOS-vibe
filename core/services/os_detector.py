@@ -1,5 +1,4 @@
-"""
-OS Detection Service for uDOS Core
+"""OS Detection Service for uDOS Core
 
 Provides platform detection, capability checking, and OS-specific constraint warnings.
 Used by command handlers to adapt behavior across Alpine Linux, macOS, Ubuntu, Windows.
@@ -23,17 +22,15 @@ Usage:
     else:
         detector.warn_os_constraint("DISK FORMAT", ["alpine", "ubuntu"])
 """
+from __future__ import annotations
 
-import os
+from pathlib import Path
 import platform
 import subprocess
-from pathlib import Path
-from typing import Dict, List, Optional
 
 
 class OSDetector:
-    """
-    Detect operating system and provide platform-specific capabilities.
+    """Detect operating system and provide platform-specific capabilities.
 
     Singleton pattern - use get_os_detector() to access instance.
     """
@@ -55,14 +52,15 @@ class OSDetector:
         self._initialized = True
 
     def _detect_platform(self) -> str:
-        """
-        Detect current OS platform.
+        """Detect current OS platform.
 
         Returns:
             'alpine', 'macos', 'ubuntu', 'windows', 'linux', or 'unknown'
         """
         # Check for environment override (testing)
-        override = os.environ.get("UDOS_PLATFORM", "").lower()
+        from core.services.unified_config_loader import get_config
+
+        override = get_config("UDOS_PLATFORM", "").lower()
         if override in ("alpine", "macos", "ubuntu", "windows", "linux"):
             return override
 
@@ -81,8 +79,7 @@ class OSDetector:
         return "unknown"
 
     def _detect_linux_distro(self) -> str:
-        """
-        Detect specific Linux distribution.
+        """Detect specific Linux distribution.
 
         Priority:
         1. Alpine Linux (/etc/alpine-release, apk command)
@@ -133,9 +130,8 @@ class OSDetector:
         except Exception:
             return False
 
-    def _detect_capabilities(self) -> Dict[str, bool]:
-        """
-        Detect OS-specific capabilities.
+    def _detect_capabilities(self) -> dict[str, bool]:
+        """Detect OS-specific capabilities.
 
         Returns:
             Dict of capability flags
@@ -199,8 +195,7 @@ class OSDetector:
     # Capability checking
 
     def has_capability(self, capability: str) -> bool:
-        """
-        Check if OS has specific capability.
+        """Check if OS has specific capability.
 
         Args:
             capability: Capability name (e.g., 'format_ext4', 'apk', 'docker')
@@ -211,8 +206,7 @@ class OSDetector:
         return self._capabilities.get(capability, False)
 
     def can_format_disk(self, filesystem: str) -> bool:
-        """
-        Check if OS can format disks with given filesystem.
+        """Check if OS can format disks with given filesystem.
 
         Args:
             filesystem: 'ext4', 'apfs', 'ntfs', etc.
@@ -238,9 +232,8 @@ class OSDetector:
         else:
             return False
 
-    def get_package_manager(self) -> Optional[str]:
-        """
-        Get primary package manager for current OS.
+    def get_package_manager(self) -> str | None:
+        """Get primary package manager for current OS.
 
         Returns:
             'apk', 'apt', 'brew', 'choco', or None
@@ -257,9 +250,8 @@ class OSDetector:
 
     # OS constraint warnings
 
-    def warn_os_constraint(self, command: str, required_platforms: List[str]) -> str:
-        """
-        Generate warning message for OS-constrained commands.
+    def warn_os_constraint(self, command: str, required_platforms: list[str]) -> str:
+        """Generate warning message for OS-constrained commands.
 
         Args:
             command: Command name (e.g., "DISK FORMAT")
@@ -277,9 +269,8 @@ class OSDetector:
             f"   Consider running this command on a supported system."
         )
 
-    def suggest_alternative(self, command: str) -> Optional[str]:
-        """
-        Suggest OS-specific alternative for a command.
+    def suggest_alternative(self, command: str) -> str | None:
+        """Suggest OS-specific alternative for a command.
 
         Args:
             command: Command that failed
@@ -308,9 +299,8 @@ class OSDetector:
 
     # Platform information
 
-    def get_platform_info(self) -> Dict[str, str]:
-        """
-        Get comprehensive platform information.
+    def get_platform_info(self) -> dict[str, str]:
+        """Get comprehensive platform information.
 
         Returns:
             Dict with system details
@@ -341,8 +331,7 @@ class OSDetector:
         return info
 
     def get_capabilities_report(self) -> str:
-        """
-        Generate human-readable capabilities report.
+        """Generate human-readable capabilities report.
 
         Returns:
             Formatted capabilities string
@@ -373,12 +362,13 @@ class OSDetector:
 
 # Singleton accessor
 def get_os_detector() -> OSDetector:
-    """
-    Get OSDetector singleton instance.
+    """Get OSDetector singleton instance.
 
     Respects UDOS_PLATFORM overrides across test runs.
     """
-    override = os.environ.get("UDOS_PLATFORM", "").lower()
+    from core.services.unified_config_loader import get_config
+
+    override = get_config("UDOS_PLATFORM", "").lower()
     if OSDetector._instance is None:
         return OSDetector()
     if override and override != OSDetector._instance.get_platform():

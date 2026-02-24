@@ -17,7 +17,9 @@ def _state_path() -> Path:
 
 def get_wizard_mode_active() -> bool:
     """Return True if wizard mode is enabled."""
-    env_value = os.getenv("UDOS_WIZARD_MODE", "").strip().lower()
+    from core.services.unified_config_loader import get_config
+
+    env_value = get_config("UDOS_WIZARD_MODE", "").strip().lower()
     if env_value:
         return env_value in _ENABLED_VALUES
 

@@ -1,5 +1,4 @@
-"""
-Contextual Command Prompt (v1.0.0)
+"""Contextual Command Prompt (v1.0.0)
 ===================================
 
 Enhanced command prompt with:
@@ -15,17 +14,19 @@ Author: uDOS Engineering
 Date: 2026-01-30
 Version: v1.0.0
 """
+from __future__ import annotations
 
-import os
-from typing import Optional, List, Dict, Any, Callable
 from dataclasses import dataclass
-from core.utils.tty import interactive_tty_status
-from .enhanced_prompt import EnhancedPrompt
-from core.services.logging_api import get_logger
+from typing import Any
+
 from core.services.command_catalog import CANONICAL_UCODE_COMMANDS
 from core.services.dev_state import get_dev_state_label
+from core.services.logging_api import get_logger
 from core.services.viewport_service import ViewportService
 from core.tui.stdout_guard import atomic_stdout_write
+from core.utils.tty import interactive_tty_status
+
+from .enhanced_prompt import EnhancedPrompt
 
 
 def _get_safe_logger():
@@ -50,11 +51,12 @@ logger = _get_safe_logger()
 @dataclass
 class CommandMetadata:
     """Metadata for a command."""
+
     name: str
     help_text: str
-    options: List[str] = None
+    options: list[str] = None
     syntax: str = ""
-    examples: List[str] = None
+    examples: list[str] = None
     icon: str = "⚙️"
     category: str = "General"
 
@@ -72,7 +74,7 @@ class CommandRegistry:
 
     def __init__(self):
         """Initialize command registry."""
-        self.commands: Dict[str, CommandMetadata] = {}
+        self.commands: dict[str, CommandMetadata] = {}
         try:
             self.logger = get_logger("core", category="command-registry", name="command-prompt")
         except Exception:
@@ -82,14 +84,13 @@ class CommandRegistry:
         self,
         name: str,
         help_text: str,
-        options: Optional[List[str]] = None,
-        syntax: Optional[str] = None,
-        examples: Optional[List[str]] = None,
+        options: list[str] | None = None,
+        syntax: str | None = None,
+        examples: list[str] | None = None,
         icon: str = "⚙️",
         category: str = "General",
     ) -> None:
-        """
-        Register a command with metadata.
+        """Register a command with metadata.
 
         Args:
             name: Command name (will be uppercased)
@@ -112,9 +113,8 @@ class CommandRegistry:
         )
         self.logger.debug(f"Registered command: {name_upper} ({category})")
 
-    def get_suggestions(self, prefix: str, limit: int = 10) -> List[CommandMetadata]:
-        """
-        Get command suggestions matching prefix.
+    def get_suggestions(self, prefix: str, limit: int = 10) -> list[CommandMetadata]:
+        """Get command suggestions matching prefix.
 
         Args:
             prefix: Command prefix to match
@@ -147,11 +147,11 @@ class CommandRegistry:
 
         return (prefix_matches + substring_matches)[:limit]
 
-    def get_command(self, name: str) -> Optional[CommandMetadata]:
+    def get_command(self, name: str) -> CommandMetadata | None:
         """Get command metadata by name."""
         return self.commands.get(name.upper())
 
-    def list_all(self) -> List[CommandMetadata]:
+    def list_all(self) -> list[CommandMetadata]:
         """Get all registered commands."""
         return sorted(
             self.commands.values(),
@@ -160,8 +160,7 @@ class CommandRegistry:
 
 
 class ContextualCommandPrompt(EnhancedPrompt):
-    """
-    Enhanced command prompt with contextual help and suggestions.
+    """Enhanced command prompt with contextual help and suggestions.
 
     Features:
     - Command registry integration
@@ -172,9 +171,8 @@ class ContextualCommandPrompt(EnhancedPrompt):
     - Autocomplete with SmartPrompt
     """
 
-    def __init__(self, registry: Optional[CommandRegistry] = None):
-        """
-        Initialize contextual command prompt.
+    def __init__(self, registry: CommandRegistry | None = None):
+        """Initialize contextual command prompt.
 
         Args:
             registry: CommandRegistry instance (uses default if None)
@@ -189,8 +187,7 @@ class ContextualCommandPrompt(EnhancedPrompt):
         self.set_bottom_toolbar_provider(self._build_command_toolbar)
 
     def ask_command(self, prompt_text: str = "▶ ") -> str:
-        """
-        Ask for command with contextual help and suggestions.
+        """Ask for command with contextual help and suggestions.
 
         Shows:
           ▶ [user typing...]
@@ -207,12 +204,9 @@ class ContextualCommandPrompt(EnhancedPrompt):
 
         # Optional inline toolbar render for terminals where bottom-toolbar
         # painting is unreliable.
-        inline_toolbar = os.getenv("UDOS_PROMPT_TOOLBAR_INLINE", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        from core.services.unified_config_loader import get_bool_config
+
+        inline_toolbar = get_bool_config("UDOS_PROMPT_TOOLBAR_INLINE")
         if inline_toolbar:
             self.render_inline_toolbar("")
         elif self.use_fallback:
@@ -225,8 +219,7 @@ class ContextualCommandPrompt(EnhancedPrompt):
         return user_input.strip()
 
     def _display_context_for_command(self, prefix: str) -> None:
-        """
-        Display 2-line context for command input.
+        """Display 2-line context for command input.
 
         Args:
             prefix: Current user input prefix
@@ -258,8 +251,7 @@ class ContextualCommandPrompt(EnhancedPrompt):
         atomic_stdout_write("\n".join(lines) + "\n")
 
     def _build_command_toolbar(self, text: str):
-        """
-        Build a dynamic, 2-line toolbar for prompt_toolkit.
+        """Build a dynamic, 2-line toolbar for prompt_toolkit.
 
         Line 1: Suggestions/options bar
         Line 2: Help/syntax bar
@@ -348,7 +340,7 @@ class ContextualCommandPrompt(EnhancedPrompt):
         return [_format_line(line1), _format_line(line2)]
 
     def _format_suggestions_line(
-        self, suggestions: List[CommandMetadata], prefix_symbol: str = "", label: str = "Suggestions"
+        self, suggestions: list[CommandMetadata], prefix_symbol: str = "", label: str = "Suggestions"
     ) -> str:
         """Format suggestions line for toolbar."""
         if suggestions:
@@ -376,14 +368,13 @@ class ContextualCommandPrompt(EnhancedPrompt):
         self.toolbar_fixed_lines = enabled
 
     def _collect_option_hints(
-        self, cmd_key: str, cmd_meta: Optional[CommandMetadata]
-    ) -> List[str]:
+        self, cmd_key: str, cmd_meta: CommandMetadata | None
+    ) -> list[str]:
+        """Combine options from registry, autocomplete, and recent history.
         """
-        Combine options from registry, autocomplete, and recent history.
-        """
-        merged: List[str] = []
+        merged: list[str] = []
 
-        def _add(values: List[str]) -> None:
+        def _add(values: list[str]) -> None:
             for value in values:
                 if value and value not in merged:
                     merged.append(value)
@@ -403,9 +394,9 @@ class ContextualCommandPrompt(EnhancedPrompt):
 
         return merged
 
-    def _extract_recent_options(self, cmd_key: str) -> List[str]:
+    def _extract_recent_options(self, cmd_key: str) -> list[str]:
         """Extract recently used options/args from input history."""
-        history: List[str] = []
+        history: list[str] = []
         if hasattr(self, "input_history") and self.input_history:
             history = list(self.input_history)
         elif hasattr(self, "history") and hasattr(self.history, "get_strings"):
@@ -415,8 +406,8 @@ class ContextualCommandPrompt(EnhancedPrompt):
                 history = []
 
         recent = history[-100:]
-        options: List[str] = []
-        args: List[str] = []
+        options: list[str] = []
+        args: list[str] = []
 
         for line in recent:
             if not line:
@@ -432,9 +423,8 @@ class ContextualCommandPrompt(EnhancedPrompt):
                 if part.startswith("--") or part.startswith("-"):
                     if part not in options:
                         options.append(part)
-                else:
-                    if part not in args:
-                        args.append(part)
+                elif part not in args:
+                    args.append(part)
 
         merged = options[:6]
         # Include a couple of frequent args as soft hints
@@ -446,8 +436,7 @@ class ContextualCommandPrompt(EnhancedPrompt):
         prompt_text: str = "▶ ",
         show_help: bool = True
     ) -> str:
-        """
-        Ask for command with real-time suggestion display.
+        """Ask for command with real-time suggestion display.
 
         This version shows suggestions and help as user types.
         Note: Requires terminal that supports ANSI escape codes.
@@ -479,8 +468,7 @@ class ContextualCommandPrompt(EnhancedPrompt):
 
 
 def create_default_registry() -> CommandRegistry:
-    """
-    Create and populate default command registry.
+    """Create and populate default command registry.
 
     This should be called during uCODE initialization to register all
     available commands with their metadata.

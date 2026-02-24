@@ -1,5 +1,4 @@
-"""
-Workspace Selector for uDOS TUI
+"""Workspace Selector for uDOS TUI
 
 Interactive workspace picker that presents available workspaces before
 opening FileBrowser. Uses the same SelectorFramework pattern as FileBrowser
@@ -15,24 +14,22 @@ Workspaces:
 
 Part of Phase 2 TUI Enhancement — Workspace selection layer
 """
+from __future__ import annotations
 
-import os
-from pathlib import Path
-from typing import Optional, List
 from dataclasses import dataclass
+from pathlib import Path
 
-from core.ui.selector_framework import (
-    SelectorFramework,
-    SelectableItem,
-    SelectorConfig,
-    SelectionMode,
-)
 from core.input.keypad_handler import KeypadHandler, KeypadMode
-from core.services.spatial_filesystem import UserRole, WorkspaceType
-from core.services.viewport_service import ViewportService
 from core.services.logging_api import get_repo_root
+from core.services.spatial_filesystem import UserRole
+from core.services.viewport_service import ViewportService
+from core.ui.selector_framework import (
+    SelectableItem,
+    SelectionMode,
+    SelectorConfig,
+    SelectorFramework,
+)
 from core.utils.text_width import truncate_to_width
-
 
 _CONTINUE = object()
 
@@ -40,6 +37,7 @@ _CONTINUE = object()
 @dataclass
 class WorkspaceOption:
     """Represents a selectable workspace."""
+
     id: str
     name: str
     path: Path
@@ -64,8 +62,7 @@ class WorkspaceOption:
 
 
 class WorkspacePicker:
-    """
-    Interactive workspace selector using SelectorFramework.
+    """Interactive workspace selector using SelectorFramework.
 
     Presents workspace options before opening FileBrowser. Respects
     user role (admin vs normal) to show/hide restricted workspaces.
@@ -81,10 +78,9 @@ class WorkspacePicker:
     def __init__(
         self,
         user_role: UserRole = UserRole.USER,
-        project_root: Optional[Path] = None,
+        project_root: Path | None = None,
     ):
-        """
-        Initialize workspace picker.
+        """Initialize workspace picker.
 
         Args:
             user_role: UserRole.USER or UserRole.ADMIN
@@ -120,17 +116,14 @@ class WorkspacePicker:
                     return parent
             return Path.cwd()
 
-    def _build_workspace_list(self) -> List[WorkspaceOption]:
+    def _build_workspace_list(self) -> list[WorkspaceOption]:
         """Build list of available workspaces based on user role."""
         memory_dir = self.project_root / "memory"
         knowledge_dir = self.project_root / "knowledge"
         dev_dir = self.project_root / "dev"
-        env_vault = os.getenv("VAULT_ROOT")
-        vault_dir = (
-            Path(env_vault).expanduser()
-            if env_vault
-            else self.project_root / "memory" / "vault"
-        )
+        from core.services.paths import get_vault_root
+
+        vault_dir = get_vault_root()
 
         workspaces = [
             WorkspaceOption(
@@ -357,9 +350,8 @@ class WorkspacePicker:
         print()
         input("Press Enter to continue...")
 
-    def pick(self) -> Optional[Path]:
-        """
-        Run picker and return selected workspace path.
+    def pick(self) -> Path | None:
+        """Run picker and return selected workspace path.
 
         Returns:
             Path object if workspace selected, None if cancelled
@@ -382,10 +374,9 @@ class WorkspacePicker:
 
 def pick_workspace(
     user_role: UserRole = UserRole.USER,
-    project_root: Optional[Path] = None,
-) -> Optional[Path]:
-    """
-    Quick function to pick a workspace.
+    project_root: Path | None = None,
+) -> Path | None:
+    """Quick function to pick a workspace.
 
     Usage:
         workspace = pick_workspace(user_role=UserRole.ADMIN)
@@ -405,11 +396,10 @@ def pick_workspace(
 
 def pick_workspace_then_file(
     user_role: UserRole = UserRole.USER,
-    project_root: Optional[Path] = None,
+    project_root: Path | None = None,
     pick_directories: bool = False,
-) -> Optional[Path]:
-    """
-    Two-stage picker: workspace selection then file browser.
+) -> Path | None:
+    """Two-stage picker: workspace selection then file browser.
 
     Usage:
         file_path = pick_workspace_then_file(user_role=UserRole.ADMIN)

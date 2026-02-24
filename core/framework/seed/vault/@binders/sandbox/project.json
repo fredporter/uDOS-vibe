@@ -1,6 +1,6 @@
 {
   "id": "sandbox",
-  "name": "Sandbox Project",
+  "name": "Sandbox Binder",
   "description": "Safe space for exploring ideas and experimenting without impacting main projects",
   "goal": "Explore and validate ideas rapidly without impacting production projects.",
   "definition_of_done": "Validated experiments are documented and either promoted or archived.",

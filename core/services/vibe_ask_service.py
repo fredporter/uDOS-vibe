@@ -1,17 +1,17 @@
-"""
-Vibe Ask Service
+"""Vibe Ask Service
 
 Provides natural language query handling via language models (local or cloud).
 Integrates with OK/Vibe system for intelligent responses.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional
 from enum import StrEnum, auto
-import os
 import shutil
 import subprocess
+from typing import Any
 
 from core.services.logging_manager import get_logger
+from core.services.unified_config_loader import get_config
 
 
 class AskBackend(StrEnum):
@@ -27,14 +27,14 @@ class VibeAskService:
     def __init__(self):
         """Initialize ask service."""
         self.logger = get_logger("vibe-ask-service")
-        self.model: Optional[str] = None
+        self.model: str | None = None
         self.backend: AskBackend = AskBackend.NONE
         self._initialize_model()
 
     def _initialize_model(self) -> None:
         """Initialize language model (local or remote)."""
         self.logger.debug("Initializing ask backend")
-        model = os.getenv("VIBE_ASK_MODEL", "mistral")
+        model = get_config("VIBE_ASK_MODEL", "mistral")
         if shutil.which("ollama"):
             self.backend = AskBackend.OLLAMA
             self.model = model
@@ -66,9 +66,8 @@ class VibeAskService:
             case _:
                 raise RuntimeError(f"Unsupported ask backend: {self.backend.value}")
 
-    def query(self, prompt: str) -> Dict[str, Any]:
-        """
-        Send a natural language query to the language model.
+    def query(self, prompt: str) -> dict[str, Any]:
+        """Send a natural language query to the language model.
 
         Args:
             prompt: User query
@@ -114,9 +113,8 @@ class VibeAskService:
             "confidence": 0.85,
         }
 
-    def explain(self, topic: str, detail_level: str = "medium") -> Dict[str, Any]:
-        """
-        Get an explanation of a topic.
+    def explain(self, topic: str, detail_level: str = "medium") -> dict[str, Any]:
+        """Get an explanation of a topic.
 
         Args:
             topic: Topic to explain
@@ -142,9 +140,8 @@ class VibeAskService:
             "backend": self.backend.value,
         }
 
-    def suggest(self, context: str) -> Dict[str, Any]:
-        """
-        Get suggestions based on context.
+    def suggest(self, context: str) -> dict[str, Any]:
+        """Get suggestions based on context.
 
         Args:
             context: Context for suggestions
@@ -177,7 +174,7 @@ class VibeAskService:
 
 
 # Global singleton
-_ask_service: Optional[VibeAskService] = None
+_ask_service: VibeAskService | None = None
 
 
 def get_ask_service() -> VibeAskService:

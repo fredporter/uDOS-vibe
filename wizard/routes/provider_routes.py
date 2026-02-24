@@ -1,5 +1,4 @@
-"""
-Provider Setup Routes
+"""Provider Setup Routes
 =====================
 
 Manages API provider installation, configuration, and setup automation.
@@ -8,32 +7,32 @@ Tracks which providers need setup, runs CLI automations, and manages restart fla
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
+from pathlib import Path
 import shutil
 import subprocess
-from pathlib import Path
-from fastapi import APIRouter, HTTPException, Depends, Query
-from fastapi.responses import JSONResponse
-from datetime import datetime, timezone
-from wizard.services.secret_store import get_secret_store, SecretStoreError
-from wizard.services.logging_api import get_logger
-from wizard.services.system_info_service import get_system_info_service
-from wizard.services.path_utils import get_repo_root
-from wizard.services.quota_tracker import get_quota_tracker
-from wizard.services.ollama_service import (
-    ollama_host,
-    get_pull_tracker,
-    start_pull,
-    get_popular_models,
-)
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from core.services.integration_registry import get_provider_definitions
 from wizard.routes.ollama_route_utils import (
     get_installed_ollama_models_payload,
     remove_ollama_model_payload,
     validate_model_name,
 )
+from wizard.services.logging_api import get_logger
+from wizard.services.ollama_service import (
+    get_popular_models,
+    get_pull_tracker,
+    start_pull,
+)
+from wizard.services.path_utils import get_repo_root
 from wizard.services.provider_health_service import get_provider_health_service
+from wizard.services.quota_tracker import get_quota_tracker
+from wizard.services.secret_store import SecretStoreError, get_secret_store
+from wizard.services.system_info_service import get_system_info_service
 from wizard.services.wizard_config import load_wizard_config_data
-from core.services.integration_registry import get_provider_definitions
 
 
 def create_provider_routes(auth_guard=None):
@@ -83,7 +82,7 @@ def create_provider_routes(auth_guard=None):
     def load_setup_flags() -> dict[str, object]:
         """Load provider setup flags."""
         if SETUP_FLAGS_FILE.exists():
-            with open(SETUP_FLAGS_FILE, "r") as f:
+            with open(SETUP_FLAGS_FILE) as f:
                 return json.load(f)
         return {"flagged": [], "completed": [], "timestamp": None}
 
@@ -97,9 +96,14 @@ def create_provider_routes(auth_guard=None):
         if config.get("github_push_enabled"):
             enabled.add("github")
         if config.get("ok_gateway_enabled"):
-            enabled.update(
-                ["openai", "anthropic", "mistral", "openrouter", "gemini", "ollama"]
-            )
+            enabled.update([
+                "openai",
+                "anthropic",
+                "mistral",
+                "openrouter",
+                "gemini",
+                "ollama",
+            ])
 
         return sorted(enabled)
 
@@ -117,7 +121,7 @@ def create_provider_routes(auth_guard=None):
 
     def save_setup_flags(flags: dict[str, object]) -> None:
         """Save provider setup flags."""
-        flags["timestamp"] = datetime.now(timezone.utc).isoformat()
+        flags["timestamp"] = datetime.now(UTC).isoformat()
         with open(SETUP_FLAGS_FILE, "w") as f:
             json.dump(flags, f, indent=2)
 
@@ -187,10 +191,7 @@ def create_provider_routes(auth_guard=None):
             if status.get("cli_installed"):
                 try:
                     result = subprocess.run(
-                        "gh auth status",
-                        shell=True,
-                        capture_output=True,
-                        timeout=5,
+                        "gh auth status", shell=True, capture_output=True, timeout=5
                     )
                     if result.returncode == 0:
                         status["configured"] = True
@@ -200,7 +201,7 @@ def create_provider_routes(auth_guard=None):
 
         # Check if config file exists and has keys
         if config_file.exists():
-            with open(config_file, "r") as f:
+            with open(config_file) as f:
                 try:
                     config = json.load(f)
                     if provider["type"] == "api_key":
@@ -257,10 +258,7 @@ def create_provider_routes(auth_guard=None):
         if provider.get("check_cmd"):
             try:
                 result = subprocess.run(
-                    provider["check_cmd"],
-                    shell=True,
-                    capture_output=True,
-                    timeout=5,
+                    provider["check_cmd"], shell=True, capture_output=True, timeout=5
                 )
                 status["available"] = result.returncode == 0
             except Exception:
@@ -273,14 +271,12 @@ def create_provider_routes(auth_guard=None):
         enabled_ids = set(_get_enabled_providers())
         for provider_id, provider in PROVIDERS.items():
             status = check_provider_status(provider_id)
-            providers_list.append(
-                {
-                    **provider,
-                    "id": provider_id,
-                    "status": status,
-                    "enabled": provider_id in enabled_ids,
-                }
-            )
+            providers_list.append({
+                **provider,
+                "id": provider_id,
+                "status": status,
+                "enabled": provider_id in enabled_ids,
+            })
         return providers_list
 
     @router.get("")
@@ -297,10 +293,7 @@ def create_provider_routes(auth_guard=None):
     async def providers_dashboard():
         """Aggregate provider list + status + quota summaries."""
         quotas = get_quota_tracker().get_all_quotas()
-        return {
-            "providers": _build_provider_list(),
-            "quotas": quotas,
-        }
+        return {"providers": _build_provider_list(), "quotas": quotas}
 
     @router.get("/health/summary")
     async def provider_health_summary(stale_seconds: int = Query(300, ge=0, le=3600)):
@@ -446,7 +439,7 @@ def create_provider_routes(auth_guard=None):
 
         wizard_config = CONFIG_PATH / "wizard.json"
         if wizard_config.exists():
-            with open(wizard_config, "r") as f:
+            with open(wizard_config) as f:
                 config = json.load(f)
         else:
             config = {}
@@ -467,7 +460,7 @@ def create_provider_routes(auth_guard=None):
         """Mark provider as disabled."""
         wizard_config = CONFIG_PATH / "wizard.json"
         if wizard_config.exists():
-            with open(wizard_config, "r") as f:
+            with open(wizard_config) as f:
                 config = json.load(f)
 
             if (
@@ -479,7 +472,7 @@ def create_provider_routes(auth_guard=None):
             with open(wizard_config, "w") as f:
                 json.dump(config, f, indent=2)
 
-        return {"success": True, "message": f"Provider disabled"}
+        return {"success": True, "message": "Provider disabled"}
 
     # ─────────────────────────────────────────────────────────────
     # Ollama Model Management
@@ -487,31 +480,30 @@ def create_provider_routes(auth_guard=None):
 
     @router.get("/ollama/models/available")
     async def get_available_ollama_models():
-        """
-        Get list of popular Ollama models.
+        """Get list of popular Ollama models.
         Returns: List of recommended models with sizes and descriptions
         """
         popular_models = get_popular_models(include_installed=True)
-        categories = sorted({model.get("category", "") for model in popular_models if model.get("category")})
+        categories = sorted({
+            model.get("category", "")
+            for model in popular_models
+            if model.get("category")
+        })
 
-        return {
-            "success": True,
-            "models": popular_models,
-            "categories": categories,
-        }
+        return {"success": True, "models": popular_models, "categories": categories}
 
     @router.get("/ollama/models/installed")
     async def get_installed_ollama_models():
-        """
-        Get list of currently installed Ollama models.
+        """Get list of currently installed Ollama models.
         Returns: List of installed models with details
         """
         return get_installed_ollama_models_payload()
 
     @router.post("/ollama/models/pull")
-    async def pull_ollama_model(model: str = Query(..., description="Model name to pull")):
-        """
-        Pull (download) an Ollama model.
+    async def pull_ollama_model(
+        model: str = Query(..., description="Model name to pull"),
+    ):
+        """Pull (download) an Ollama model.
         Args: model - Model name (e.g., 'mistral', 'devstral-small-2')
         """
         validate_model_name(model)
@@ -537,7 +529,9 @@ def create_provider_routes(auth_guard=None):
         return {"success": True, "status": status}
 
     @router.post("/ollama/models/remove")
-    async def remove_ollama_model(model: str = Query(..., description="Model name to remove")):
+    async def remove_ollama_model(
+        model: str = Query(..., description="Model name to remove"),
+    ):
         """Remove an installed Ollama model."""
         return remove_ollama_model_payload(model)
 
@@ -545,8 +539,7 @@ def create_provider_routes(auth_guard=None):
 
 
 def create_public_ollama_routes():
-    """
-    Create public Ollama routes that don't require authentication.
+    """Create public Ollama routes that don't require authentication.
     These are local operations and don't expose sensitive data.
     """
     router = APIRouter(prefix="/api/providers/ollama", tags=["ollama-public"])
@@ -556,13 +549,13 @@ def create_public_ollama_routes():
     async def get_available_ollama_models_public():
         """Public endpoint: Get list of popular Ollama models."""
         popular_models = get_popular_models(include_installed=True)
-        categories = sorted({model.get("category", "") for model in popular_models if model.get("category")})
+        categories = sorted({
+            model.get("category", "")
+            for model in popular_models
+            if model.get("category")
+        })
 
-        return {
-            "success": True,
-            "models": popular_models,
-            "categories": categories,
-        }
+        return {"success": True, "models": popular_models, "categories": categories}
 
     @router.get("/models/installed")
     async def get_installed_ollama_models_public():
@@ -571,7 +564,7 @@ def create_public_ollama_routes():
 
     @router.post("/models/pull")
     async def pull_ollama_model_public(
-        model: str = Query(..., description="Model name to pull")
+        model: str = Query(..., description="Model name to pull"),
     ):
         """Public endpoint: Pull (download) an Ollama model."""
         validate_model_name(model)
@@ -590,7 +583,7 @@ def create_public_ollama_routes():
 
     @router.get("/models/pull/status")
     async def pull_ollama_status_public(
-        model: str = Query(..., description="Model name")
+        model: str = Query(..., description="Model name"),
     ):
         """Public endpoint: Get pull progress for an Ollama model."""
         status = pull_tracker.get(model)
@@ -600,7 +593,7 @@ def create_public_ollama_routes():
 
     @router.post("/models/remove")
     async def remove_ollama_model_public(
-        model: str = Query(..., description="Model name to remove")
+        model: str = Query(..., description="Model name to remove"),
     ):
         """Public endpoint: Remove an installed Ollama model."""
         return remove_ollama_model_payload(model)

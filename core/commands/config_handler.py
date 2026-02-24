@@ -1,13 +1,14 @@
 """CONFIG command handler - local configuration and variable management from TUI."""
+from __future__ import annotations
 
-from typing import List, Dict
 import json
 from pathlib import Path
+
 from core.commands.base import BaseCommandHandler
 from core.commands.handler_logging_mixin import HandlerLoggingMixin
 from core.commands.interactive_menu_mixin import InteractiveMenuMixin
-from core.services.logging_api import get_logger, get_repo_root, LogTags
 from core.services.error_contract import CommandError
+from core.services.logging_api import get_logger, get_repo_root
 
 logger = get_logger("config-handler")
 
@@ -15,9 +16,8 @@ logger = get_logger("config-handler")
 class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixin):
     """Handler for CONFIG command - Wizard configuration and variables from TUI."""
 
-    def handle(self, command: str, params: List[str], grid=None, parser=None) -> Dict:
-        """
-        Handle CONFIG commands for file config and variable management.
+    def handle(self, command: str, params: list[str], grid=None, parser=None) -> dict:
+        """Handle CONFIG commands for file config and variable management.
 
         Usage:
             CONFIG                     List all variables
@@ -138,7 +138,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
             trace.set_status(result.get("status", "success"))
             return result
 
-    def _show_status(self) -> Dict:
+    def _show_status(self) -> dict:
         """Show current configuration status."""
         from core.tui.output import OutputToolkit
 
@@ -168,7 +168,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
 
         return {"status": "success", "output": "\n".join(output)}
 
-    def _list_configs(self) -> Dict:
+    def _list_configs(self) -> dict:
         """List all configuration files."""
         from core.tui.output import OutputToolkit
 
@@ -196,7 +196,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
 
         return {"status": "success", "output": "\n".join(output)}
 
-    def _edit_config(self, filename: str) -> Dict:
+    def _edit_config(self, filename: str) -> dict:
         """Open config file in editor."""
         config_dir = Path(__file__).parent.parent.parent / "wizard" / "config"
         config_file = config_dir / filename
@@ -248,7 +248,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
                 level="ERROR",
             )
 
-    def _run_setup(self) -> Dict:
+    def _run_setup(self) -> dict:
         """Run provider setup check."""
         import subprocess
 
@@ -273,7 +273,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
         except Exception as e:
             raise CommandError(
                 code="ERR_RUNTIME_UNEXPECTED",
-                message=f"Failed to run setup: {str(e)}",
+                message=f"Failed to run setup: {e!s}",
                 recovery_hint="Try running manually: python -m wizard.check_provider_setup",
                 level="ERROR",
                 cause=e,
@@ -283,7 +283,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
     # Variable Management Methods
     # ========================================================================
 
-    def _list_variables(self) -> Dict:
+    def _list_variables(self) -> dict:
         """List all variables from local .env."""
         try:
             env_data = self._load_env_file()
@@ -297,7 +297,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
                 cause=e,
             )
 
-    def _get_variable(self, key: str) -> Dict:
+    def _get_variable(self, key: str) -> dict:
         """Get a specific variable."""
         try:
             env_data = self._load_env_file()
@@ -335,7 +335,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
                 cause=e,
             )
 
-    def _set_variable(self, key: str, value: str) -> Dict:
+    def _set_variable(self, key: str, value: str) -> dict:
         """Set a variable value."""
         try:
             # Parse boolean values
@@ -385,7 +385,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
                 cause=e,
             )
 
-    def _delete_variable(self, key: str) -> Dict:
+    def _delete_variable(self, key: str) -> dict:
         """Delete a variable."""
         try:
             env_path = get_repo_root() / ".env"
@@ -435,7 +435,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
                 cause=e,
             )
 
-    def _sync_variables(self) -> Dict:
+    def _sync_variables(self) -> dict:
         """Sync all variables across tiers."""
         try:
             from core.tui.output import OutputToolkit
@@ -464,7 +464,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
                 cause=e,
             )
 
-    def _export_config(self) -> Dict:
+    def _export_config(self) -> dict:
         """Export configuration for backup."""
         try:
             env_data = self._load_env_file()
@@ -498,7 +498,7 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
                 cause=e,
             )
 
-    def _show_help(self) -> Dict:
+    def _show_help(self) -> dict:
         """Show detailed help."""
         from core.tui.output import OutputToolkit
 
@@ -567,7 +567,7 @@ SECURITY:
         upper_key = key.upper()
         sensitive_markers = ["SECRET", "TOKEN", "PASSWORD", "KEY"]
         return any(marker in upper_key for marker in sensitive_markers)
-    def _load_env_file(self) -> Dict:
+    def _load_env_file(self) -> dict:
         """Load variables from .env file (offline fallback)."""
         try:
             env_path = get_repo_root() / ".env"
@@ -586,7 +586,7 @@ SECURITY:
         except Exception:
             return {}
 
-    def _format_env_variables(self, variables: Dict) -> Dict:
+    def _format_env_variables(self, variables: dict) -> dict:
         """Format .env variables for display."""
         try:
             from core.tui.output import OutputToolkit

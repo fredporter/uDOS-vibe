@@ -7,26 +7,23 @@ refresh the environment. Designed for both the Core TUI and Wizard server.
 
 from __future__ import annotations
 
-import os
+from dataclasses import dataclass
 import re
 import subprocess
 import sys
 import threading
 import warnings
-from dataclasses import dataclass
-from typing import List, Optional, Set, Tuple
 
-from core.services.logging_api import get_logger, LogTags, get_repo_root
-from core.utils.tty import interactive_tty_status
 from core.input.confirmation_utils import (
+    format_error,
     normalize_default,
     parse_confirmation,
-    format_prompt,
-    format_error,
 )
+from core.services.logging_api import LogTags, get_logger, get_repo_root
+from core.utils.tty import interactive_tty_status
 
-_REQUIREMENT_CACHE: Optional[Set[str]] = None
-_monitor_instance: "DependencyWarningMonitor" | None = None
+_REQUIREMENT_CACHE: set[str] | None = None
+_monitor_instance: DependencyWarningMonitor | None = None
 _install_lock = threading.Lock()
 
 
@@ -42,9 +39,8 @@ class DependencyIssue:
 MIN_PY_VERSION = (3, 10, 0)
 
 
-def _run_pip_check() -> Tuple[bool, str]:
+def _run_pip_check() -> tuple[bool, str]:
     """Run pip check and return (healthy, output)."""
-
     try:
         result = subprocess.run(
             [sys.executable, "-m", "pip", "check"],
@@ -61,7 +57,6 @@ def _run_pip_check() -> Tuple[bool, str]:
 
 def _invoke_repair(action: str = "--upgrade", quiet: bool = False) -> bool:
     """Trigger the REPAIR handler and return True if it succeeded."""
-
     try:
         # Import directly to avoid circular import through __init__.py
         from core.commands.repair_handler import RepairHandler
@@ -172,7 +167,7 @@ class DependencyWarningMonitor:
         except Exception:
             return f"{getattr(category, '__name__', str(category))}: {message}"
 
-    def _match_warning(self, category, text: str) -> Optional[Tuple[str, Optional[str]]]:
+    def _match_warning(self, category, text: str) -> tuple[str, str | None] | None:
         lower_text = text.lower()
         category_name = getattr(category, "__name__", str(category)).lower()
 
@@ -200,7 +195,7 @@ class DependencyWarningMonitor:
             self._triggered = True
             return True
 
-    def _prompt_and_heal(self, warning_text: str, keyword: str, guidance: Optional[str]):
+    def _prompt_and_heal(self, warning_text: str, keyword: str, guidance: str | None):
         headline = (
             f"Dependency warning detected for {self.label}: {warning_text}"
         )
@@ -231,7 +226,7 @@ class DependencyWarningMonitor:
         else:
             print("   Skipping auto-upgrade. Run 'REPAIR --upgrade' later if needed.")
 
-    def _emit_notice(self, headline: str, guidance: Optional[str], reason: Optional[str] = None):
+    def _emit_notice(self, headline: str, guidance: str | None, reason: str | None = None):
         print(f"\n⚠️  {headline}")
         if guidance:
             print(f"   {guidance}")
@@ -257,17 +252,17 @@ class DependencyWarningMonitor:
         return choice in {"yes", "ok"}
 
     @staticmethod
-    def _is_interactive() -> Tuple[bool, Optional[str]]:
+    def _is_interactive() -> tuple[bool, str | None]:
         interactive, reason = interactive_tty_status()
         return interactive, reason
 
 
-def _load_requirement_names() -> Set[str]:
+def _load_requirement_names() -> set[str]:
     global _REQUIREMENT_CACHE
     if _REQUIREMENT_CACHE is not None:
         return _REQUIREMENT_CACHE
 
-    names: Set[str] = set()
+    names: set[str] = set()
     req_file = get_repo_root() / "requirements.txt"
     if req_file.exists():
         pattern = re.compile(r"^[A-Za-z0-9_.-]+")
@@ -282,8 +277,8 @@ def _load_requirement_names() -> Set[str]:
     return names
 
 
-def _check_python_version() -> List[DependencyIssue]:
-    issues: List[DependencyIssue] = []
+def _check_python_version() -> list[DependencyIssue]:
+    issues: list[DependencyIssue] = []
     if sys.version_info < MIN_PY_VERSION:
         current = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         target = ".".join(str(part) for part in MIN_PY_VERSION)
@@ -300,8 +295,8 @@ def _check_python_version() -> List[DependencyIssue]:
     return issues
 
 
-def _check_ssl_version() -> List[DependencyIssue]:
-    issues: List[DependencyIssue] = []
+def _check_ssl_version() -> list[DependencyIssue]:
+    issues: list[DependencyIssue] = []
     try:
         import ssl
     except Exception as exc:  # pragma: no cover
@@ -346,8 +341,8 @@ def _check_ssl_version() -> List[DependencyIssue]:
     return issues
 
 
-def _check_pip_dependencies() -> List[DependencyIssue]:
-    issues: List[DependencyIssue] = []
+def _check_pip_dependencies() -> list[DependencyIssue]:
+    issues: list[DependencyIssue] = []
     healthy, output = _run_pip_check()
     if healthy:
         return issues
@@ -361,15 +356,15 @@ def _check_pip_dependencies() -> List[DependencyIssue]:
     return issues
 
 
-def _collect_dependency_issues() -> List[DependencyIssue]:
-    issues: List[DependencyIssue] = []
+def _collect_dependency_issues() -> list[DependencyIssue]:
+    issues: list[DependencyIssue] = []
     issues.extend(_check_python_version())
     issues.extend(_check_ssl_version())
     issues.extend(_check_pip_dependencies())
     return issues
 
 
-def _print_issue_summary(component: str, issues: List[DependencyIssue]) -> None:
+def _print_issue_summary(component: str, issues: list[DependencyIssue]) -> None:
     line = "═" * 64
     print(f"\n{line}")
     print(f"Dependency preflight check for {component}")
@@ -390,8 +385,9 @@ def run_preflight_check(
 
     Returns 0 when everything is healthy or successfully repaired, non-zero otherwise.
     """
+    from core.services.unified_config_loader import get_bool_config
 
-    if os.getenv("UDOS_SKIP_DEP_CHECK") == "1":
+    if get_bool_config("UDOS_SKIP_DEP_CHECK"):
         return 0
 
     issues = _collect_dependency_issues()
@@ -412,7 +408,7 @@ def run_preflight_check(
             print(f"\n🔧 Fix for [{issue.code}]: {issue.message}")
             if issue.resolution:
                 print(f"   {issue.resolution}")
-            if DependencyWarningMonitor._ask_yes_no(f"\n   Fix this issue now? [Yes|No|OK]: "):
+            if DependencyWarningMonitor._ask_yes_no("\n   Fix this issue now? [Yes|No|OK]: "):
                 success = _invoke_repair("--upgrade")
                 if success:
                     print(f"   ✅ Fixed [{issue.code}]")
@@ -443,7 +439,9 @@ def run_preflight_check(
 
 def install_dependency_warning_monitor(component: str, auto_prompt: bool = True) -> None:
     """Install (or extend) the global dependency warning monitor."""
-    if os.getenv("UDOS_DISABLE_DEP_WARNING_MONITOR") == "1":
+    from core.services.unified_config_loader import get_bool_config
+
+    if get_bool_config("UDOS_DISABLE_DEP_WARNING_MONITOR"):
         return
 
     global _monitor_instance
