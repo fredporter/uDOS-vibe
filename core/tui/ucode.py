@@ -97,6 +97,10 @@ from core.services.todo_service import (
     get_service as get_todo_manager,
 )
 from core.services.viewport_service import ViewportService
+from core.services.permission_handler import (
+    Permission,
+    get_permission_handler,
+)
 from core.tui.advanced_form_handler import AdvancedFormField
 from core.tui.dispatcher import CommandDispatcher
 from core.tui.fkey_handler import FKeyHandler
@@ -726,10 +730,17 @@ class UCODE:
     def _execute_command_impl(self, command: str, args: str) -> tuple[bool, str, str]:
         """Execute ucode command (adapter for CommandEngine).
 
+        Checks permissions for dangerous operations before execution.
+
         Returns:
             Tuple of (success, stdout, stderr)
         """
         try:
+            # Check permissions for dangerous commands
+            perm_result = self._check_command_permission(command, args)
+            if not perm_result["allowed"]:
+                return (False, "", perm_result["error"])
+            
             if command in self.commands:
                 # Route to existing command handler
                 self.commands[command](args)
@@ -738,6 +749,62 @@ class UCODE:
                 return (False, "", f"Unknown command: {command}")
         except Exception as exc:
             return (False, "", str(exc))
+
+    def _check_command_permission(self, command: str, args: str) -> dict[str, Any]:
+        """Check if user has permission to execute command.
+        
+        Args:
+            command: Command name
+            args: Command arguments
+            
+        Returns:
+            Dict with 'allowed' (bool) and 'error' (str) keys
+        """
+        try:
+            handler = get_permission_handler()
+            command_upper = command.upper()
+            
+            # Define dangerous commands requiring specific permissions
+            dangerous_commands = {
+                "DESTROY": Permission.DESTROY,
+                "DELETE": Permission.DESTROY,
+                "PURGE": Permission.DESTROY,
+                "REPAIR": Permission.REPAIR,
+                "RESTORE": Permission.REPAIR,
+                "RESET": Permission.DESTROY,
+            }
+            
+            # Check if command requires special permission
+            if command_upper in dangerous_commands:
+                required_perm = dangerous_commands[command_upper]
+                
+                # Check permission (testing mode returns True with warning)
+                if handler.has_permission(required_perm):
+                    # Log successful permission check
+                    handler.log_check(
+                        required_perm,
+                        granted=True,
+                        context={"command": command_upper, "args": args}
+                    )
+                    return {"allowed": True}
+                else:
+                    # Permission denied
+                    handler.log_denied(
+                        required_perm,
+                        context={"command": command_upper, "args": args}
+                    )
+                    return {
+                        "allowed": False,
+                        "error": f"Permission denied: {command_upper} requires {required_perm.value} permission"
+                    }
+            
+            # Non-dangerous commands always allowed
+            return {"allowed": True}
+            
+        except Exception as exc:
+            # Log error but don't block execution (v1.4.x testing mode)
+            self.logger.warning(f"Permission check error: {exc}")
+            return {"allowed": True}
 
     def _route_to_provider(self, prompt: str) -> dict[str, Any]:
         """Route natural language input to OK Provider (v1.4.6).

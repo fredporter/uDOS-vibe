@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from core.services.ai_provider_handler import (
-    ProviderType,
     ProviderStatus,
+    ProviderType,
     get_ai_provider_handler,
 )
 
@@ -23,11 +23,11 @@ class TestProviderType:
 
     def test_provider_type_has_ollama(self):
         """ProviderType should have Ollama."""
-        assert hasattr(ProviderType, 'OLLAMA_LOCAL')
+        assert hasattr(ProviderType, "OLLAMA_LOCAL")
 
     def test_provider_type_has_mistral(self):
         """ProviderType should have Mistral."""
-        assert hasattr(ProviderType, 'MISTRAL_CLOUD')
+        assert hasattr(ProviderType, "MISTRAL_CLOUD")
 
     def test_provider_type_values(self):
         """ProviderType should have string values."""
@@ -47,7 +47,7 @@ class TestProviderStatus:
             is_available=True,
             loaded_models=["mistral", "neural-chat"],
             default_model="mistral",
-            issue=None
+            issue=None,
         )
         assert status.provider_id == "ollama"
         assert status.is_available is True
@@ -62,7 +62,7 @@ class TestProviderStatus:
             is_available=False,
             loaded_models=[],
             default_model=None,
-            issue="API key not configured"
+            issue="API key not configured",
         )
         assert status.is_available is False
         assert status.issue == "API key not configured"
@@ -79,12 +79,12 @@ class TestAIProviderHandlerBasics:
 
     def test_handler_has_logger(self, handler):
         """Handler should have logger."""
-        assert hasattr(handler, 'logger')
+        assert hasattr(handler, "logger")
         assert handler.logger is not None
 
     def test_handler_has_cache(self, handler):
         """Handler should have internal cache."""
-        assert hasattr(handler, '_cache')
+        assert hasattr(handler, "_cache")
         assert isinstance(handler._cache, dict)
 
 
@@ -173,13 +173,13 @@ class TestProviderAvailability:
     def test_provider_models_list(self, handler):
         """Provider status should have loaded models list."""
         status = handler.check_local_provider()
-        assert hasattr(status, 'loaded_models')
+        assert hasattr(status, "loaded_models")
         assert isinstance(status.loaded_models, list)
 
     def test_provider_default_model(self, handler):
         """Provider status should have default model info."""
         status = handler.check_local_provider()
-        assert hasattr(status, 'default_model')
+        assert hasattr(status, "default_model")
         assert status.default_model is None or isinstance(status.default_model, str)
 
 
@@ -190,7 +190,7 @@ class TestProviderCaching:
         """Cached results should match."""
         status1 = handler.check_local_provider()
         status2 = handler.check_local_provider()
-        
+
         assert status1.provider_id == status2.provider_id
         assert status1.is_available == status2.is_available
 
@@ -202,7 +202,7 @@ class TestStatusIntegration:
         """Handler should support TUI status checks."""
         ollama = handler.check_local_provider()
         mistral = handler.check_cloud_provider()
-        
+
         assert isinstance(ollama, ProviderStatus)
         assert isinstance(mistral, ProviderStatus)
 
