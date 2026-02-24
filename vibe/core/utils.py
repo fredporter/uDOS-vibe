@@ -22,8 +22,18 @@ from vibe.core.types import BaseEvent, ToolResultEvent
 
 try:
     from core.services.logging_api import get_logger as get_udos_logger
+    from core.services.unified_config_loader import get_config, get_bool_config
 except Exception:
     get_udos_logger = None
+    def get_config(key: str, default: str = "") -> str:
+        return os.getenv(key, default)
+    def get_bool_config(key: str, default: bool = False) -> bool:
+        raw = os.getenv(key, "").strip().lower()
+        if raw in {"1", "true", "yes", "on"}:
+            return True
+        if raw in {"0", "false", "no", "off"}:
+            return False
+        return default
 
 CANCELLATION_TAG = "user_cancellation"
 TOOL_ERROR_TAG = "tool_error"
@@ -192,15 +202,15 @@ def apply_logging_config(_target_logger: logging.Logger | Any = None) -> None:
     if not isinstance(target_logger, logging.Logger):
         return
 
-    configured_level = os.getenv("LOG_LEVEL", "WARNING").upper()
-    if os.getenv("DEBUG_MODE", "").strip().lower() in {"1", "true", "yes", "on"}:
+    configured_level = get_config("LOG_LEVEL", "WARNING").upper()
+    if get_bool_config("DEBUG_MODE", False):
         configured_level = "DEBUG"
     if configured_level not in logging._nameToLevel:
         configured_level = "WARNING"
     target_logger.setLevel(logging._nameToLevel[configured_level])
 
     max_bytes = 10 * 1024 * 1024
-    if max_raw := os.getenv("LOG_MAX_BYTES"):
+    if max_raw := get_config("LOG_MAX_BYTES", ""):
         try:
             max_bytes = int(max_raw)
         except ValueError:

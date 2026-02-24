@@ -6,6 +6,12 @@ from pathlib import Path
 
 from vibe import VIBE_ROOT
 
+try:
+    from core.services.unified_config_loader import get_config
+except Exception:
+    def get_config(key: str, default: str = "") -> str:
+        return os.getenv(key, default)
+
 
 class GlobalPath:
     def __init__(self, resolver: Callable[[], Path]) -> None:
@@ -20,7 +26,7 @@ _DEFAULT_VIBE_HOME = Path.home() / ".vibe"
 
 
 def _get_vibe_home() -> Path:
-    if vibe_home := os.getenv("VIBE_HOME"):
+    if vibe_home := get_config("VIBE_HOME", ""):
         return Path(vibe_home).expanduser().resolve()
     return _DEFAULT_VIBE_HOME
 
