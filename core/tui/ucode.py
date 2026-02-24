@@ -281,8 +281,9 @@ class UCODE:
             ConfigSyncManager().hydrate_runtime_env()
         except Exception as exc:
             self.logger.debug(f"[CONFIG] Runtime env hydration skipped: {exc}")
-        self.quiet = os.getenv("UDOS_QUIET", "").strip() in ("1", "true", "yes")
-        self.ucode_version = os.getenv("UCODE_VERSION", "1.0.1")
+        from core.services.unified_config_loader import get_bool_config, get_config
+        self.quiet = get_bool_config("UDOS_QUIET")
+        self.ucode_version = get_config("UCODE_VERSION", "1.0.1")
         self.running = False
         self.ghost_mode = False
         # Ensure system seeds are present (startup/reboot/setup stories)
@@ -366,7 +367,8 @@ class UCODE:
             self.logger.info("[ContextualPrompt] Initialized with command suggestions")
         if not self.quiet:
             mode = "fallback" if self.prompt.use_fallback else "advanced"
-            profile = os.getenv("UDOS_KEYMAP_PROFILE", "auto")
+            from core.services.unified_config_loader import get_config
+            profile = get_config("UDOS_KEYMAP_PROFILE", "auto")
             self._ui_line(f"Prompt mode: {mode} | keymap: {profile}", level="info")
 
     def _ensure_system_seeds(self) -> None:
@@ -905,18 +907,9 @@ class UCODE:
 
     def _run_startup_sequence(self) -> None:
         """Run startup steps with consistent progress bars + spinner feedback."""
-        clean_startup = os.getenv("UDOS_TUI_CLEAN_STARTUP", "1").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        startup_extras = os.getenv("UDOS_TUI_STARTUP_EXTRAS", "0").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        from core.services.unified_config_loader import get_bool_config
+        clean_startup = get_bool_config("UDOS_TUI_CLEAN_STARTUP", default=True)
+        startup_extras = get_bool_config("UDOS_TUI_STARTUP_EXTRAS", default=False)
         steps = [
             ("loading", "Rendering banner", self._show_banner, True),
             ("loading", "Detecting environment", self._autodetect_environment, True),
@@ -1087,12 +1080,8 @@ class UCODE:
 
     def _show_status_bar(self) -> None:
         """Render status bar line for the current session."""
-        force_status = os.getenv("UDOS_TUI_FORCE_STATUS", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        from core.services.unified_config_loader import get_bool_config
+        force_status = get_bool_config("UDOS_TUI_FORCE_STATUS")
         if self._get_io_phase() != IOLifecyclePhase.INPUT and not force_status:
             return
         if self.quiet and not force_status:
@@ -1482,7 +1471,8 @@ class UCODE:
             if get_dev_active():
                 model = default_models.get("dev") or model
         except Exception:
-            if os.getenv("UDOS_DEV_MODE") in ("1", "true", "yes"):
+            from core.services.unified_config_loader import get_bool_config
+            if get_bool_config("UDOS_DEV_MODE"):
                 model = default_models.get("dev") or model
         return model or "devstral-small-2"
 
@@ -1619,35 +1609,8 @@ class UCODE:
         token = os.getenv("UDOS_PROMPT_SETUP_VIBE", "").strip().lower()
         return token in {"1", "true", "yes", "on"}
 
-    def _get_ok_cloud_status(self) -> dict[str, Any]:
-        """Return Mistral cloud availability status."""
-        try:
-            health_url = f"{self._wizard_base_url()}/health"
-            try:
-                health_resp = http_get(health_url, timeout=1)
-                if health_resp.get("status_code") != 200:
-                    return {"ready": False, "issue": "wizard offline", "skip": True}
-            except HTTPError:
-                return {"ready": False, "issue": "wizard offline", "skip": True}
-
-            url = f"{self._wizard_base_url()}/api/ucode/ok/status"
-            response = http_get(url, headers=self._wizard_headers(), timeout=2)
-            if response.get("status_code") != 200:
-                return {
-                    "ready": False,
-                    "issue": f"wizard status {response.get('status_code')}",
-                }
-            payload = response.get("json") if isinstance(response.get("json"), dict) else {}
-            ok = payload.get("ok") or {}
-            cloud = ok.get("cloud") or {}
-            ready = bool(cloud.get("ready"))
-            issue = cloud.get("issue") or (
-                "mistral api key missing" if not ready else None
-            )
-            return {"ready": ready, "issue": issue}
-        except Exception:
-            return {"ready": False, "issue": "wizard offline", "skip": True}
-
+    # NOTE: _get_ok_cloud_status() removed 2025-02-24 — use AIProviderHandler.check_cloud_provider() instead
+    # See: core/services/ai_provider_handler.py
     def _init_ok_prompt_context(self) -> None:
         """Expose OK local model info to the prompt toolbar."""
         try:
@@ -1659,12 +1622,30 @@ class UCODE:
     def _show_ai_startup_sequence(self) -> dict[str, Any]:
         """Show Vibe startup summary and return local/cloud readiness."""
         from core.services.provider_registry import CoreProviderRegistry
+        from core.services.ai_provider_handler import get_ai_provider_handler
 
         CoreProviderRegistry.auto_register_vibe()
         if self.quiet:
             return {"local_ready": True, "cloud_ready": True}
-        ok_status = self._get_ok_local_status()
-        cloud_status = self._get_ok_cloud_status()
+
+        # Use unified AI provider handler (replaces scattered status checks)
+        handler = get_ai_provider_handler()
+        local_status = handler.check_local_provider()
+        cloud_status_obj = handler.check_cloud_provider()
+
+        # Adapt new ProviderStatus to old dict format for compatibility
+        ok_status = {
+            "ready": local_status.is_available,
+            "issue": local_status.issue,
+            "model": local_status.default_model,
+            "ollama_endpoint": local_status.details.get("endpoint", "http://127.0.0.1:11434"),
+        }
+        cloud_status = {
+            "ready": cloud_status_obj.is_available,
+            "issue": cloud_status_obj.issue,
+            "skip": not cloud_status_obj.is_configured,
+        }
+
         model = ok_status.get("model") or self._get_ok_default_model()
         fallback_model = self._get_ok_fallback_model()
         ctx = self._get_ok_context_window()
@@ -1737,75 +1718,9 @@ class UCODE:
             return f"  ⚠️ {label}: " + ", ".join(issues)
         return f"  ⚠️ {label}: setup required"
 
-    def _fetch_ollama_models(self, endpoint: str) -> dict[str, Any]:
-        """Query Ollama tags endpoint."""
-        endpoint = self._resolve_loopback_url(
-            endpoint,
-            fallback="http://127.0.0.1:11434",
-            context="ollama_endpoint",
-        )
-        url = endpoint.rstrip("/") + "/api/tags"
-        try:
-            data = {}
-            with warnings.catch_warnings():
-                response = http_get(url, timeout=2)
-                data = response.get("json") if isinstance(response.get("json"), dict) else {}
-            models = [m.get("name") for m in data.get("models", []) if m.get("name")]
-            return {"reachable": True, "models": models}
-        except HTTPError as exc:
-            return {"reachable": False, "error": f"HTTP {exc.code or 0}"}
-        except Exception as exc:
-            return {"reachable": False, "error": str(exc)}
-
-    def _normalize_model_names(self, names: list[str]) -> set[str]:
-        """Return canonical model names including both tagged and base forms."""
-        normalized: set[str] = set()
-        for raw in names:
-            name = (raw or "").strip()
-            if not name:
-                continue
-            normalized.add(name)
-            base = name.split(":", 1)[0].strip()
-            if base:
-                normalized.add(base)
-        return normalized
-
-    def _get_ok_local_status(self) -> dict[str, Any]:
-        """Return OK local Vibe status (Ollama + model)."""
-        mode = (self.ai_modes_config.get("modes") or {}).get("ofvibe", {})
-        endpoint = self._resolve_loopback_url(
-            mode.get("ollama_endpoint", "http://127.0.0.1:11434"),
-            fallback="http://127.0.0.1:11434",
-            context="ollama_endpoint",
-        )
-        model = self._get_ok_default_model()
-        tags = self._fetch_ollama_models(endpoint)
-        if not tags.get("reachable"):
-            return {
-                "ready": False,
-                "issue": "ollama down",
-                "model": model,
-                "ollama_endpoint": endpoint,
-                "detail": tags.get("error"),
-            }
-        models = tags.get("models") or []
-        normalized_models = self._normalize_model_names(models)
-        normalized_target = self._normalize_model_names([model]) if model else set()
-        if model and normalized_target.isdisjoint(normalized_models):
-            return {
-                "ready": False,
-                "issue": "missing model",
-                "model": model,
-                "ollama_endpoint": endpoint,
-                "detail": None,
-            }
-        return {
-            "ready": True,
-            "issue": None,
-            "model": model,
-            "ollama_endpoint": endpoint,
-            "detail": None,
-        }
+    # NOTE: _fetch_ollama_models(), _normalize_model_names(), and _get_ok_local_status()
+    # removed 2025-02-24 — use AIProviderHandler.check_local_provider() instead
+    # See: core/services/ai_provider_handler.py
 
     def _setup_health_monitoring(self) -> None:
         """Initialize Self-Healer diagnostics + Hot Reload stats for automation."""
