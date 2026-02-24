@@ -5,6 +5,7 @@ Expose metadata about theme packs, static exports, missions, and contributions s
 and SvelteKit admin lanes consume the same contracts described in `docs/Theme-Pack-Contract.md`
 and `docs/Mission-Job-Schema.md`.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -128,13 +129,11 @@ def _list_site_files(theme_name: str) -> list[dict[str, Any]]:
         raise HTTPException(status_code=404, detail="Theme site not found")
     files: list[dict[str, Any]] = []
     for path in sorted(site_dir.rglob("*.html")):
-        files.append(
-            {
-                "path": path.relative_to(site_dir).as_posix(),
-                "size": path.stat().st_size,
-                "updatedAt": _datetime_from_stat(path),
-            }
-        )
+        files.append({
+            "path": path.relative_to(site_dir).as_posix(),
+            "size": path.stat().st_size,
+            "updatedAt": _datetime_from_stat(path),
+        })
     return files
 
 
@@ -178,8 +177,10 @@ def _build_theme_preview_html(theme_name: str) -> str:
         css = css_path.read_text(encoding="utf-8")
 
     sample_title = f"{theme_name} Theme Preview"
-    sample_nav = "<nav><a href=\"#\">Home</a> · <a href=\"#\">Docs</a> · <a href=\"#\">Notes</a></nav>"
-    sample_meta = "<div class=\"meta\">Generated preview</div>"
+    sample_nav = (
+        '<nav><a href="#">Home</a> · <a href="#">Docs</a> · <a href="#">Notes</a></nav>'
+    )
+    sample_meta = '<div class="meta">Generated preview</div>'
     sample_footer = "<footer>uDOS · Theme preview</footer>"
     sample_content = """
 <main>
@@ -243,7 +244,10 @@ def _collect_missions() -> list[dict[str, Any]]:
 def _find_mission(mission_id: str) -> dict[str, Any] | None:
     missions = _collect_missions()
     for mission in missions:
-        if mission.get("mission_id") == mission_id or mission.get("job_id") == mission_id:
+        if (
+            mission.get("mission_id") == mission_id
+            or mission.get("job_id") == mission_id
+        ):
             return mission
     return None
 
@@ -254,13 +258,11 @@ def _renderer_cli_path() -> Path:
 
 def _renderer_env() -> dict[str, str]:
     env = os.environ.copy()
-    env.update(
-        {
-            "VAULT_ROOT": str(_vault_root()),
-            "THEMES_ROOT": str(_themes_root()),
-            "OUTPUT_ROOT": str(_site_root()),
-        }
-    )
+    env.update({
+        "VAULT_ROOT": str(_vault_root()),
+        "THEMES_ROOT": str(_themes_root()),
+        "OUTPUT_ROOT": str(_site_root()),
+    })
     return env
 
 
@@ -278,10 +280,7 @@ def _invoke_renderer(theme: str, mission_id: str | None = None) -> dict[str, Any
 
     started_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     result = subprocess.run(
-        ["node", str(cli_path)],
-        capture_output=True,
-        text=True,
-        env=env,
+        ["node", str(cli_path)], capture_output=True, text=True, env=env
     )
 
     if result.returncode != 0:
@@ -300,8 +299,7 @@ def _invoke_renderer(theme: str, mission_id: str | None = None) -> dict[str, Any
         }
         _write_mission_output(error_report)
         raise HTTPException(
-            status_code=500,
-            detail=f"Renderer failed: {result.stderr.strip()}",
+            status_code=500, detail=f"Renderer failed: {result.stderr.strip()}"
         )
     try:
         result_payload = json.loads(result.stdout)
@@ -312,7 +310,9 @@ def _invoke_renderer(theme: str, mission_id: str | None = None) -> dict[str, Any
 
     # Write success report to 06_RUNS
     result_payload["started_at"] = started_at
-    result_payload["completed_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    result_payload["completed_at"] = (
+        datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    )
     _write_mission_output(result_payload)
 
     return result_payload
@@ -331,6 +331,7 @@ def _write_mission_output(report: dict[str, Any]) -> Path | None:
         return report_path
     except Exception as e:
         import traceback
+
         print(f"[WARN] Failed to write mission output: {e}", file=sys.stderr)
         traceback.print_exc()
         return None
@@ -358,7 +359,9 @@ class RenderRequest(BaseModel):
 
 def create_renderer_routes(auth_guard=None) -> APIRouter:
     dependencies = [Depends(auth_guard)] if auth_guard else []
-    router = APIRouter(prefix="/api/renderer", tags=["renderer"], dependencies=dependencies)
+    router = APIRouter(
+        prefix="/api/renderer", tags=["renderer"], dependencies=dependencies
+    )
 
     @router.get("/themes")
     async def list_themes():
@@ -428,13 +431,11 @@ def create_renderer_routes(auth_guard=None) -> APIRouter:
         for theme_path in sorted(site_root.iterdir()) if site_root.exists() else []:
             if theme_path.is_dir():
                 stats = _site_stats(theme_path.name)
-                summaries.append(
-                    {
-                        "theme": theme_path.name,
-                        "files": stats["files"],
-                        "lastModified": stats["lastModified"],
-                    }
-                )
+                summaries.append({
+                    "theme": theme_path.name,
+                    "files": stats["files"],
+                    "lastModified": stats["lastModified"],
+                })
         return {"exports": summaries}
 
     @router.get("/site/{theme_name}/files")
@@ -462,10 +463,7 @@ def create_renderer_routes(auth_guard=None) -> APIRouter:
     async def contribution_detail(contribution_id: str):
         return {"contribution": CONTRIBUTION_SERVICE.get_entry(contribution_id)}
 
-    @router.post(
-        "/contributions",
-        dependencies=[Depends(CONTRIB_SUBMIT_GUARD)],
-    )
+    @router.post("/contributions", dependencies=[Depends(CONTRIB_SUBMIT_GUARD)])
     async def submit_contribution(payload: ContributionSubmission):
         contribution = CONTRIBUTION_SERVICE.submit(payload.dict(exclude_none=True))
         return {"contribution": contribution}
@@ -522,8 +520,7 @@ def create_renderer_routes(auth_guard=None) -> APIRouter:
 
     @router.post("/render")
     async def trigger_render(
-        payload: RenderRequest | None = Body(None),
-        theme: str | None = Query(None),
+        payload: RenderRequest | None = Body(None), theme: str | None = Query(None)
     ):
         resolved_theme = theme or (payload.theme if payload else None)
         if not resolved_theme:
@@ -531,7 +528,9 @@ def create_renderer_routes(auth_guard=None) -> APIRouter:
         mission_id = payload.mission_id if payload else None
         result = _invoke_renderer(resolved_theme, mission_id)
         job_id = result.get("job_id") or f"job-{uuid.uuid4()}"
-        real_mission_id = result.get("mission_id") or mission_id or f"renderer-{resolved_theme}"
+        real_mission_id = (
+            result.get("mission_id") or mission_id or f"renderer-{resolved_theme}"
+        )
         return {
             "status": result.get("status", "completed"),
             "job_id": job_id,

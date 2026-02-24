@@ -1,5 +1,4 @@
-"""
-Unified Settings Route (v1.1.0)
+"""Unified Settings Route (v1.1.0)
 ================================
 
 Single all-in-one settings page for:
@@ -12,26 +11,31 @@ Replaces fragmented config management approach with
 streamlined dashboard-first settings interface.
 """
 
+from __future__ import annotations
+
+from datetime import UTC, datetime
 import json
 import os
+from pathlib import Path
 import secrets
 import subprocess
 import sys
+from typing import Any
 import venv
 
-from core.services.unified_config_loader import get_config
-from pathlib import Path
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from wizard.services.logging_api import get_logger
-from wizard.services.path_utils import get_repo_root, get_memory_dir, get_wizard_venv_dir
-from wizard.services.wizard_config import load_wizard_config_data, save_wizard_config_data
-from core.services.integration_registry import get_wizard_secret_sync_map
 from core.services.destructive_ops import remove_path
-from wizard.services.secret_store import get_secret_store, SecretStoreError, SecretEntry
+from core.services.integration_registry import get_wizard_secret_sync_map
+from core.services.unified_config_loader import get_config
+from wizard.services.logging_api import get_logger
+from wizard.services.path_utils import get_repo_root, get_wizard_venv_dir
+from wizard.services.secret_store import SecretEntry, SecretStoreError, get_secret_store
+from wizard.services.wizard_config import (
+    load_wizard_config_data,
+    save_wizard_config_data,
+)
 
 logger = get_logger("settings-unified")
 
@@ -43,9 +47,10 @@ logger = get_logger("settings-unified")
 
 class VenvStatus(BaseModel):
     """Virtual environment status."""
+
     exists: bool
     path: str
-    python_version: Optional[str] = None
+    python_version: str | None = None
     is_active: bool = False
     packages_installed: int = 0
     last_checked: str = None
@@ -53,32 +58,35 @@ class VenvStatus(BaseModel):
 
 class SecretConfig(BaseModel):
     """Secret/API key configuration."""
+
     key: str
     category: str  # "ai", "github", "oauth"
-    masked_value: Optional[str] = None
+    masked_value: str | None = None
     is_set: bool = False
-    updated_at: Optional[str] = None
+    updated_at: str | None = None
 
 
 class ExtensionInstaller(BaseModel):
     """Extension installer status and configuration."""
+
     name: str
     version: str
     description: str
     enabled: bool = False
-    required_secrets: List[str] = []
+    required_secrets: list[str] = []
     installation_status: str  # "not-installed", "installing", "installed", "failed"
-    installed_version: Optional[str] = None
-    error_message: Optional[str] = None
+    installed_version: str | None = None
+    error_message: str | None = None
 
 
 class UnifiedSettings(BaseModel):
     """All-in-one settings object."""
+
     venv: VenvStatus
-    secrets: Dict[str, List[SecretConfig]]
-    extensions: List[ExtensionInstaller]
+    secrets: dict[str, list[SecretConfig]]
+    extensions: list[ExtensionInstaller]
     config_version: str = "v1.1.0"
-    wizard_settings: Dict[str, Any] = {}
+    wizard_settings: dict[str, Any] = {}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -99,10 +107,9 @@ def get_venv_status() -> VenvStatus:
     status = VenvStatus(
         exists=venv_path.exists(),
         path=str(venv_path),
-        is_active=hasattr(sys, 'real_prefix') or (
-            hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix
-        ),
-        last_checked=datetime.now().isoformat()
+        is_active=hasattr(sys, "real_prefix")
+        or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix),
+        last_checked=datetime.now().isoformat(),
     )
 
     if status.exists and python_exec.exists():
@@ -111,7 +118,7 @@ def get_venv_status() -> VenvStatus:
                 [str(python_exec), "--version"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             status.python_version = result.stdout.strip()
 
@@ -120,16 +127,16 @@ def get_venv_status() -> VenvStatus:
                 [str(python_exec), "-m", "pip", "list", "--quiet"],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
-            status.packages_installed = len(result.stdout.strip().split('\n'))
+            status.packages_installed = len(result.stdout.strip().split("\n"))
         except Exception as e:
             logger.warning(f"[LOCAL] Failed to detect venv details: {e}")
 
     return status
 
 
-def create_venv() -> Dict[str, Any]:
+def create_venv() -> dict[str, Any]:
     """Create a new virtual environment."""
     venv_path = get_venv_path()
 
@@ -144,14 +151,14 @@ def create_venv() -> Dict[str, Any]:
         return {
             "status": "created",
             "venv": status.model_dump(),
-            "next_step": "Install dependencies: pip install -r wizard/requirements.txt"
+            "next_step": "Install dependencies: pip install -r wizard/requirements.txt",
         }
     except Exception as e:
         logger.error(f"[LOCAL] Failed to create venv: {e}")
         return {"error": str(e)}
 
 
-def delete_venv() -> Dict[str, Any]:
+def delete_venv() -> dict[str, Any]:
     """Delete the virtual environment."""
     venv_path = get_venv_path()
 
@@ -172,7 +179,7 @@ def delete_venv() -> Dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def get_secrets_config() -> Dict[str, List[SecretConfig]]:
+def get_secrets_config() -> dict[str, list[SecretConfig]]:
     """Get all configured secrets organized by category."""
     categories = {
         "ai": ["mistral_api_key", "openrouter_api_key", "ollama_api_key"],
@@ -181,7 +188,7 @@ def get_secrets_config() -> Dict[str, List[SecretConfig]]:
         "integrations": ["nounproject_api_key", "nounproject_api_secret"],
     }
 
-    def _load_config_file(filename: str) -> Dict[str, Any]:
+    def _load_config_file(filename: str) -> dict[str, Any]:
         repo_root = get_repo_root()
         config_path = repo_root / "wizard" / "config" / filename
         if not config_path.exists():
@@ -191,7 +198,7 @@ def get_secrets_config() -> Dict[str, List[SecretConfig]]:
         except Exception:
             return {}
 
-    def _get_nested(data: Dict[str, Any], path: List[str]) -> Optional[Any]:
+    def _get_nested(data: dict[str, Any], path: list[str]) -> Any | None:
         current: Any = data
         for part in path:
             if not isinstance(current, dict) or part not in current:
@@ -205,13 +212,15 @@ def get_secrets_config() -> Dict[str, List[SecretConfig]]:
         "oauth": _load_config_file("oauth_providers.json"),
     }
 
-    legacy_values: Dict[str, Any] = {
+    legacy_values: dict[str, Any] = {
         "mistral_api_key": (
             _get_nested(legacy_config["assistant"], ["providers", "mistral", "key_id"])
             or legacy_config["assistant"].get("MISTRAL_API_KEY")
         ),
         "openrouter_api_key": (
-            _get_nested(legacy_config["assistant"], ["providers", "openrouter", "key_id"])
+            _get_nested(
+                legacy_config["assistant"], ["providers", "openrouter", "key_id"]
+            )
             or legacy_config["assistant"].get("OPENROUTER_API_KEY")
         ),
         "ollama_api_key": (
@@ -228,8 +237,12 @@ def get_secrets_config() -> Dict[str, List[SecretConfig]]:
             or _get_nested(legacy_config["github"], ["webhooks", "secret"])
         ),
     }
-    legacy_values["nounproject_api_key"] = get_config("NOUNPROJECT_API_KEY", None) or None
-    legacy_values["nounproject_api_secret"] = get_config("NOUNPROJECT_API_SECRET", None) or None
+    legacy_values["nounproject_api_key"] = (
+        get_config("NOUNPROJECT_API_KEY", None) or None
+    )
+    legacy_values["nounproject_api_secret"] = (
+        get_config("NOUNPROJECT_API_SECRET", None) or None
+    )
 
     oauth_client_id = None
     oauth_client_secret = None
@@ -263,21 +276,27 @@ def get_secrets_config() -> Dict[str, List[SecretConfig]]:
                         is_set = True
                         masked_value = "●" * 8 + str(legacy_value)[-4:]
 
-                result[category].append(SecretConfig(
-                    key=key,
-                    category=category,
-                    is_set=is_set,
-                    masked_value=masked_value,
-                    updated_at=entry.metadata.get("updated_at") if entry else None,
-                ))
+                result[category].append(
+                    SecretConfig(
+                        key=key,
+                        category=category,
+                        is_set=is_set,
+                        masked_value=masked_value,
+                        updated_at=entry.metadata.get("updated_at") if entry else None,
+                    )
+                )
             except SecretStoreError:
                 legacy_value = legacy_values.get(key)
-                result[category].append(SecretConfig(
-                    key=key,
-                    category=category,
-                    is_set=bool(legacy_value),
-                    masked_value=("●" * 8 + str(legacy_value)[-4:]) if legacy_value else None,
-                ))
+                result[category].append(
+                    SecretConfig(
+                        key=key,
+                        category=category,
+                        is_set=bool(legacy_value),
+                        masked_value=("●" * 8 + str(legacy_value)[-4:])
+                        if legacy_value
+                        else None,
+                    )
+                )
 
     return result
 
@@ -318,7 +337,7 @@ def _get_admin_key_id() -> str:
     return "wizard-admin-token"
 
 
-def repair_secret_store() -> Dict[str, Any]:
+def repair_secret_store() -> dict[str, Any]:
     """Flush secret store tomb and regenerate Wizard keys."""
     repo_root = get_repo_root()
     env_path = repo_root / ".env"
@@ -356,7 +375,7 @@ def repair_secret_store() -> Dict[str, Any]:
         key_id=_get_admin_key_id(),
         provider="wizard-admin",
         value=new_admin_token,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         metadata={"source": "wizard-repair"},
     )
     store.set(entry)
@@ -369,7 +388,7 @@ def repair_secret_store() -> Dict[str, Any]:
     }
 
 
-def set_secret(key: str, value: str) -> Dict[str, Any]:
+def set_secret(key: str, value: str) -> dict[str, Any]:
     """Set a secret/API key."""
     if not value:
         return {"error": "value required"}
@@ -380,7 +399,7 @@ def set_secret(key: str, value: str) -> Dict[str, Any]:
             store.unlock()
         except SecretStoreError as e:
             logger.error(f"[LOCAL] Failed to unlock secret store: {e}")
-            return {"error": f"Secret store is locked: {str(e)}"}
+            return {"error": f"Secret store is locked: {e!s}"}
         store.set_entry(key, value, metadata={"updated_at": datetime.now().isoformat()})
         # Persist env-only secrets when applicable
         if key in {"nounproject_api_key", "nounproject_api_secret"}:
@@ -401,24 +420,26 @@ def set_secret(key: str, value: str) -> Dict[str, Any]:
         return {"error": str(e)}
 
 
-def _load_wizard_config() -> Dict[str, Any]:
+def _load_wizard_config() -> dict[str, Any]:
     repo_root = get_repo_root()
     return load_wizard_config_data(path=repo_root / "wizard" / "config" / "wizard.json")
 
 
-def _save_wizard_config(config: Dict[str, Any]) -> None:
+def _save_wizard_config(config: dict[str, Any]) -> None:
     repo_root = get_repo_root()
-    save_wizard_config_data(config, path=repo_root / "wizard" / "config" / "wizard.json")
+    save_wizard_config_data(
+        config, path=repo_root / "wizard" / "config" / "wizard.json"
+    )
 
 
-def _enable_provider(config: Dict[str, Any], provider_id: str) -> None:
+def _enable_provider(config: dict[str, Any], provider_id: str) -> None:
     enabled = config.get("enabled_providers") or []
     if provider_id not in enabled:
         enabled.append(provider_id)
     config["enabled_providers"] = enabled
 
 
-def _sync_wizard_config_from_secret(key: str) -> Dict[str, Any]:
+def _sync_wizard_config_from_secret(key: str) -> dict[str, Any]:
     mapping = get_wizard_secret_sync_map()
 
     if key not in mapping:
@@ -443,7 +464,7 @@ def _sync_wizard_config_from_secret(key: str) -> Dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def get_available_extensions() -> List[ExtensionInstaller]:
+def get_available_extensions() -> list[ExtensionInstaller]:
     """Get list of available extensions from distribution/plugins/index.json."""
     repo_root = get_repo_root()
     index_path = repo_root / "distribution" / "plugins" / "index.json"
@@ -458,16 +479,20 @@ def get_available_extensions() -> List[ExtensionInstaller]:
         extensions = []
 
         for plugin_id, plugin_data in plugins.items():
-            extensions.append(ExtensionInstaller(
-                name=plugin_data.get("id", plugin_id),
-                version=plugin_data.get("version", "0.0.0"),
-                description=plugin_data.get("description", ""),
-                enabled=plugin_data.get("installed", False),
-                required_secrets=plugin_data.get("dependencies", []),
-                installation_status="installed" if plugin_data.get("installed") else "not-installed",
-                installed_version=plugin_data.get("installed_version"),
-                error_message=None,
-            ))
+            extensions.append(
+                ExtensionInstaller(
+                    name=plugin_data.get("id", plugin_id),
+                    version=plugin_data.get("version", "0.0.0"),
+                    description=plugin_data.get("description", ""),
+                    enabled=plugin_data.get("installed", False),
+                    required_secrets=plugin_data.get("dependencies", []),
+                    installation_status="installed"
+                    if plugin_data.get("installed")
+                    else "not-installed",
+                    installed_version=plugin_data.get("installed_version"),
+                    error_message=None,
+                )
+            )
 
         return extensions
     except Exception as exc:
@@ -480,9 +505,8 @@ def get_available_extensions() -> List[ExtensionInstaller]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def migrate_config_from_v1_0() -> Dict[str, Any]:
-    """
-    Auto-migrate config from v1.0.x fragmented format to v1.1.0 unified format.
+def migrate_config_from_v1_0() -> dict[str, Any]:
+    """Auto-migrate config from v1.0.x fragmented format to v1.1.0 unified format.
 
     v1.0.x: 7 separate config files (assistant_keys.json, github_keys.json, etc.)
     v1.1.0: Unified secret store + single settings page
@@ -494,7 +518,7 @@ def migrate_config_from_v1_0() -> Dict[str, Any]:
         "to_version": "1.1.0",
         "migrated_files": [],
         "skipped_files": [],
-        "errors": []
+        "errors": [],
     }
 
     # Map old config files to secret categories
@@ -515,11 +539,14 @@ def migrate_config_from_v1_0() -> Dict[str, Any]:
         try:
             data = json.loads(file_path.read_text())
             for key in keys:
-                if key in data and data[key]:
+                if data.get(key):
                     store.set_entry(
                         key,
                         data[key],
-                        metadata={"migrated_from": old_file, "migrated_at": datetime.now().isoformat()}
+                        metadata={
+                            "migrated_from": old_file,
+                            "migrated_at": datetime.now().isoformat(),
+                        },
                     )
 
             migration_log["migrated_files"].append(old_file)
@@ -538,7 +565,9 @@ def migrate_config_from_v1_0() -> Dict[str, Any]:
 
 def create_settings_unified_router(auth_guard=None):
     """Create unified settings API router."""
-    router = APIRouter(prefix="/api/settings-unified", tags=["Settings (Unified v1.1.0)"])
+    router = APIRouter(
+        prefix="/api/settings-unified", tags=["Settings (Unified v1.1.0)"]
+    )
 
     async def check_auth(request):
         """Verify authentication if guard is provided."""
@@ -554,7 +583,7 @@ def create_settings_unified_router(auth_guard=None):
             "venv": get_venv_status().model_dump(),
             "secrets": get_secrets_config(),
             "extensions": [ext.model_dump() for ext in get_available_extensions()],
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     # VENV MANAGEMENT

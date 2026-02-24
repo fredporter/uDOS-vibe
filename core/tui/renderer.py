@@ -1,5 +1,4 @@
-"""
-Grid Renderer
+"""Grid Renderer
 
 Formats command handler results for display in the TUI.
 Handles:
@@ -9,18 +8,20 @@ Handles:
 - Different result types (descriptions, lists, etc.)
 """
 
-from typing import Dict, Any, List, Sequence, Iterable, Tuple, Set, Optional
-import os
+from __future__ import annotations
+
+from collections.abc import Iterable, Sequence
+import json
+from pathlib import Path
+import re
 import sys
 import time
-import json
-import re
-from pathlib import Path
+from typing import Any
 
-from core.tui.ui_elements import format_table
-from core.services.unified_config_loader import get_config, get_bool_config
+from core.services.unified_config_loader import get_bool_config, get_config
 from core.tui.output import OutputToolkit
 from core.tui.stdout_guard import atomic_stdout_write
+from core.tui.ui_elements import format_table
 
 
 class GridRenderer:
@@ -48,12 +49,11 @@ class GridRenderer:
         self._mood = "idle"
         self._pace = 0.6  # seconds per frame
         self._blink = True
-        self._emoji_set: Set[str] = set()
+        self._emoji_set: set[str] = set()
         self._emoji_loaded = False
 
-    def render(self, result: Dict[str, Any]) -> str:
-        """
-        Format handler result for display
+    def render(self, result: dict[str, Any]) -> str:
+        """Format handler result for display
 
         Args:
             result: Dict returned from handler
@@ -74,7 +74,7 @@ class GridRenderer:
 
         return self._apply_emoji(output)
 
-    def _render_success(self, result: Dict[str, Any]) -> str:
+    def _render_success(self, result: dict[str, Any]) -> str:
         """Format successful response"""
         output = f"{self.GREEN}✓{self.RESET} {result.get('message', 'Success')}\n"
 
@@ -97,7 +97,7 @@ class GridRenderer:
 
         return output
 
-    def _render_error(self, result: Dict[str, Any]) -> str:
+    def _render_error(self, result: dict[str, Any]) -> str:
         """Format error response"""
         output = (
             f"{self.RED}✗{self.RESET} Error: {result.get('message', 'Unknown error')}\n"
@@ -114,14 +114,14 @@ class GridRenderer:
 
         return output
 
-    def _render_warning(self, result: Dict[str, Any]) -> str:
+    def _render_warning(self, result: dict[str, Any]) -> str:
         """Format warning response"""
         output = f"{self.YELLOW}!{self.RESET} {result.get('message', 'Warning')}\n"
         if "output" in result:
             output += result["output"] + "\n"
         return output
 
-    def _render_generic(self, result: Dict[str, Any]) -> str:
+    def _render_generic(self, result: dict[str, Any]) -> str:
         """Format generic response"""
         output = f"{self.CYAN}->{self.RESET} Response:\n"
         for key, value in result.items():
@@ -129,7 +129,7 @@ class GridRenderer:
                 output += f"  {key}: {value}\n"
         return output
 
-    def _format_items(self, items: List[Dict[str, Any]]) -> str:
+    def _format_items(self, items: list[dict[str, Any]]) -> str:
         """Format item list"""
         if not items:
             return "  (no items)\n"
@@ -142,7 +142,7 @@ class GridRenderer:
             output += f"  - {name} (qty: {qty}){equipped}\n"
         return output
 
-    def _format_results(self, results: List[Dict[str, Any]]) -> str:
+    def _format_results(self, results: list[dict[str, Any]]) -> str:
         """Format search results"""
         if not results:
             return "  (no results)\n"
@@ -154,14 +154,16 @@ class GridRenderer:
             output += f"  {i}. {name}\n     {loc_id}\n"
         return output
 
-    def render_table(self, headers: Sequence[str], rows: Iterable[Sequence[Any]]) -> str:
+    def render_table(
+        self, headers: Sequence[str], rows: Iterable[Sequence[Any]]
+    ) -> str:
         """Render a basic table for command outputs."""
         return format_table(headers, rows)
 
     @staticmethod
     def _normalize_table(
         table_data: Any,
-    ) -> Tuple[Sequence[str], Iterable[Sequence[Any]]]:
+    ) -> tuple[Sequence[str], Iterable[Sequence[Any]]]:
         if isinstance(table_data, dict):
             headers = table_data.get("headers", [])
             rows = table_data.get("rows", [])
@@ -274,13 +276,11 @@ class GridRenderer:
             data = json.loads(path.read_text(encoding="utf-8"))
             shortcodes = data.get("shortcodes") or []
             if isinstance(shortcodes, list):
-                self._emoji_set = {
-                    s.lower() for s in shortcodes if isinstance(s, str)
-                }
+                self._emoji_set = {s.lower() for s in shortcodes if isinstance(s, str)}
         except Exception:
             self._emoji_set = set()
 
-    def _find_repo_root(self) -> Optional[Path]:
+    def _find_repo_root(self) -> Path | None:
         """Locate repo root by searching for fonts/emoji."""
         current = Path(__file__).resolve()
         for parent in [current] + list(current.parents):
@@ -299,9 +299,17 @@ class GridRenderer:
         """Clear terminal screen"""
         atomic_stdout_write("\033[2J\033[H", flush=True)
 
-    def present_frames(self, frames: Sequence[str], interval: float = 0.8, repeat: int = 1, clear: bool = True) -> None:
+    def present_frames(
+        self,
+        frames: Sequence[str],
+        interval: float = 0.8,
+        repeat: int = 1,
+        clear: bool = True,
+    ) -> None:
         """Present full-screen frames with clears between (presentation-style)."""
-        OutputToolkit.present_frames(frames, interval=interval, repeat=repeat, clear=clear)
+        OutputToolkit.present_frames(
+            frames, interval=interval, repeat=repeat, clear=clear
+        )
 
     @staticmethod
     def separator(char: str = "-", width: int = 60) -> str:

@@ -5,11 +5,8 @@ Bridges legacy key-store calls to the unified secret store.
 
 from __future__ import annotations
 
-import os
-from typing import Optional
-
+from core.services.unified_config_loader import get_config
 from wizard.services.secret_store import SecretStoreError, get_secret_store
-
 
 _KEY_ID_MAP: dict[str, str] = {
     "MISTRAL_API_KEY": "mistral-api-key",
@@ -28,21 +25,20 @@ def _resolve_key_id(key_name: str) -> str:
     return key_name.strip().lower().replace("_", "-")
 
 
-def _unlock_store() -> Optional[object]:
+def _unlock_store() -> object | None:
     store = get_secret_store()
     try:
-        store.unlock(os.getenv("WIZARD_KEY") or os.getenv("WIZARD_KEY_PEER"))
+        store.unlock(get_config("WIZARD_KEY", "") or get_config("WIZARD_KEY_PEER", ""))
     except SecretStoreError:
         return None
     return store
 
 
-def get_wizard_key(key_name: str) -> Optional[str]:
+def get_wizard_key(key_name: str) -> str | None:
     """Get a wizard key from encrypted secret storage.
 
     Returns None when the secret store cannot be unlocked or the key is missing.
     """
-
     if not key_name.strip():
         return None
     store = _unlock_store()
@@ -59,7 +55,6 @@ def get_wizard_key(key_name: str) -> Optional[str]:
 
 def set_wizard_key(key_name: str, key_value: str) -> bool:
     """Store a wizard key in encrypted secret storage."""
-
     if not key_name.strip() or not key_value:
         return False
     store = _unlock_store()

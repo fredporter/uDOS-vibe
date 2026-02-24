@@ -1,18 +1,19 @@
-"""
-Sonic Plugin Routes (Modular)
+"""Sonic Plugin Routes (Modular)
 
 NEW modular plugin-based routes replacing legacy screwdriver monolith.
 Uses dynamic plugin loader from extensions/sonic_loader.py.
 """
 
-import os
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Callable, Awaitable, Optional, List, Dict, Any
+from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Request, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
+from core.services.unified_config_loader import get_bool_config
 from extensions.sonic_loader import load_sonic_plugin
-from wizard.services.sonic_schema_contract import evaluate_sonic_schema_contract
 from wizard.services.sonic_adapters import (
     build_device_query,
     to_device_list_payload,
@@ -20,11 +21,14 @@ from wizard.services.sonic_adapters import (
     to_stats_payload,
     to_sync_status_payload,
 )
+from wizard.services.sonic_schema_contract import evaluate_sonic_schema_contract
 
 AuthGuard = Optional[Callable[[Request], Awaitable[str]]]
 
 
-def _alias_notice(payload: Dict[str, Any], *, alias: str, canonical: str) -> Dict[str, Any]:
+def _alias_notice(
+    payload: dict[str, Any], *, alias: str, canonical: str
+) -> dict[str, Any]:
     """Annotate alias responses with canonical route metadata."""
     return {
         **payload,
@@ -37,8 +41,7 @@ def _alias_notice(payload: Dict[str, Any], *, alias: str, canonical: str) -> Dic
 
 
 def _legacy_aliases_enabled() -> bool:
-    raw = os.getenv("UDOS_SONIC_ENABLE_LEGACY_ALIASES", "1").strip().lower()
-    return raw not in {"0", "false", "no", "off"}
+    return get_bool_config("UDOS_SONIC_ENABLE_LEGACY_ALIASES", True)
 
 
 def _raise_alias_retired(*, alias: str, canonical: str) -> None:
@@ -52,9 +55,10 @@ def _raise_alias_retired(*, alias: str, canonical: str) -> None:
     )
 
 
-def create_sonic_plugin_routes(auth_guard: AuthGuard = None, repo_root: Optional[Path] = None) -> APIRouter:
-    """
-    Create Sonic plugin routes using modular system.
+def create_sonic_plugin_routes(
+    auth_guard: AuthGuard = None, repo_root: Path | None = None
+) -> APIRouter:
+    """Create Sonic plugin routes using modular system.
 
     This replaces the legacy screwdriver routes with dynamic plugin loading.
 
@@ -71,9 +75,9 @@ def create_sonic_plugin_routes(auth_guard: AuthGuard = None, repo_root: Optional
     # Load plugin components
     try:
         plugin = load_sonic_plugin(repo_root)
-        api = plugin['api'].get_sonic_service()
-        sync = plugin['sync'].get_sync_service()
-    except Exception as e:
+        api = plugin["api"].get_sonic_service()
+        sync = plugin["sync"].get_sync_service()
+    except Exception:
         # Fallback: plugin not available
         @router.get("/health")
         async def health_unavailable(request: Request):
@@ -89,67 +93,90 @@ def create_sonic_plugin_routes(auth_guard: AuthGuard = None, repo_root: Optional
         async def devices_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
 
         @router.post("/rescan")
         async def rescan_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
 
         @router.post("/rebuild")
         async def rebuild_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
 
         @router.get("/export")
         async def export_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
 
         @router.post("/sync")
         async def sync_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
 
         @router.get("/sync/status")
         async def sync_status_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
 
         @router.post("/sync/rebuild")
         async def sync_rebuild_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
 
         @router.post("/sync/export")
         async def sync_export_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
 
         @router.get("/db/status")
         async def db_status_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
 
         @router.post("/db/rebuild")
         async def db_rebuild_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
 
         @router.get("/db/export")
         async def db_export_unavailable(request: Request):
             if auth_guard:
                 await auth_guard(request)
-            raise HTTPException(status_code=503, detail=f"Sonic plugin not available: {e}")
+            raise HTTPException(
+                status_code=503, detail=f"Sonic plugin not available: {e}"
+            )
+
         return router
 
     # Health endpoint
@@ -184,20 +211,19 @@ def create_sonic_plugin_routes(auth_guard: AuthGuard = None, repo_root: Optional
     @router.get("/devices")
     async def list_devices(
         request: Request,
-        vendor: Optional[str] = Query(None),
-        reflash_potential: Optional[str] = Query(None),
-        usb_boot: Optional[str] = Query(None),
-        uefi_native: Optional[str] = Query(None),
-        windows10_boot: Optional[str] = Query(None),
-        media_mode: Optional[str] = Query(None),
-        udos_launcher: Optional[str] = Query(None),
-        year_min: Optional[int] = Query(None),
-        year_max: Optional[int] = Query(None),
+        vendor: str | None = Query(None),
+        reflash_potential: str | None = Query(None),
+        usb_boot: str | None = Query(None),
+        uefi_native: str | None = Query(None),
+        windows10_boot: str | None = Query(None),
+        media_mode: str | None = Query(None),
+        udos_launcher: str | None = Query(None),
+        year_min: int | None = Query(None),
+        year_max: int | None = Query(None),
         limit: int = Query(100, ge=1, le=1000),
         offset: int = Query(0, ge=0),
     ):
-        """
-        Query devices from catalog with filters.
+        """Query devices from catalog with filters.
 
         Filters:
         - vendor: Vendor name substring
@@ -262,7 +288,7 @@ def create_sonic_plugin_routes(auth_guard: AuthGuard = None, repo_root: Optional
             raise HTTPException(status_code=503, detail=str(e))
 
     # Database sync endpoints
-    async def _sync_status_handler(request: Request) -> Dict[str, Any]:
+    async def _sync_status_handler(request: Request) -> dict[str, Any]:
         """Get database sync status."""
         if auth_guard:
             await auth_guard(request)
@@ -280,20 +306,21 @@ def create_sonic_plugin_routes(auth_guard: AuthGuard = None, repo_root: Optional
         """Report legacy alias compatibility mode for Sonic endpoints."""
         if auth_guard:
             await auth_guard(request)
-        return {
-            "legacy_aliases_enabled": aliases_enabled,
-            "retirement_target": "v1.5",
-        }
+        return {"legacy_aliases_enabled": aliases_enabled, "retirement_target": "v1.5"}
 
     @router.get("/db/status")
     async def db_status(request: Request):
         """Alias for device database sync status."""
         if not aliases_enabled:
-            _raise_alias_retired(alias="/api/sonic/db/status", canonical="/api/sonic/sync/status")
+            _raise_alias_retired(
+                alias="/api/sonic/db/status", canonical="/api/sonic/sync/status"
+            )
         payload = await _sync_status_handler(request)
-        return _alias_notice(payload, alias="/api/sonic/db/status", canonical="/api/sonic/sync/status")
+        return _alias_notice(
+            payload, alias="/api/sonic/db/status", canonical="/api/sonic/sync/status"
+        )
 
-    async def _sync_rebuild_handler(request: Request, *, force: bool) -> Dict[str, Any]:
+    async def _sync_rebuild_handler(request: Request, *, force: bool) -> dict[str, Any]:
         """Rebuild device database from SQL source."""
         if auth_guard:
             await auth_guard(request)
@@ -314,35 +341,61 @@ def create_sonic_plugin_routes(auth_guard: AuthGuard = None, repo_root: Optional
     async def db_rebuild(request: Request, force: bool = Query(False)):
         """Alias for rebuilding the device database."""
         if not aliases_enabled:
-            _raise_alias_retired(alias="/api/sonic/db/rebuild", canonical="/api/sonic/sync/rebuild")
+            _raise_alias_retired(
+                alias="/api/sonic/db/rebuild", canonical="/api/sonic/sync/rebuild"
+            )
         payload = await _sync_rebuild_handler(request, force=force)
-        return _alias_notice(payload, alias="/api/sonic/db/rebuild", canonical="/api/sonic/sync/rebuild")
+        return _alias_notice(
+            payload, alias="/api/sonic/db/rebuild", canonical="/api/sonic/sync/rebuild"
+        )
 
     @router.post("/rescan")
     async def rescan(request: Request):
         """Alias for non-destructive sync/rebuild operation."""
         if not aliases_enabled:
-            _raise_alias_retired(alias="/api/sonic/rescan", canonical="/api/sonic/sync/rebuild?force=false")
+            _raise_alias_retired(
+                alias="/api/sonic/rescan",
+                canonical="/api/sonic/sync/rebuild?force=false",
+            )
         payload = await _sync_rebuild_handler(request, force=False)
-        return _alias_notice(payload, alias="/api/sonic/rescan", canonical="/api/sonic/sync/rebuild?force=false")
+        return _alias_notice(
+            payload,
+            alias="/api/sonic/rescan",
+            canonical="/api/sonic/sync/rebuild?force=false",
+        )
 
     @router.post("/rebuild")
     async def rebuild(request: Request):
         """Alias for full rebuild operation."""
         if not aliases_enabled:
-            _raise_alias_retired(alias="/api/sonic/rebuild", canonical="/api/sonic/sync/rebuild?force=true")
+            _raise_alias_retired(
+                alias="/api/sonic/rebuild",
+                canonical="/api/sonic/sync/rebuild?force=true",
+            )
         payload = await _sync_rebuild_handler(request, force=True)
-        return _alias_notice(payload, alias="/api/sonic/rebuild", canonical="/api/sonic/sync/rebuild?force=true")
+        return _alias_notice(
+            payload,
+            alias="/api/sonic/rebuild",
+            canonical="/api/sonic/sync/rebuild?force=true",
+        )
 
     @router.post("/sync")
     async def sync_alias(request: Request):
         """Alias for sync operation used by Wizard GUI entry points."""
         if not aliases_enabled:
-            _raise_alias_retired(alias="/api/sonic/sync", canonical="/api/sonic/sync/rebuild?force=false")
+            _raise_alias_retired(
+                alias="/api/sonic/sync", canonical="/api/sonic/sync/rebuild?force=false"
+            )
         payload = await _sync_rebuild_handler(request, force=False)
-        return _alias_notice(payload, alias="/api/sonic/sync", canonical="/api/sonic/sync/rebuild?force=false")
+        return _alias_notice(
+            payload,
+            alias="/api/sonic/sync",
+            canonical="/api/sonic/sync/rebuild?force=false",
+        )
 
-    async def _sync_export_handler(request: Request, output_path: Optional[str]) -> Dict[str, Any]:
+    async def _sync_export_handler(
+        request: Request, output_path: str | None
+    ) -> dict[str, Any]:
         """Export database to CSV."""
         if auth_guard:
             await auth_guard(request)
@@ -357,25 +410,33 @@ def create_sonic_plugin_routes(auth_guard: AuthGuard = None, repo_root: Optional
         return result
 
     @router.post("/sync/export")
-    async def sync_export(request: Request, output_path: Optional[str] = Query(None)):
+    async def sync_export(request: Request, output_path: str | None = Query(None)):
         """Export database to CSV."""
         return await _sync_export_handler(request, output_path=output_path)
 
     @router.get("/db/export")
-    async def db_export(request: Request, output_path: Optional[str] = Query(None)):
+    async def db_export(request: Request, output_path: str | None = Query(None)):
         """Alias for exporting the device database to CSV."""
         if not aliases_enabled:
-            _raise_alias_retired(alias="/api/sonic/db/export", canonical="/api/sonic/sync/export")
+            _raise_alias_retired(
+                alias="/api/sonic/db/export", canonical="/api/sonic/sync/export"
+            )
         payload = await _sync_export_handler(request, output_path=output_path)
-        return _alias_notice(payload, alias="/api/sonic/db/export", canonical="/api/sonic/sync/export")
+        return _alias_notice(
+            payload, alias="/api/sonic/db/export", canonical="/api/sonic/sync/export"
+        )
 
     @router.get("/export")
-    async def export_alias(request: Request, output_path: Optional[str] = Query(None)):
+    async def export_alias(request: Request, output_path: str | None = Query(None)):
         """Alias for export operation."""
         if not aliases_enabled:
-            _raise_alias_retired(alias="/api/sonic/export", canonical="/api/sonic/sync/export")
+            _raise_alias_retired(
+                alias="/api/sonic/export", canonical="/api/sonic/sync/export"
+            )
         payload = await _sync_export_handler(request, output_path=output_path)
-        return _alias_notice(payload, alias="/api/sonic/export", canonical="/api/sonic/sync/export")
+        return _alias_notice(
+            payload, alias="/api/sonic/export", canonical="/api/sonic/sync/export"
+        )
 
     # Flash pack endpoints
     @router.get("/flash-packs")
@@ -385,10 +446,7 @@ def create_sonic_plugin_routes(auth_guard: AuthGuard = None, repo_root: Optional
             await auth_guard(request)
 
         packs = api.list_flash_packs()
-        return {
-            "count": len(packs),
-            "packs": packs,
-        }
+        return {"count": len(packs), "packs": packs}
 
     @router.get("/flash-packs/{pack_id}")
     async def get_flash_pack(request: Request, pack_id: str):
@@ -415,6 +473,5 @@ def create_sonic_plugin_routes(auth_guard: AuthGuard = None, repo_root: Optional
 
     return router
 
-__all__ = [
-    "create_sonic_plugin_routes",
-]
+
+__all__ = ["create_sonic_plugin_routes"]

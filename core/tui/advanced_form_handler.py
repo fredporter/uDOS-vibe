@@ -1,5 +1,4 @@
-"""
-Advanced TUI Form Field Handler - Enhanced Story Forms
+"""Advanced TUI Form Field Handler - Enhanced Story Forms
 
 Provides:
   - Syntax-highlighting style predictive answers
@@ -20,67 +19,74 @@ Version: v1.0.0
 Date: 2026-01-30
 """
 
-import sys
-import re
-from typing import Optional, Dict, Any, List, Tuple
+from __future__ import annotations
+
 from datetime import datetime
-import json
+import os
+import re
+import sys
 import termios
-import tty
 import time
+import tty
+from typing import Any
 
-from core.services.viewport_service import ViewportService
-
-from core.utils.tty import interactive_tty_status
-from core.tui.form_fields import DatePicker, DateTimeApproval, LocationSelector
-from core.input.confirmation_utils import normalize_default, parse_confirmation, format_prompt, format_error
+from core.input.confirmation_utils import (
+    format_error,
+    format_prompt,
+    normalize_default,
+    parse_confirmation,
+)
 from core.locations import LocationService
-
-from core.services.logging_api import get_logger, LogTags
+from core.services.logging_api import get_logger
+from core.services.viewport_service import ViewportService
+from core.tui.form_fields import DatePicker, DateTimeApproval, LocationSelector
+from core.utils.tty import interactive_tty_status
 
 logger = get_logger("tui-form-handler")
+
 
 # ANSI Color codes for syntax highlighting
 class Colors:
     """ANSI color codes for terminal output."""
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
-    DIM = '\033[2m'
-    ITALIC = '\033[3m'
+
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    ITALIC = "\033[3m"
 
     # Foreground colors
-    BLACK = '\033[30m'
-    RED = '\033[31m'
-    GREEN = '\033[32m'
-    YELLOW = '\033[33m'
-    BLUE = '\033[34m'
-    MAGENTA = '\033[35m'
-    CYAN = '\033[36m'
-    WHITE = '\033[37m'
+    BLACK = "\033[30m"
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    WHITE = "\033[37m"
 
     # Bright colors
-    BRIGHT_BLACK = '\033[90m'
-    BRIGHT_RED = '\033[91m'
-    BRIGHT_GREEN = '\033[92m'
-    BRIGHT_YELLOW = '\033[93m'
-    BRIGHT_BLUE = '\033[94m'
-    BRIGHT_MAGENTA = '\033[95m'
-    BRIGHT_CYAN = '\033[96m'
-    BRIGHT_WHITE = '\033[97m'
+    BRIGHT_BLACK = "\033[90m"
+    BRIGHT_RED = "\033[91m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_YELLOW = "\033[93m"
+    BRIGHT_BLUE = "\033[94m"
+    BRIGHT_MAGENTA = "\033[95m"
+    BRIGHT_CYAN = "\033[96m"
+    BRIGHT_WHITE = "\033[97m"
 
     # Background
-    BG_BLACK = '\033[40m'
-    BG_RED = '\033[41m'
-    BG_GREEN = '\033[42m'
-    BG_YELLOW = '\033[43m'
-    BG_BLUE = '\033[44m'
+    BG_BLACK = "\033[40m"
+    BG_RED = "\033[41m"
+    BG_GREEN = "\033[42m"
+    BG_YELLOW = "\033[43m"
+    BG_BLUE = "\033[44m"
 
     @staticmethod
     def disable():
         """Disable colors (for piped output)."""
         for attr in dir(Colors):
-            if not attr.startswith('_'):
-                setattr(Colors, attr, '')
+            if not attr.startswith("_"):
+                setattr(Colors, attr, "")
 
 
 class AdvancedFormField:
@@ -111,49 +117,51 @@ class AdvancedFormField:
             Cleaned input string with escape sequences removed
         """
         import re
+
         # Remove ANSI escape sequences (arrow keys, etc.)
         # Pattern matches ESC [ followed by any characters up to a letter
-        ansi_escape = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
-        cleaned = ansi_escape.sub('', raw_input)
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+        cleaned = ansi_escape.sub("", raw_input)
         # Also remove any remaining control characters
-        cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', cleaned)
+        cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", cleaned)
         return cleaned.strip()
 
     # ========================================================================
     # PREDICTIVE SUGGESTIONS
     # ========================================================================
 
-    def load_system_suggestions(self) -> Dict[str, Any]:
+    def load_system_suggestions(self) -> dict[str, Any]:
         """Load system-detected suggestions for common fields.
 
         Returns:
             Dictionary of field names to suggested values
         """
         try:
-            import subprocess
             from datetime import datetime
+            import subprocess
 
             suggestions = {}
 
             # System timezone
             try:
                 import time
+
                 tz_name = time.tzname[0] if time.daylight == 0 else time.tzname[1]
-                suggestions['user_timezone'] = self._get_iana_timezone()
+                suggestions["user_timezone"] = self._get_iana_timezone()
             except Exception:
-                suggestions['user_timezone'] = 'UTC'
+                suggestions["user_timezone"] = "UTC"
 
             # System time
-            suggestions['user_local_time'] = datetime.now().strftime("%Y-%m-%d %H:%M")
-            suggestions['user_date'] = datetime.now().strftime("%Y-%m-%d")
-            suggestions['time'] = datetime.now().strftime("%Y-%m-%d %H:%M")
-            suggestions['date'] = datetime.now().strftime("%Y-%m-%d")
-            suggestions['datetime'] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            suggestions["user_local_time"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            suggestions["user_date"] = datetime.now().strftime("%Y-%m-%d")
+            suggestions["time"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            suggestions["date"] = datetime.now().strftime("%Y-%m-%d")
+            suggestions["datetime"] = datetime.now().strftime("%Y-%m-%d %H:%M")
 
             # System hostname (possible location hint)
             try:
-                hostname = subprocess.check_output(['hostname']).decode().strip()
-                suggestions['_hostname'] = hostname
+                hostname = subprocess.check_output(["hostname"]).decode().strip()
+                suggestions["_hostname"] = hostname
             except Exception:
                 pass
 
@@ -170,9 +178,13 @@ class AdvancedFormField:
         """
         try:
             import subprocess
+
             # Try to get current timezone from timedatectl
-            result = subprocess.check_output(['timedatectl', 'show', '-p', 'Timezone', '--value'],
-                                            text=True, stderr=subprocess.DEVNULL)
+            result = subprocess.check_output(
+                ["timedatectl", "show", "-p", "Timezone", "--value"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
             if result:
                 return result.strip()
         except Exception:
@@ -180,7 +192,7 @@ class AdvancedFormField:
 
         try:
             # Fallback: read from /etc/timezone on Linux
-            with open('/etc/timezone', 'r') as f:
+            with open("/etc/timezone") as f:
                 return f.read().strip()
         except Exception:
             pass
@@ -188,22 +200,27 @@ class AdvancedFormField:
         try:
             # macOS fallback
             import subprocess
-            tz = subprocess.check_output(
-                ['systemsetup', '-gettimezone'],
-                stderr=subprocess.DEVNULL
-            ).decode().strip()
-            if tz.startswith('Time Zone: '):
-                return tz.replace('Time Zone: ', '')
+
+            tz = (
+                subprocess
+                .check_output(
+                    ["systemsetup", "-gettimezone"], stderr=subprocess.DEVNULL
+                )
+                .decode()
+                .strip()
+            )
+            if tz.startswith("Time Zone: "):
+                return tz.replace("Time Zone: ", "")
         except Exception:
             pass
 
-        return 'UTC'
+        return "UTC"
 
     # ========================================================================
     # FIELD RENDERING WITH PREDICTIONS
     # ========================================================================
 
-    def render_field(self, field: Dict, suggestion: Optional[str] = None) -> str:
+    def render_field(self, field: dict, suggestion: str | None = None) -> str:
         """Render a form field with syntax highlighting and suggestion.
 
         Args:
@@ -213,9 +230,9 @@ class AdvancedFormField:
         Returns:
             Formatted field display string
         """
-        name = field.get('name', 'unknown')
-        label = field.get('label', 'Field')
-        required = field.get('required', False)
+        name = field.get("name", "unknown")
+        label = field.get("label", "Field")
+        required = field.get("required", False)
         req_label = f"{Colors.BRIGHT_RED}*{Colors.RESET}" if required else " "
 
         # Build field display
@@ -224,21 +241,29 @@ class AdvancedFormField:
         lines.extend(self._box_header(title))
 
         # Show help text if present
-        help_text = field.get('help', '')
+        help_text = field.get("help", "")
         if help_text:
             lines.append(self._box_line(f"{Colors.DIM}{help_text}{Colors.RESET}"))
 
         # Show suggestion if available
         if suggestion:
-            lines.append(self._box_line(
-                f"{Colors.CYAN}Suggestion:{Colors.RESET} {Colors.BRIGHT_CYAN}{suggestion}{Colors.RESET}"
-            ))
-            lines.append(self._box_line(f"{Colors.DIM}(Tab to accept, or type to override){Colors.RESET}"))
+            lines.append(
+                self._box_line(
+                    f"{Colors.CYAN}Suggestion:{Colors.RESET} {Colors.BRIGHT_CYAN}{suggestion}{Colors.RESET}"
+                )
+            )
+            lines.append(
+                self._box_line(
+                    f"{Colors.DIM}(Tab to accept, or type to override){Colors.RESET}"
+                )
+            )
 
         # Show placeholder
-        placeholder = field.get('placeholder', '')
+        placeholder = field.get("placeholder", "")
         if placeholder:
-            lines.append(self._box_line(f"{Colors.DIM}e.g., {placeholder}{Colors.RESET}"))
+            lines.append(
+                self._box_line(f"{Colors.DIM}e.g., {placeholder}{Colors.RESET}")
+            )
 
         progress = field.get("_progress")
         if progress:
@@ -252,7 +277,9 @@ class AdvancedFormField:
     # FIELD INPUT COLLECTION
     # ========================================================================
 
-    def collect_field_input(self, field: Dict, suggestion: Optional[str] = None) -> Optional[str]:
+    def collect_field_input(
+        self, field: dict, suggestion: str | None = None
+    ) -> str | None:
         """Collect user input for a field with suggestion support.
 
         Supports:
@@ -270,41 +297,45 @@ class AdvancedFormField:
             User input (or suggestion if accepted), or None if skipped
         """
         if not self._is_interactive():
-            logger.info("[LOCAL] Non-interactive mode detected for field input, using basic input()")
+            logger.info(
+                "[LOCAL] Non-interactive mode detected for field input, using basic input()"
+            )
             return self._collect_field_input_fallback(field, suggestion)
 
-        name = field.get('name', 'unknown')
-        field_type = field.get('type', 'text')
-        required = field.get('required', False)
-        validation = field.get('validation')
-        default_from_system = field.get('default_from_system', False)
-        options = field.get('options', [])
+        name = field.get("name", "unknown")
+        field_type = field.get("type", "text")
+        required = field.get("required", False)
+        validation = field.get("validation")
+        default_from_system = field.get("default_from_system", False)
+        options = field.get("options", [])
 
         # Handle date fields with TUI datepicker
-        if field_type == 'date' or 'dob' in name.lower():
+        if field_type == "date" or "dob" in name.lower():
             return self._collect_datepicker_field(field, suggestion)
 
         # Handle datetime approval field with selector
-        if field_type == 'datetime_approve':
+        if field_type == "datetime_approve":
             return self._collect_datetime_approval_field(field)
 
         # Handle location selector with fuzzy search
-        if field_type == 'location' or 'location' in name.lower():
+        if field_type == "location" or "location" in name.lower():
             return self._collect_location_field(field)
 
         # Handle select fields with menu
-        if field_type == 'select' and options:
+        if field_type == "select" and options:
             return self._collect_select_field(field, suggestion)
 
         # Auto-generate system default for datetime/date/time fields with default_from_system
         if default_from_system and not suggestion:
             suggestions = self.load_system_suggestions()
-            if field_type == 'datetime' or 'time' in name.lower():
-                suggestion = suggestions.get('datetime') or suggestions.get('user_local_time')
-            elif field_type == 'date':
-                suggestion = suggestions.get('date') or suggestions.get('user_date')
-            elif field_type == 'time':
-                suggestion = suggestions.get('time') or datetime.now().strftime("%H:%M")
+            if field_type == "datetime" or "time" in name.lower():
+                suggestion = suggestions.get("datetime") or suggestions.get(
+                    "user_local_time"
+                )
+            elif field_type == "date":
+                suggestion = suggestions.get("date") or suggestions.get("user_date")
+            elif field_type == "time":
+                suggestion = suggestions.get("time") or datetime.now().strftime("%H:%M")
 
         # Render field with suggestion
         self._maybe_clear_screen()
@@ -345,7 +376,13 @@ class AdvancedFormField:
         self._print_transition()
         return user_input
 
-    def validate_field(self, field_type: str, value: str, validation: Optional[str] = None, field_name: str = '') -> Tuple[bool, str]:
+    def validate_field(
+        self,
+        field_type: str,
+        value: str,
+        validation: str | None = None,
+        field_name: str = "",
+    ) -> tuple[bool, str]:
         """Validate field input with enhanced rules using FormFieldValidator.
 
         Args:
@@ -363,34 +400,41 @@ class AdvancedFormField:
         # Use specialized validators for known field types
         try:
             from core.tui.form_field_validator import FormFieldValidator
-            tokens = [t for t in re.split(r"[^a-z0-9]+", (field_name or "").lower()) if t]
+
+            tokens = [
+                t for t in re.split(r"[^a-z0-9]+", (field_name or "").lower()) if t
+            ]
 
             # Detect field type from name
-            if 'username' in field_name.lower():
+            if "username" in field_name.lower():
                 is_valid, error = FormFieldValidator.validate_username(value)
                 return is_valid, error or "Valid"
 
-            elif 'dob' in field_name.lower() or 'birth' in field_name.lower():
+            elif "dob" in field_name.lower() or "birth" in field_name.lower():
                 is_valid, error = FormFieldValidator.validate_dob(value)
                 return is_valid, error or "Valid"
 
-            elif 'timezone' in field_name.lower() or 'tz' in field_name.lower():
+            elif "timezone" in field_name.lower() or "tz" in field_name.lower():
                 is_valid, error = FormFieldValidator.validate_timezone(value)
                 return is_valid, error or "Valid"
 
-            elif 'location' in field_name.lower() or 'city' in field_name.lower():
+            elif "location" in field_name.lower() or "city" in field_name.lower():
                 is_valid, error = FormFieldValidator.validate_location(value)
                 return is_valid, error or "Valid"
 
-            elif 'role' in field_name.lower():
+            elif "role" in field_name.lower():
                 is_valid, error = FormFieldValidator.validate_role(value)
                 return is_valid, error or "Valid"
 
-            elif 'operating' in field_name.lower() or 'os' in tokens or 'os_type' in tokens:
+            elif (
+                "operating" in field_name.lower()
+                or "os" in tokens
+                or "os_type" in tokens
+            ):
                 is_valid, error = FormFieldValidator.validate_os_type(value)
                 return is_valid, error or "Valid"
 
-            elif 'password' in field_name.lower() or 'pwd' in field_name.lower():
+            elif "password" in field_name.lower() or "pwd" in field_name.lower():
                 is_valid, error = FormFieldValidator.validate_password(value)
                 return is_valid, error or "Valid"
 
@@ -398,53 +442,55 @@ class AdvancedFormField:
             logger.debug("FormFieldValidator not available, using basic validation")
 
         # Type-specific validation fallback
-        if field_type == 'email':
-            if '@' not in value or '.' not in value:
+        if field_type == "email":
+            if "@" not in value or "." not in value:
                 return False, "Invalid email format"
 
-        elif field_type == 'date':
+        elif field_type == "date":
             try:
                 datetime.strptime(value, "%Y-%m-%d")
             except ValueError:
                 return False, "Use YYYY-MM-DD format"
 
-        elif field_type == 'datetime':
+        elif field_type == "datetime":
             try:
                 datetime.strptime(value, "%Y-%m-%d %H:%M")
             except ValueError:
                 return False, "Use YYYY-MM-DD HH:MM format"
 
-        elif field_type == 'number':
+        elif field_type == "number":
             try:
                 float(value)
             except ValueError:
                 return False, "Must be a number"
 
-        elif field_type == 'password':
+        elif field_type == "password":
             if len(value) < 8:
                 return False, "Password must be at least 8 characters"
 
         # Custom validation rules
         if validation:
-            if validation == 'name':
+            if validation == "name":
                 if len(value) < 2:
                     return False, "Name too short"
                 if any(c.isdigit() for c in value):
                     return False, "Name cannot contain numbers"
 
-            elif validation == 'date':
+            elif validation == "date":
                 try:
                     datetime.strptime(value, "%Y-%m-%d")
                 except ValueError:
                     return False, "Use YYYY-MM-DD format (e.g., 1990-01-15)"
 
-            elif validation == 'text':
+            elif validation == "text":
                 if len(value) < 1:
                     return False, "Cannot be empty"
 
         return True, "Valid"
 
-    def _collect_select_field(self, field: Dict, suggestion: Optional[str] = None) -> Optional[str]:
+    def _collect_select_field(
+        self, field: dict, suggestion: str | None = None
+    ) -> str | None:
         """Collect input for a select field with numbered menu.
 
         Args:
@@ -454,9 +500,9 @@ class AdvancedFormField:
         Returns:
             Selected option value or None
         """
-        label = field.get('label', field.get('name', 'Select'))
-        options = self._normalize_select_options(field.get('options', []))
-        required = field.get('required', False)
+        label = field.get("label", field.get("name", "Select"))
+        options = self._normalize_select_options(field.get("options", []))
+        required = field.get("required", False)
 
         if not options:
             logger.warning(f"[LOCAL] Select field '{label}' has no options")
@@ -483,7 +529,9 @@ class AdvancedFormField:
                         suffix = " ← (default)" if is_default else ""
                         color = Colors.BRIGHT_GREEN if is_default else ""
                         reset = Colors.RESET if is_default else ""
-                        line = f"{prefix} {color}{idx}. {option['label']}{suffix}{reset}"
+                        line = (
+                            f"{prefix} {color}{idx}. {option['label']}{suffix}{reset}"
+                        )
                         print(self._box_line(line))
 
                     progress = field.get("_progress")
@@ -493,20 +541,26 @@ class AdvancedFormField:
                     hint = f"Choose 1-{len(options)}"
                     if suggestion:
                         hint += " or Enter for default"
-                    print(self._box_line(f"{Colors.DIM}{hint} | ↑/↓ to move, Enter to select{Colors.RESET}"))
-                    print(self._box_line(f"{Colors.DIM}ENTER ⏎ to continue{Colors.RESET}"))
+                    print(
+                        self._box_line(
+                            f"{Colors.DIM}{hint} | ↑/↓ to move, Enter to select{Colors.RESET}"
+                        )
+                    )
+                    print(
+                        self._box_line(f"{Colors.DIM}ENTER ⏎ to continue{Colors.RESET}")
+                    )
                     print("\n".join(self._box_footer()))
 
                     key = self._read_key()
-                    if key == '\x1b':
+                    if key == "\x1b":
                         return None
-                    if key == 'up' and selected_index > 0:
+                    if key == "up" and selected_index > 0:
                         selected_index -= 1
                         continue
-                    if key == 'down' and selected_index < len(options) - 1:
+                    if key == "down" and selected_index < len(options) - 1:
                         selected_index += 1
                         continue
-                    if key in ('\n', '\r'):
+                    if key in ("\n", "\r"):
                         print(f"  {Colors.GREEN}✓{Colors.RESET}")
                         self._print_transition()
                         return options[selected_index]["value"]
@@ -524,11 +578,17 @@ class AdvancedFormField:
         print(self._box_header(f"* {label}:")[0])
         for idx, option in enumerate(options, start=1):
             if suggestion and option["value"] == suggestion:
-                print(f"  {Colors.BRIGHT_GREEN}{idx}. {option['label']} ← (default){Colors.RESET}")
+                print(
+                    f"  {Colors.BRIGHT_GREEN}{idx}. {option['label']} ← (default){Colors.RESET}"
+                )
             else:
                 print(f"  {idx}. {option['label']}")
 
-        print(f"\n{Colors.DIM}Choose 1-{len(options)}" + (f" or Enter for default" if suggestion else "") + f"{Colors.RESET}")
+        print(
+            f"\n{Colors.DIM}Choose 1-{len(options)}"
+            + (" or Enter for default" if suggestion else "")
+            + f"{Colors.RESET}"
+        )
         print(f"{Colors.BRIGHT_CYAN}❯{Colors.RESET} ", end="", flush=True)
         raw_input = input()
         user_input = self._clean_input(raw_input)
@@ -544,17 +604,24 @@ class AdvancedFormField:
                 print(f"  {Colors.GREEN}✓{Colors.RESET}")
                 self._print_transition()
                 return options[choice - 1]["value"]
-            print(f"  {Colors.RED}✗ Choose a number between 1 and {len(options)}{Colors.RESET}")
+            print(
+                f"  {Colors.RED}✗ Choose a number between 1 and {len(options)}{Colors.RESET}"
+            )
             return self._collect_select_field(field, suggestion)
         except ValueError:
             for option in options:
-                if user_input.lower() == option["value"].lower() or user_input.lower() == option["label"].lower():
+                if (
+                    user_input.lower() == option["value"].lower()
+                    or user_input.lower() == option["label"].lower()
+                ):
                     print(f"  {Colors.GREEN}✓{Colors.RESET}")
                     self._print_transition()
                     return option["value"]
 
             if required:
-                print(f"  {Colors.RED}✗ Invalid choice. Enter a number 1-{len(options)}{Colors.RESET}")
+                print(
+                    f"  {Colors.RED}✗ Invalid choice. Enter a number 1-{len(options)}{Colors.RESET}"
+                )
                 return self._collect_select_field(field, suggestion)
             print(f"  {Colors.DIM}(Skipped){Colors.RESET}")
             return None
@@ -563,7 +630,7 @@ class AdvancedFormField:
     # FORM SUMMARY & CONFIRMATION
     # ========================================================================
 
-    def render_form_summary(self, collected: Dict, form_fields: List[Dict]) -> str:
+    def render_form_summary(self, collected: dict, form_fields: list[dict]) -> str:
         """Render a summary of collected form data.
 
         Args:
@@ -576,13 +643,13 @@ class AdvancedFormField:
         lines = [f"\n{Colors.BOLD}FORM SUMMARY:{Colors.RESET}\n"]
 
         for field in form_fields:
-            name = field.get('name')
-            label = field.get('label')
-            value = collected.get(name, '(not provided)')
+            name = field.get("name")
+            label = field.get("label")
+            value = collected.get(name, "(not provided)")
 
             # Mask sensitive fields
-            if field.get('type') == 'password':
-                value = '••••••••' if value != '(not provided)' else value
+            if field.get("type") == "password":
+                value = "••••••••" if value != "(not provided)" else value
 
             lines.append(f"  {Colors.BRIGHT_CYAN}{label}:{Colors.RESET}")
             lines.append(f"    {Colors.GREEN}{value}{Colors.RESET}")
@@ -590,7 +657,7 @@ class AdvancedFormField:
         lines.append("")
         return "\n".join(lines)
 
-    def confirm_and_save(self, collected: Dict) -> bool:
+    def confirm_and_save(self, collected: dict) -> bool:
         """Get user confirmation before saving form data.
 
         Args:
@@ -603,7 +670,7 @@ class AdvancedFormField:
         print(f"{Colors.DIM}(y/n):{Colors.RESET} ", end="", flush=True)
         response = input().lower().strip()
 
-        if response in {'y', 'yes', 'ok'}:
+        if response in {"y", "yes", "ok"}:
             return True
         else:
             print(f"{Colors.YELLOW}Setup cancelled.{Colors.RESET}")
@@ -616,7 +683,8 @@ class AdvancedFormField:
     def clear_screen(self) -> None:
         """Clear the terminal screen."""
         import os
-        os.system('clear' if os.name != 'nt' else 'cls')
+
+        os.system("clear" if os.name != "nt" else "cls")
 
     def disable_colors(self) -> None:
         """Disable ANSI colors for piped output or non-TTY terminals."""
@@ -636,7 +704,8 @@ class AdvancedFormField:
                 return False
 
             import os
-            if os.environ.get('NO_COLOR'):
+
+            if os.environ.get("NO_COLOR"):
                 return False
 
             return True
@@ -654,7 +723,9 @@ class AdvancedFormField:
         except Exception:
             return False
 
-    def _collect_field_input_fallback(self, field: Dict, suggestion: Optional[str] = None) -> Optional[str]:
+    def _collect_field_input_fallback(
+        self, field: dict, suggestion: str | None = None
+    ) -> str | None:
         """Fallback field input collection using basic input().
 
         Used when terminal is non-interactive.
@@ -666,9 +737,9 @@ class AdvancedFormField:
         Returns:
             User input or None if skipped
         """
-        name = field.get('name', 'unknown')
-        label = field.get('label', name)
-        required = field.get('required', False)
+        name = field.get("name", "unknown")
+        label = field.get("label", name)
+        required = field.get("required", False)
 
         # Print field label
         req_label = "*" if required else " "
@@ -677,7 +748,7 @@ class AdvancedFormField:
         # Show suggestion if available
         if suggestion:
             print(f"  Suggestion: {suggestion}")
-            print(f"  (Press Enter to accept, or type to override)")
+            print("  (Press Enter to accept, or type to override)")
 
         # Get input using basic input()
         try:
@@ -690,10 +761,10 @@ class AdvancedFormField:
             # Handle empty input
             if not user_input:
                 if required:
-                    print(f"  (Required field)")
+                    print("  (Required field)")
                     return self._collect_field_input_fallback(field, suggestion)
                 else:
-                    print(f"  (Skipped)")
+                    print("  (Skipped)")
                     return None
 
             return user_input
@@ -719,7 +790,7 @@ class AdvancedFormField:
             interactive, _ = interactive_tty_status()
             if interactive:
                 # ANSI clear for tighter control
-                sys.stdout.write('\033[2J\033[H')
+                sys.stdout.write("\033[2J\033[H")
                 sys.stdout.flush()
         except Exception:
             return
@@ -731,12 +802,12 @@ class AdvancedFormField:
         print(f"\n  {Colors.DIM}|{Colors.RESET}\n  {Colors.DIM}v{Colors.RESET}")
         time.sleep(0.12)
 
-    def _box_header(self, title: str) -> List[str]:
+    def _box_header(self, title: str) -> list[str]:
         width = self._box_width
         top = "┌" + "─" * (width - 2) + "┐"
         title_text = f"{title}".ljust(width - 4)
         title_line = f"│ {title_text} │"
-        if os.getenv("UDOS_TUI_INVERT_HEADERS", "1").strip().lower() not in {"0", "false", "no"}:
+        if get_bool_config("UDOS_TUI_INVERT_HEADERS", True):
             inv = Colors.BG_WHITE + Colors.BLACK
             title_line = f"│ {inv}{title_text}{Colors.RESET} │"
         mid = "├" + "─" * (width - 2) + "┤"
@@ -750,8 +821,8 @@ class AdvancedFormField:
         width = self._box_width
         stripped = text.replace("\n", " ")
         # Trim ANSI for width calculation only
-        ansi_escape = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
-        visible = ansi_escape.sub('', stripped)
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+        visible = ansi_escape.sub("", stripped)
         max_len = width - 4
         if len(visible) > max_len:
             visible = visible[: max_len - 1] + "…"
@@ -759,11 +830,11 @@ class AdvancedFormField:
         pad_len = max(0, (width - 4) - len(visible))
         return f"\r{self._indent}│ {stripped}{' ' * pad_len} │"
 
-    def _box_footer(self) -> List[str]:
+    def _box_footer(self) -> list[str]:
         width = self._box_width
         return [f"\r{self._indent}└" + "─" * (width - 2) + "┘"]
 
-    def _render_progress_bar(self, progress: Dict[str, int]) -> str:
+    def _render_progress_bar(self, progress: dict[str, int]) -> str:
         current = int(progress.get("current") or 0)
         total = int(progress.get("total") or 0)
         if total <= 0:
@@ -806,6 +877,7 @@ class AdvancedFormField:
 
     def _read_key(self) -> str:
         """Read a single key with arrow-key support."""
+
         def _read_char() -> str:
             ch_local = sys.stdin.read(1)
             if isinstance(ch_local, bytes):
@@ -813,29 +885,29 @@ class AdvancedFormField:
             return ch_local
 
         ch = _read_char()
-        if ch == '\x1b':  # Escape sequence
+        if ch == "\x1b":  # Escape sequence
             next_ch = _read_char()
-            if next_ch in ('[', 'O'):
+            if next_ch in ("[", "O"):
                 seq = ""
                 for _ in range(8):
                     part = _read_char()
                     if not part:
                         break
                     seq += part
-                    if part.isalpha() or part == '~':
+                    if part.isalpha() or part == "~":
                         break
-                if seq.endswith('A'):
-                    return 'up'
-                if seq.endswith('B'):
-                    return 'down'
-                if seq.endswith('C'):
-                    return 'right'
-                if seq.endswith('D'):
-                    return 'left'
-            return '\x1b'
+                if seq.endswith("A"):
+                    return "up"
+                if seq.endswith("B"):
+                    return "down"
+                if seq.endswith("C"):
+                    return "right"
+                if seq.endswith("D"):
+                    return "left"
+            return "\x1b"
         return ch
 
-    def _normalize_select_options(self, options: Any) -> List[Dict[str, str]]:
+    def _normalize_select_options(self, options: Any) -> list[dict[str, str]]:
         normalized = []
         if not isinstance(options, list):
             return normalized
@@ -855,16 +927,20 @@ class AdvancedFormField:
                 normalized.append({"value": str(opt), "label": str(opt)})
         return normalized
 
-    def _collect_datepicker_field(self, field: Dict, suggestion: Optional[str] = None) -> Optional[str]:
+    def _collect_datepicker_field(
+        self, field: dict, suggestion: str | None = None
+    ) -> str | None:
         """Collect input for a date field using the TUI DatePicker."""
         if not self._is_interactive():
             return self._collect_field_input_fallback(field, suggestion)
 
-        label = field.get('label', field.get('name', 'Date'))
-        default = suggestion or field.get('default')
-        field_name = field.get('name', '')
-        compact = 'dob' in field_name.lower() or 'birth' in field_name.lower()
-        picker = DatePicker(label, default=default, show_calendar=not compact, compact=compact)
+        label = field.get("label", field.get("name", "Date"))
+        default = suggestion or field.get("default")
+        field_name = field.get("name", "")
+        compact = "dob" in field_name.lower() or "birth" in field_name.lower()
+        picker = DatePicker(
+            label, default=default, show_calendar=not compact, compact=compact
+        )
         if field.get("_progress"):
             picker.progress = field.get("_progress")
 
@@ -874,9 +950,9 @@ class AdvancedFormField:
         try:
             while True:
                 self._maybe_clear_screen()
-                print(picker.render(), end='', flush=True)
+                print(picker.render(), end="", flush=True)
                 key = self._read_key()
-                if key == '\x1b':
+                if key == "\x1b":
                     # Escape cancels
                     return None
                 result = picker.handle_input(key)
@@ -885,7 +961,7 @@ class AdvancedFormField:
         finally:
             self._restore_terminal_raw()
 
-    def _collect_datetime_approval_field(self, field: Dict) -> Optional[Dict[str, Any]]:
+    def _collect_datetime_approval_field(self, field: dict) -> dict[str, Any] | None:
         """Collect input for datetime approval using a selector widget."""
         if not self._is_interactive():
             # Fallback to simple confirmation prompt
@@ -913,8 +989,8 @@ class AdvancedFormField:
                 "override_required": not approved,
             }
 
-        label = field.get('label', field.get('name', 'Confirm date/time'))
-        timezone_hint = field.get('timezone_hint') or field.get('timezone')
+        label = field.get("label", field.get("name", "Confirm date/time"))
+        timezone_hint = field.get("timezone_hint") or field.get("timezone")
         widget = DateTimeApproval(label, timezone_hint=timezone_hint)
         if field.get("_progress"):
             widget.progress = field.get("_progress")
@@ -925,9 +1001,9 @@ class AdvancedFormField:
         try:
             while True:
                 self._maybe_clear_screen()
-                print(widget.render(focused=True), end='', flush=True)
+                print(widget.render(focused=True), end="", flush=True)
                 key = self._read_key()
-                if key == '\x1b':
+                if key == "\x1b":
                     return None
                 result = widget.handle_input(key)
                 if result is not None:
@@ -935,17 +1011,25 @@ class AdvancedFormField:
         finally:
             self._restore_terminal_raw()
 
-    def _collect_location_field(self, field: Dict) -> Optional[Dict[str, Any]]:
+    def _collect_location_field(self, field: dict) -> dict[str, Any] | None:
         """Collect input for location using LocationSelector with fuzzy search."""
-        label = field.get('label', field.get('name', 'Location'))
-        tz_field = field.get('timezone_field', 'user_timezone')
+        label = field.get("label", field.get("name", "Location"))
+        tz_field = field.get("timezone_field", "user_timezone")
         suggestions = self.load_system_suggestions()
-        timezone = suggestions.get(tz_field) or suggestions.get('user_timezone') or suggestions.get('timezone')
+        timezone = (
+            suggestions.get(tz_field)
+            or suggestions.get("user_timezone")
+            or suggestions.get("timezone")
+        )
 
         try:
             service = LocationService()
             locations = service.get_all_locations()
-            default_location = service.get_default_location_for_timezone(timezone) if timezone else None
+            default_location = (
+                service.get_default_location_for_timezone(timezone)
+                if timezone
+                else None
+            )
         except Exception as exc:
             logger.warning(f"[LOCAL] Location service unavailable: {exc}")
             return self._collect_field_input_fallback(field, None)
@@ -976,9 +1060,9 @@ class AdvancedFormField:
         try:
             while True:
                 self._maybe_clear_screen()
-                print(selector.render(focused=True), end='', flush=True)
+                print(selector.render(focused=True), end="", flush=True)
                 key = self._read_key()
-                if key == '\x1b':
+                if key == "\x1b":
                     return None
                 result = selector.handle_input(key)
                 if result is not None:
@@ -986,7 +1070,6 @@ class AdvancedFormField:
                     return result
         finally:
             self._restore_terminal_raw()
-
 
 
 # Singleton instance

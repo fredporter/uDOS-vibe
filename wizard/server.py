@@ -20,48 +20,42 @@ Security:
   - Cost tracking for AI/cloud APIs
 """
 
-import os
-import re
-import json
 import asyncio
-import webbrowser
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+import json
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+import re
+import webbrowser
 
-from core.services.unified_config_loader import get_config, get_bool_config
-
-from wizard.services.ok_gateway import OKRequest, OKGateway
-from wizard.services.logging_api import get_log_stats
-from wizard.services.logging_api import get_logger
-from wizard.services.path_utils import get_repo_root
-from wizard.services.device_auth import get_device_auth, DeviceStatus
+from core.services.dependency_warning_monitor import install_dependency_warning_monitor
+from core.services.unified_config_loader import get_bool_config, get_config
+from wizard.services.device_auth import DeviceStatus, get_device_auth
+from wizard.services.logging_api import get_log_stats, get_logger
 from wizard.services.mesh_sync import get_mesh_sync
-from core.services.dependency_warning_monitor import (
-    install_dependency_warning_monitor,
-)
+from wizard.services.ok_gateway import OKGateway, OKRequest
+from wizard.services.path_utils import get_repo_root
 
 logger = get_logger("wizard.server")
-from wizard.services.env_loader import load_dotenv
+from typing import TYPE_CHECKING
+
 from wizard.services.dashboard_fallback import get_fallback_dashboard_html
+from wizard.services.env_loader import load_dotenv
 from wizard.services.log_reader import LogReader
-from wizard.services.wizard_auth import WizardAuthService
-from wizard.services.web_proxy_service import WebProxyService
 from wizard.services.plugin_repo_service import PluginRepoService
 from wizard.services.system_stats_service import SystemStatsService
 from wizard.services.task_scheduler_runner import TaskSchedulerRunner
+from wizard.services.web_proxy_service import WebProxyService
 from wizard.services.webhook_utils import (
     get_base_url,
     resolve_github_webhook_secret,
     verify_signature,
 )
+from wizard.services.wizard_auth import WizardAuthService
 from wizard.services.wizard_config import WizardConfig
-
-from typing import TYPE_CHECKING
 
 # Optional FastAPI (only on Wizard Server)
 try:
-    from fastapi import FastAPI, HTTPException, Depends, Request
+    from fastapi import Depends, FastAPI, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import JSONResponse
 
@@ -76,12 +70,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from fastapi import Request as FastAPIRequest
 
 # Rate limiter
-from wizard.services.rate_limiter import (
-    RateLimiter,
-    get_rate_limiter,
-    create_rate_limit_middleware,
-    RateLimitTier,
-)
+from wizard.services.rate_limiter import create_rate_limit_middleware, get_rate_limiter
 
 # Configuration
 # Use shared path utility to find repo root reliably
@@ -120,8 +109,7 @@ install_dependency_warning_monitor(component="wizard")
 
 
 class WizardServer:
-    """
-    Main Wizard Server class.
+    """Main Wizard Server class.
 
     Provides:
     - Device authentication
@@ -137,7 +125,7 @@ class WizardServer:
     def __init__(self, config: WizardConfig = None):
         """Initialize Wizard Server."""
         self.config = config or WizardConfig.load(CONFIG_PATH / "wizard.json")
-        self.app: Optional[FastAPI] = None
+        self.app: FastAPI | None = None
         self.logger = get_logger("wizard", category="server", name="wizard-server")
         self.rate_limiter = get_rate_limiter()
         self.ok_gateway = OKGateway()
@@ -155,7 +143,7 @@ class WizardServer:
         WIZARD_DATA_PATH.mkdir(parents=True, exist_ok=True)
         PLUGIN_REPO_PATH.mkdir(parents=True, exist_ok=True)
 
-    def create_app(self) -> "FastAPI":
+    def create_app(self) -> FastAPI:
         """Create FastAPI application."""
         if not FASTAPI_AVAILABLE:
             raise RuntimeError(
@@ -180,7 +168,9 @@ class WizardServer:
 
         # Startup contract check: admin token/key/config/secret-store coherence.
         try:
-            from wizard.services.admin_secret_contract import collect_admin_secret_contract
+            from wizard.services.admin_secret_contract import (
+                collect_admin_secret_contract,
+            )
 
             contract = collect_admin_secret_contract(repo_root=REPO_ROOT)
             app.state.admin_secret_contract = contract
@@ -196,6 +186,7 @@ class WizardServer:
         # Ensure micro editor is available in /library
         try:
             from wizard.services.editor_utils import ensure_micro_repo
+
             ensure_micro_repo()
         except Exception as exc:
             self.logger.warn("[WIZ] Failed to ensure micro editor: %s", exc)
@@ -228,11 +219,11 @@ class WizardServer:
         app.include_router(port_router)
 
         # Register Notification History routes
-        from wizard.services.notification_history_service import (
-            NotificationHistoryService,
-        )
         from wizard.routes.notification_history_routes import (
             create_notification_history_routes,
+        )
+        from wizard.services.notification_history_service import (
+            NotificationHistoryService,
         )
 
         history_service = NotificationHistoryService()
@@ -248,7 +239,9 @@ class WizardServer:
         # Register Unified Settings (v1.1.0)
         from wizard.routes.settings_unified import create_settings_unified_router
 
-        settings_router = create_settings_unified_router(auth_guard=self._authenticate_admin)
+        settings_router = create_settings_unified_router(
+            auth_guard=self._authenticate_admin
+        )
         app.include_router(settings_router)
 
         # Register Task scheduler routes
@@ -257,29 +250,39 @@ class WizardServer:
         task_router = create_task_routes(auth_guard=self._authenticate_admin)
         app.include_router(task_router)
         from wizard.routes.teletext_routes import router as teletext_router
+
         app.include_router(teletext_router)
 
         try:
-            from groovebox.wizard.routes.groovebox_routes import router as groovebox_router
+            from groovebox.wizard.routes.groovebox_routes import (
+                router as groovebox_router,
+            )
+
             app.include_router(groovebox_router)
             from groovebox.wizard.routes.songscribe_export_routes import (
                 router as songscribe_export_router,
             )
+
             app.include_router(songscribe_export_router)
         except Exception as exc:
             logger.warning("[WIZ] Groovebox routes unavailable: %s", exc)
 
         try:
             from wizard.routes.songscribe_routes import router as songscribe_router
+
             app.include_router(songscribe_router)
         except Exception as exc:
             logger.warning("[WIZ] Songscribe routes unavailable: %s", exc)
 
         # Register Extension detection routes
         from wizard.routes.extension_routes import router as extension_router
+
         app.include_router(extension_router)
         from wizard.routes.dashboard_events_routes import create_dashboard_events_routes
-        dashboard_events_router = create_dashboard_events_routes(auth_guard=self._authenticate_admin)
+
+        dashboard_events_router = create_dashboard_events_routes(
+            auth_guard=self._authenticate_admin
+        )
         app.include_router(dashboard_events_router)
 
         # Register Setup wizard routes
@@ -343,11 +346,11 @@ class WizardServer:
         app.include_router(ai_router)
 
         # Register Configuration routes
-        from wizard.routes.config_routes import create_config_routes
         from wizard.routes.config_admin_routes import (
             create_admin_token_routes,
             create_public_export_routes,
         )
+        from wizard.routes.config_routes import create_config_routes
 
         config_router = create_config_routes(auth_guard=self._authenticate_admin)
         app.include_router(config_router)
@@ -386,7 +389,9 @@ class WizardServer:
         # Register Noun Project routes
         from wizard.routes.nounproject_routes import create_nounproject_routes
 
-        nounproject_router = create_nounproject_routes(auth_guard=self._authenticate_admin)
+        nounproject_router = create_nounproject_routes(
+            auth_guard=self._authenticate_admin
+        )
         app.include_router(nounproject_router)
 
         # Register System Info routes (OS detection, library status)
@@ -410,15 +415,20 @@ class WizardServer:
         app.include_router(library_router)
 
         # Register Container Launcher routes (home-assistant, songscribe, etc)
-        from wizard.routes.container_launcher_routes import router as container_launcher_router
+        from wizard.routes.container_launcher_routes import (
+            router as container_launcher_router,
+        )
 
         app.include_router(container_launcher_router)
 
         # Register Container Proxy routes for browser UI access
-        from wizard.routes.container_proxy_routes import router as container_proxy_router
+        from wizard.routes.container_proxy_routes import (
+            router as container_proxy_router,
+        )
 
         app.include_router(container_proxy_router)
         from wizard.routes.web_proxy_routes import create_web_proxy_routes
+
         web_proxy_router = create_web_proxy_routes(auth_guard=self._authenticate_admin)
         app.include_router(web_proxy_router)
 
@@ -460,7 +470,9 @@ class WizardServer:
         # Register Monitoring routes
         from wizard.routes.monitoring_routes import create_monitoring_routes
 
-        monitoring_router = create_monitoring_routes(auth_guard=self._authenticate_admin)
+        monitoring_router = create_monitoring_routes(
+            auth_guard=self._authenticate_admin
+        )
         app.include_router(monitoring_router)
 
         # Register Catalog routes
@@ -472,19 +484,25 @@ class WizardServer:
         # Register Enhanced Plugin routes (discovery, git, installation)
         from wizard.routes.enhanced_plugin_routes import create_enhanced_plugin_routes
 
-        enhanced_plugin_router = create_enhanced_plugin_routes(auth_guard=self._authenticate_admin)
+        enhanced_plugin_router = create_enhanced_plugin_routes(
+            auth_guard=self._authenticate_admin
+        )
         app.include_router(enhanced_plugin_router)
 
         # Register Plugin Manifest Registry routes
         from wizard.routes.plugin_registry_routes import create_plugin_registry_routes
 
-        plugin_registry_router = create_plugin_registry_routes(auth_guard=self._authenticate_admin)
+        plugin_registry_router = create_plugin_registry_routes(
+            auth_guard=self._authenticate_admin
+        )
         app.include_router(plugin_registry_router)
 
         # Register GitHub helper routes (PR/issue drafts)
         from wizard.routes.github_helpers_routes import create_github_helpers_routes
 
-        github_helpers_router = create_github_helpers_routes(auth_guard=self._authenticate_admin)
+        github_helpers_router = create_github_helpers_routes(
+            auth_guard=self._authenticate_admin
+        )
         app.include_router(github_helpers_router)
 
         # Register Webhook status routes
@@ -492,9 +510,7 @@ class WizardServer:
 
         webhook_router = create_webhook_routes(
             auth_guard=self._authenticate_admin,
-            base_url_provider=lambda: get_base_url(
-                self.config.host, self.config.port
-            ),
+            base_url_provider=lambda: get_base_url(self.config.host, self.config.port),
             github_secret_provider=lambda: resolve_github_webhook_secret(
                 self.config.github_webhook_secret_key_id
             ),
@@ -537,16 +553,14 @@ class WizardServer:
         app.include_router(ha_router)
 
         # Mount dashboard static files
-        from fastapi.staticfiles import StaticFiles
         from fastapi.responses import FileResponse, HTMLResponse
+        from fastapi.staticfiles import StaticFiles
 
         dashboard_path = Path(__file__).parent / "dashboard" / "dist"
         site_root = REPO_ROOT / "memory" / "vault" / "_site"
         if site_root.exists():
             app.mount(
-                "/_site",
-                StaticFiles(directory=str(site_root)),
-                name="vault-site",
+                "/_site", StaticFiles(directory=str(site_root)), name="vault-site"
             )
         if dashboard_path.exists():
             app.mount(
@@ -585,7 +599,7 @@ class WizardServer:
     def _register_routes(self, app: FastAPI):
         """Register API routes."""
 
-        def _get_webhook_secret() -> Optional[str]:
+        def _get_webhook_secret() -> str | None:
             return resolve_github_webhook_secret(
                 self.config.github_webhook_secret_key_id
             )
@@ -597,7 +611,7 @@ class WizardServer:
             return {
                 "status": "healthy",
                 "version": WIZARD_SERVER_VERSION,
-                "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 "services": {
                     "plugin_repo": self.config.plugin_repo_enabled,
                     "web_proxy": self.config.web_proxy_enabled,
@@ -617,13 +631,11 @@ class WizardServer:
             log_stats = get_log_stats()
 
             # Derive library counts from available status fields
-            available_count = len(
-                [
-                    i
-                    for i in library_status.integrations
-                    if i.can_install and not i.installed
-                ]
-            )
+            available_count = len([
+                i
+                for i in library_status.integrations
+                if i.can_install and not i.installed
+            ])
             installed_count = library_status.installed_count
             enabled_count = library_status.enabled_count
 
@@ -631,7 +643,7 @@ class WizardServer:
                 "dashboard": {
                     "name": "uDOS Wizard Server",
                     "version": WIZARD_SERVER_VERSION,
-                    "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 },
                 "features": [
                     {
@@ -671,13 +683,8 @@ class WizardServer:
                 secret_present = bool(_get_webhook_secret())
                 return {
                     "status": "ok" if gh.available else "unavailable",
-                    "cli": {
-                        "available": gh.available,
-                        "error": gh.error_message,
-                    },
-                    "webhook": {
-                        "secret_configured": secret_present,
-                    },
+                    "cli": {"available": gh.available, "error": gh.error_message},
+                    "webhook": {"secret_configured": secret_present},
                     "repo": {
                         "allowed": self.config.github_allowed_repo,
                         "default_branch": self.config.github_default_branch,
@@ -726,10 +733,7 @@ class WizardServer:
         async def ai_status(request: Request):
             """Return OK gateway + routing status."""
             device_id = await self._authenticate(request)
-            return {
-                "device_id": device_id,
-                "gateway": self.ok_gateway.get_status(),
-            }
+            return {"device_id": device_id, "gateway": self.ok_gateway.get_status()}
 
         @app.get("/api/ai/models")
         async def ai_models(request: Request):
@@ -798,8 +802,7 @@ class WizardServer:
         # GitHub webhook (actions + repo sync)
         @app.post("/api/github/webhook")
         async def github_webhook(request: Request):
-            """
-            Receive GitHub webhooks for CI self-healing and safe repo sync.
+            """Receive GitHub webhooks for CI self-healing and safe repo sync.
             Signature validation is enforced when `github_webhook_secret` is set.
 
             Events to subscribe:
@@ -828,7 +831,7 @@ class WizardServer:
             except json.JSONDecodeError:
                 payload = {}
 
-            print(f"\n🔔 GitHub Webhook Received:")
+            print("\n🔔 GitHub Webhook Received:")
             print(f"   Event: {event_type}")
             print(f"   Delivery: {delivery_id}")
 
@@ -859,9 +862,7 @@ class WizardServer:
         # Manual GitHub sync endpoint
         @app.post("/api/github/sync")
         async def github_sync(request: Request):
-            """
-            Manually trigger a safe sync (pull by default) for the allowed repo.
-            """
+            """Manually trigger a safe sync (pull by default) for the allowed repo."""
             from wizard.services.github_sync import get_github_sync_service
 
             await self._authenticate(request)  # reuse auth guard
@@ -974,11 +975,7 @@ class WizardServer:
                 d for d in auth.list_devices() if d.status == DeviceStatus.ONLINE
             ]
             results = [
-                {
-                    "device_id": d.id,
-                    "device_name": d.name,
-                    "status": "sync_initiated",
-                }
+                {"device_id": d.id, "device_name": d.name, "status": "sync_initiated"}
                 for d in online_devices
             ]
             return {
@@ -1009,24 +1006,22 @@ class WizardServer:
             await self._authenticate_admin(request)
             devices = []
             for device_id, session in self.auth.sessions.items():
-                devices.append(
-                    {
-                        "id": device_id,
-                        "name": session.device_name,
-                        "last_request": session.last_request,
-                        "requests": session.request_count,
-                        "cost_today": session.ai_cost_today,
-                    }
-                )
+                devices.append({
+                    "id": device_id,
+                    "name": session.device_name,
+                    "last_request": session.last_request,
+                    "requests": session.request_count,
+                    "cost_today": session.ai_cost_today,
+                })
             return {"devices": devices, "count": len(devices)}
 
         @app.get("/api/logs")
         async def get_logs(
             request: Request,
             category: str = "all",
-            filter: Optional[str] = None,
+            filter: str | None = None,
             limit: int = 200,
-            level: Optional[str] = None,
+            level: str | None = None,
         ):
             """Return recent Wizard logs (latest first)."""
             await self._authenticate_admin(request)
@@ -1070,7 +1065,7 @@ class WizardServer:
                 "message": f"Service {service} {action}ed successfully",
             }
 
-    async def _authenticate(self, request: "FastAPIRequest") -> str:
+    async def _authenticate(self, request: FastAPIRequest) -> str:
         """Authenticate device request (delegated to auth service)."""
         return await self.auth.authenticate_device(request)
 
@@ -1078,10 +1073,10 @@ class WizardServer:
         """Authenticate admin request (delegated to auth service)."""
         return await self.auth.authenticate_admin(request)
 
-
     def run(self, host: str = None, port: int = None, interactive: bool = True):
         """Run the Wizard Server with optional interactive console."""
         import uvicorn
+
         from wizard.services.interactive_console import WizardConsole
 
         def _resolve_host() -> str:
@@ -1128,9 +1123,7 @@ class WizardServer:
                 self.logger.info("Wizard server ready")
 
                 # Open dashboard in browser
-                dashboard_url = (
-                    f"http://{resolved_host}:{resolved_port}"
-                )
+                dashboard_url = f"http://{resolved_host}:{resolved_port}"
                 if resolved_host == "0.0.0.0":
                     dashboard_url = f"http://localhost:{resolved_port}"
                 webbrowser.open(dashboard_url)

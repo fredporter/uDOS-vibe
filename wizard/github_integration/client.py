@@ -1,5 +1,4 @@
-"""
-GitHub REST API Client
+"""GitHub REST API Client
 
 Wrapper around GitHub REST API v3 for:
 - Repository operations
@@ -8,16 +7,17 @@ Wrapper around GitHub REST API v3 for:
 - File operations
 """
 
-import os
-import json
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Any
 from urllib.parse import urljoin
+
 import requests
-from requests.auth import HTTPBasicAuth
-from requests.exceptions import RequestException, Timeout, ConnectionError
+from requests.exceptions import ConnectionError, RequestException, Timeout
 
 from core.services.logging_api import get_logger
+from core.services.unified_config_loader import get_config
 
 logger = get_logger("github-client")
 
@@ -63,8 +63,7 @@ class GitHubClient:
         timeout: int = 30,
         retry_attempts: int = 3,
     ):
-        """
-        Initialize GitHub client.
+        """Initialize GitHub client.
 
         Args:
             token: GitHub personal access token (or env: GITHUB_TOKEN)
@@ -76,7 +75,7 @@ class GitHubClient:
         Raises:
             GitHubAuthError: If no token provided or token invalid
         """
-        self.token = token or os.getenv("GITHUB_TOKEN")
+        self.token = token or get_config("GITHUB_TOKEN", "")
         if not self.token:
             raise GitHubAuthError(
                 "GitHub token required. Set GITHUB_TOKEN env var or pass token parameter."
@@ -88,19 +87,16 @@ class GitHubClient:
         self.retry_attempts = retry_attempts
 
         self.session = requests.Session()
-        self.session.headers.update(
-            {
-                "Accept": "application/vnd.github.v3+json",
-                "Authorization": f"token {self.token}",
-                "User-Agent": "uDOS-Wizard/1.0",
-            }
-        )
+        self.session.headers.update({
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {self.token}",
+            "User-Agent": "uDOS-Wizard/1.0",
+        })
 
         logger.info(f"[WIZ] GitHub client initialized for owner={owner}")
 
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
-        """
-        Make HTTP request to GitHub API with retries.
+    def _make_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
+        """Make HTTP request to GitHub API with retries.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
@@ -177,9 +173,8 @@ class GitHubClient:
         except GitHubNotFoundError:
             return False
 
-    def get_repo(self, owner: str, repo: str) -> Dict[str, Any]:
-        """
-        Get repository metadata.
+    def get_repo(self, owner: str, repo: str) -> dict[str, Any]:
+        """Get repository metadata.
 
         Returns:
             {
@@ -209,9 +204,8 @@ class GitHubClient:
 
     def list_repositories(
         self, owner: str = None, per_page: int = 30, page: int = 1
-    ) -> List[Dict[str, Any]]:
-        """
-        List repositories for org/user.
+    ) -> list[dict[str, Any]]:
+        """List repositories for org/user.
 
         Args:
             owner: GitHub org/user (defaults to self.owner)
@@ -237,8 +231,7 @@ class GitHubClient:
     def clone_repo(
         self, owner: str, repo: str, destination: Path, ref: str = "main"
     ) -> bool:
-        """
-        Clone repository using git (requires git installed).
+        """Clone repository using git (requires git installed).
 
         Args:
             owner: GitHub org
@@ -286,8 +279,7 @@ class GitHubClient:
             raise GitHubNetworkError(f"Clone timeout for {owner}/{repo}")
 
     def pull_repo(self, local_path: Path) -> bool:
-        """
-        Pull latest changes from remote (requires git).
+        """Pull latest changes from remote (requires git).
 
         Args:
             local_path: Local repository path
@@ -319,9 +311,8 @@ class GitHubClient:
 
     # ========== Workflow Operations ==========
 
-    def list_workflows(self, owner: str, repo: str) -> List[Dict[str, Any]]:
-        """
-        List GitHub Actions workflows.
+    def list_workflows(self, owner: str, repo: str) -> list[dict[str, Any]]:
+        """List GitHub Actions workflows.
 
         Returns:
             [
@@ -337,14 +328,12 @@ class GitHubClient:
         data = self._make_request("GET", f"/repos/{owner}/{repo}/actions/workflows")
         workflows = []
         for item in data.get("workflows", []):
-            workflows.append(
-                {
-                    "id": item.get("id"),
-                    "name": item.get("name"),
-                    "path": item.get("path"),
-                    "state": item.get("state"),
-                }
-            )
+            workflows.append({
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "path": item.get("path"),
+                "state": item.get("state"),
+            })
         return workflows
 
     def run_workflow(
@@ -353,10 +342,9 @@ class GitHubClient:
         repo: str,
         workflow_id: str,
         ref: str = "main",
-        inputs: Dict[str, str] = None,
+        inputs: dict[str, str] = None,
     ) -> str:
-        """
-        Trigger workflow execution.
+        """Trigger workflow execution.
 
         Args:
             owner: GitHub org
@@ -371,9 +359,7 @@ class GitHubClient:
         Raises:
             GitHubError: Workflow not found or cannot run
         """
-        payload = {
-            "ref": ref,
-        }
+        payload = {"ref": ref}
         if inputs:
             payload["inputs"] = inputs
 
@@ -408,9 +394,8 @@ class GitHubClient:
 
         raise GitHubError(f"Could not find run for workflow {workflow_id}")
 
-    def get_workflow_run(self, owner: str, repo: str, run_id: str) -> Dict[str, Any]:
-        """
-        Get workflow run status.
+    def get_workflow_run(self, owner: str, repo: str, run_id: str) -> dict[str, Any]:
+        """Get workflow run status.
 
         Returns:
             {
@@ -436,9 +421,8 @@ class GitHubClient:
 
     def download_artifacts(
         self, owner: str, repo: str, run_id: str, destination: Path
-    ) -> List[str]:
-        """
-        Download all artifacts from workflow run.
+    ) -> list[str]:
+        """Download all artifacts from workflow run.
 
         Args:
             owner: GitHub org
@@ -449,8 +433,8 @@ class GitHubClient:
         Returns:
             List of downloaded file paths
         """
-        import zipfile
         import io
+        import zipfile
 
         destination = Path(destination)
         destination.mkdir(parents=True, exist_ok=True)
@@ -491,9 +475,8 @@ class GitHubClient:
         body: str = None,
         draft: bool = False,
         prerelease: bool = False,
-    ) -> Dict[str, Any]:
-        """
-        Create a GitHub Release.
+    ) -> dict[str, Any]:
+        """Create a GitHub Release.
 
         Args:
             owner: GitHub org
@@ -540,9 +523,8 @@ class GitHubClient:
         upload_url: str,
         file_path: Path,
         content_type: str = "application/octet-stream",
-    ) -> Dict[str, Any]:
-        """
-        Upload asset to release.
+    ) -> dict[str, Any]:
+        """Upload asset to release.
 
         Args:
             upload_url: From create_release()
@@ -582,26 +564,24 @@ class GitHubClient:
 
     def list_releases(
         self, owner: str, repo: str, prerelease: bool = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """List releases for repository"""
         data = self._make_request("GET", f"/repos/{owner}/{repo}/releases")
         releases = []
         for item in data if isinstance(data, list) else []:
             if prerelease is not None and item.get("prerelease") != prerelease:
                 continue
-            releases.append(
-                {
-                    "id": item.get("id"),
-                    "tag_name": item.get("tag_name"),
-                    "name": item.get("name"),
-                    "html_url": item.get("html_url"),
-                    "prerelease": item.get("prerelease"),
-                    "created_at": item.get("created_at"),
-                }
-            )
+            releases.append({
+                "id": item.get("id"),
+                "tag_name": item.get("tag_name"),
+                "name": item.get("name"),
+                "html_url": item.get("html_url"),
+                "prerelease": item.get("prerelease"),
+                "created_at": item.get("created_at"),
+            })
         return releases
 
-    def get_latest_release(self, owner: str, repo: str) -> Dict[str, Any]:
+    def get_latest_release(self, owner: str, repo: str) -> dict[str, Any]:
         """Get latest release"""
         data = self._make_request("GET", f"/repos/{owner}/{repo}/releases/latest")
         return {
@@ -617,8 +597,7 @@ class GitHubClient:
     def get_file_content(
         self, owner: str, repo: str, path: str, ref: str = "main"
     ) -> str:
-        """
-        Get file contents from repository.
+        """Get file contents from repository.
 
         Args:
             owner: GitHub org
@@ -642,7 +621,7 @@ class GitHubClient:
 
     def get_tree(
         self, owner: str, repo: str, ref: str = "main", recursive: bool = False
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get repository file tree"""
         data = self._make_request(
             "GET",
@@ -652,12 +631,10 @@ class GitHubClient:
 
         tree = []
         for item in data.get("tree", []):
-            tree.append(
-                {
-                    "path": item.get("path"),
-                    "type": item.get("type"),  # blob or tree
-                    "size": item.get("size"),
-                    "url": item.get("url"),
-                }
-            )
+            tree.append({
+                "path": item.get("path"),
+                "type": item.get("type"),  # blob or tree
+                "size": item.get("size"),
+                "url": item.get("url"),
+            })
         return tree

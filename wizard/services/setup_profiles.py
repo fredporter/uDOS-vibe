@@ -1,5 +1,4 @@
-"""
-Setup Profiles (Wizard)
+"""Setup Profiles (Wizard)
 =======================
 
 Secure storage for user + installation profiles via secret store.
@@ -8,22 +7,18 @@ Installation metrics (moves) are tracked in memory/wizard.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import UTC, datetime
 import json
 import os
-import secrets
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+import secrets
+from typing import Any
 
-from wizard.services.path_utils import get_repo_root, get_memory_dir
-from wizard.services.secret_store import (
-    get_secret_store,
-    SecretEntry,
-    SecretStoreError,
-)
-from wizard.services.logging_api import get_logger
 from core.services.unified_config_loader import get_config
+from wizard.services.logging_api import get_logger
+from wizard.services.path_utils import get_memory_dir, get_repo_root
+from wizard.services.secret_store import SecretEntry, SecretStoreError, get_secret_store
 
 logger = get_logger("setup-profiles")
 
@@ -33,9 +28,9 @@ INSTALL_PROFILE_KEY_ID = "wizard-install-profile"
 
 @dataclass
 class ProfileResult:
-    data: Optional[Dict[str, Any]]
+    data: dict[str, Any] | None
     locked: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
 
 def _write_env_var(env_path: Path, key: str, value: str) -> None:
@@ -71,7 +66,7 @@ def _ensure_wizard_key() -> str:
     return key
 
 
-def _unlock_store() -> Tuple[Optional[Any], Optional[str]]:
+def _unlock_store() -> tuple[Any | None, str | None]:
     try:
         store = get_secret_store()
         store.unlock()
@@ -80,7 +75,7 @@ def _unlock_store() -> Tuple[Optional[Any], Optional[str]]:
         return None, str(exc)
 
 
-def _store_profile(key_id: str, payload: Dict[str, Any]) -> ProfileResult:
+def _store_profile(key_id: str, payload: dict[str, Any]) -> ProfileResult:
     _ensure_wizard_key()
     store, error = _unlock_store()
     if not store:
@@ -89,7 +84,7 @@ def _store_profile(key_id: str, payload: Dict[str, Any]) -> ProfileResult:
         key_id=key_id,
         provider="wizard_setup",
         value=json.dumps(payload, sort_keys=True),
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         metadata={"source": "wizard-setup"},
     )
     try:
@@ -116,16 +111,16 @@ def _load_profile(key_id: str) -> ProfileResult:
     return ProfileResult(data=data)
 
 
-def save_user_profile(profile: Dict[str, Any]) -> ProfileResult:
+def save_user_profile(profile: dict[str, Any]) -> ProfileResult:
     profile = {**profile}
-    profile.setdefault("updated_at", datetime.now(timezone.utc).isoformat())
+    profile.setdefault("updated_at", datetime.now(UTC).isoformat())
     profile.setdefault("created_at", profile.get("updated_at"))
     return _store_profile(USER_PROFILE_KEY_ID, profile)
 
 
-def save_install_profile(profile: Dict[str, Any]) -> ProfileResult:
+def save_install_profile(profile: dict[str, Any]) -> ProfileResult:
     profile = {**profile}
-    profile.setdefault("updated_at", datetime.now(timezone.utc).isoformat())
+    profile.setdefault("updated_at", datetime.now(UTC).isoformat())
     profile.setdefault("created_at", profile.get("updated_at"))
     if not profile.get("installation_id"):
         existing = load_install_profile()
@@ -148,14 +143,14 @@ def _metrics_path() -> Path:
     return get_memory_dir() / "wizard" / "installation-metrics.json"
 
 
-def load_install_metrics() -> Dict[str, Any]:
+def load_install_metrics() -> dict[str, Any]:
     path = _metrics_path()
     if not path.exists():
         return {
             "moves_used": 0,
             "moves_limit": None,
             "lifespan_mode": "infinite",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "last_move_at": None,
         }
     try:
@@ -165,19 +160,19 @@ def load_install_metrics() -> Dict[str, Any]:
             "moves_used": 0,
             "moves_limit": None,
             "lifespan_mode": "infinite",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "last_move_at": None,
         }
 
 
-def save_install_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
+def save_install_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
     path = _metrics_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(metrics, indent=2))
     return metrics
 
 
-def sync_metrics_from_profile(install_profile: Dict[str, Any]) -> Dict[str, Any]:
+def sync_metrics_from_profile(install_profile: dict[str, Any]) -> dict[str, Any]:
     metrics = load_install_metrics()
     lifespan = install_profile.get("lifespan", {})
     mode = lifespan.get("mode") or install_profile.get("lifespan_mode") or "infinite"
@@ -187,8 +182,8 @@ def sync_metrics_from_profile(install_profile: Dict[str, Any]) -> Dict[str, Any]
     return save_install_metrics(metrics)
 
 
-def increment_moves(count: int = 1) -> Dict[str, Any]:
+def increment_moves(count: int = 1) -> dict[str, Any]:
     metrics = load_install_metrics()
     metrics["moves_used"] = int(metrics.get("moves_used") or 0) + count
-    metrics["last_move_at"] = datetime.now(timezone.utc).isoformat()
+    metrics["last_move_at"] = datetime.now(UTC).isoformat()
     return save_install_metrics(metrics)

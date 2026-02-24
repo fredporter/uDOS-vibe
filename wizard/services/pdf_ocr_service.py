@@ -1,5 +1,4 @@
-"""
-PDF OCR Service for Wizard Server
+"""PDF OCR Service for Wizard Server
 ==================================
 
 Converts PDF files to Markdown using Mistral AI OCR technology.
@@ -18,17 +17,17 @@ Example:
     success, files, message = await service.extract_batch()
 """
 
+from __future__ import annotations
+
 import asyncio
-import subprocess
-import os
-import json
-import shutil
-from pathlib import Path
-from typing import Optional, Tuple, List, Dict, Any
 from datetime import datetime
+import json
+from pathlib import Path
+from typing import Any
+
+from core.services.unified_config_loader import get_config
 from wizard.services.logging_api import get_logger
 from wizard.services.path_utils import get_repo_root
-from core.services.unified_config_loader import get_config
 
 
 class PDFOCRService:
@@ -50,7 +49,7 @@ class PDFOCRService:
         if not self.api_key:
             self.logger.warning("[WIZ] MISTRAL_API_KEY not set in environment")
 
-    def _validate_setup(self) -> Tuple[bool, str]:
+    def _validate_setup(self) -> tuple[bool, str]:
         """Validate that pdf-ocr library is available and configured."""
         if not self.library_path.exists():
             return False, f"pdf-ocr library not found at {self.library_path}"
@@ -66,19 +65,16 @@ class PDFOCRService:
 
         return True, "Setup valid"
 
-    def _get_pdf_files(self, directory: Path) -> List[Path]:
+    def _get_pdf_files(self, directory: Path) -> list[Path]:
         """Get all PDF files in a directory."""
         if not directory.exists():
             return []
         return sorted(directory.glob("*.pdf"))
 
     async def extract(
-        self,
-        pdf_path: Optional[str] = None,
-        page_separator: str = "---"
-    ) -> Tuple[bool, Optional[Path], str]:
-        """
-        Extract text and images from a single PDF.
+        self, pdf_path: str | None = None, page_separator: str = "---"
+    ) -> tuple[bool, Path | None, str]:
+        """Extract text and images from a single PDF.
 
         Args:
             pdf_path: Full path to PDF file. Can be relative to inbox or absolute.
@@ -124,9 +120,7 @@ class PDFOCRService:
             # Use subprocess to run Python OCR processing
             # This isolates Mistral API calls from the event loop
             result = await asyncio.to_thread(
-                self._process_pdf_sync,
-                str(pdf_file),
-                page_separator
+                self._process_pdf_sync, str(pdf_file), page_separator
             )
 
             if result["success"]:
@@ -142,14 +136,13 @@ class PDFOCRService:
             self.logger.error(f"[WIZ] {error_msg}")
             return False, None, error_msg
 
-    def _process_pdf_sync(self, pdf_path: str, page_separator: str) -> Dict[str, Any]:
-        """
-        Synchronously process PDF using the pdf-ocr library.
+    def _process_pdf_sync(self, pdf_path: str, page_separator: str) -> dict[str, Any]:
+        """Synchronously process PDF using the pdf-ocr library.
 
         This runs in a thread to avoid blocking the event loop.
         """
         try:
-            from mistralai import Mistral, DocumentURLChunk
+            from mistralai import DocumentURLChunk, Mistral
             from mistralai.models import OCRResponse
             from werkzeug.utils import secure_filename
         except ImportError as e:
@@ -180,19 +173,19 @@ class PDFOCRService:
                 pdf_bytes = f.read()
 
             uploaded_file = client.files.upload(
-                file={"file_name": pdf_path.name, "content": pdf_bytes},
-                purpose="ocr"
+                file={"file_name": pdf_path.name, "content": pdf_bytes}, purpose="ocr"
             )
 
             # Get signed URL
-            signed_url = client.files.get_signed_url(file_id=uploaded_file.id, expiry=60)
+            signed_url = client.files.get_signed_url(
+                file_id=uploaded_file.id, expiry=60
+            )
 
             # Process OCR
             message = client.ocr.process(
                 model="pixtral-12b-2409",
                 document=DocumentURLChunk(
-                    type="document_url",
-                    document_url=signed_url.url,
+                    type="document_url", document_url=signed_url.url
                 ),
             )
 
@@ -218,6 +211,7 @@ class PDFOCRService:
 
                             # Decode and save image
                             import base64
+
                             img_bytes = base64.b64decode(image.image_base64)
                             with open(img_path, "wb") as img_file:
                                 img_file.write(img_bytes)
@@ -231,7 +225,9 @@ class PDFOCRService:
                     pages_md.append("\n".join(page_content))
 
             # Combine pages with separator
-            markdown_content = f"\n{page_separator}\n".join(pages_md) if pages_md else ""
+            markdown_content = (
+                f"\n{page_separator}\n".join(pages_md) if pages_md else ""
+            )
 
             # Add metadata header
             timestamp = datetime.now().isoformat()
@@ -254,32 +250,31 @@ image_count: {image_count - 1}
             # Save OCR response as JSON for reference
             ocr_json_file = pdf_output_dir / "ocr_response.json"
             with open(ocr_json_file, "w") as f:
-                json.dump({
-                    "pdf": pdf_path.name,
-                    "extracted_at": timestamp,
-                    "pages": len(ocr_response.pages),
-                    "images": image_count - 1,
-                }, f, indent=2)
+                json.dump(
+                    {
+                        "pdf": pdf_path.name,
+                        "extracted_at": timestamp,
+                        "pages": len(ocr_response.pages),
+                        "images": image_count - 1,
+                    },
+                    f,
+                    indent=2,
+                )
 
             return {
                 "success": True,
                 "markdown_path": str(markdown_file),
                 "images_count": image_count - 1,
-                "pages": len(ocr_response.pages)
+                "pages": len(ocr_response.pages),
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"OCR processing error: {e}"
-            }
+            return {"success": False, "error": f"OCR processing error: {e}"}
 
     async def extract_batch(
-        self,
-        page_separator: str = "---"
-    ) -> Tuple[bool, List[Dict[str, Any]], str]:
-        """
-        Batch extract all PDFs from inbox directory.
+        self, page_separator: str = "---"
+    ) -> tuple[bool, list[dict[str, Any]], str]:
+        """Batch extract all PDFs from inbox directory.
 
         Returns:
             (success, results_list, summary_message)
@@ -309,9 +304,7 @@ image_count: {image_count - 1}
 
             try:
                 result = await asyncio.to_thread(
-                    self._process_pdf_sync,
-                    str(pdf_file),
-                    page_separator
+                    self._process_pdf_sync, str(pdf_file), page_separator
                 )
 
                 if result["success"]:
@@ -320,7 +313,7 @@ image_count: {image_count - 1}
                         "filename": pdf_file.name,
                         "output_path": str(output_path.relative_to(self.repo_root)),
                         "images": result.get("images_count", 0),
-                        "pages": result.get("pages", 0)
+                        "pages": result.get("pages", 0),
                     })
                     self.logger.info(f"[WIZ] ✅ {pdf_file.name}")
                 else:
@@ -340,7 +333,7 @@ image_count: {image_count - 1}
 
 
 # Singleton instance
-_service: Optional[PDFOCRService] = None
+_service: PDFOCRService | None = None
 
 
 def get_pdf_ocr_service() -> PDFOCRService:

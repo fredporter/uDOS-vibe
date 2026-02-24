@@ -11,6 +11,7 @@ import os
 from core.utils.text_width import display_width, pad_to_width, truncate_to_width, truncate_ansi_to_width
 from core.services.viewport_service import ViewportService
 from core.services.tui_genre_manager import get_tui_genre_manager
+from core.services.unified_config_loader import get_config, get_bool_config
 import time
 
 
@@ -186,16 +187,15 @@ class OutputToolkit:
 
     @staticmethod
     def _should_emit_retheme_tag() -> bool:
-        raw = os.getenv(OutputToolkit.RETHEME_TAG_ENV, "1").strip().lower()
-        return raw in {"1", "true", "yes", "on"}
+        return get_bool_config("UDOS_RETHEME_TAGS", True)
 
     @staticmethod
     def _qualifies_for_retheme(text: str, level: str = "info") -> bool:
         if level in {"warn", "error"}:
             return True
         normalized = text.lower().strip()
-        raw_prefixes = os.getenv(
-            OutputToolkit.RETHEME_INFO_PREFIX_ENV,
+        raw_prefixes = get_config(
+            "UDOS_RETHEME_INFO_PREFIX",
             "error:,warn:,warning:",
         )
         prefixes = tuple(

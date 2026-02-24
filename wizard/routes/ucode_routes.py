@@ -1,5 +1,4 @@
-"""
-uCODE Bridge Routes
+"""uCODE Bridge Routes
 ===================
 
 Expose a minimal, allowlisted uCODE command dispatch endpoint for Vibe/MCP.
@@ -7,31 +6,13 @@ Expose a minimal, allowlisted uCODE command dispatch endpoint for Vibe/MCP.
 
 from __future__ import annotations
 
-import os
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
-from wizard.services.logging_api import get_logger, new_corr_id
-from core.services.logging_api import set_corr_id, reset_corr_id
-from wizard.routes.ucode_route_utils import shell_safe
-from wizard.routes.ucode_ok_mode_utils import (
-    get_ok_cloud_status as _get_ok_cloud_status,
-    get_ok_context_window as _get_ok_context_window,
-    get_ok_default_models as _get_ok_default_models,
-    get_ok_default_model as _get_ok_default_model,
-    get_ok_local_status as _get_ok_local_status,
-    is_dev_mode_active as _is_dev_mode_active,
-    load_ai_modes_config as _load_ai_modes_config,
-    ok_auto_fallback_enabled as _ok_auto_fallback_enabled,
-    resolve_ok_model as _resolve_ok_model,
-    write_ok_modes_config as _write_ok_modes_config,
-)
-from wizard.routes.ucode_dispatch_utils import (
-    dispatch_non_ok_command,
-    handle_slash_command,
-)
+from core.services.logging_api import reset_corr_id, set_corr_id
+from core.services.unified_config_loader import get_bool_config, get_config
 from wizard.routes.command_capability_utils import (
     check_command_capabilities,
     detect_wizard_capabilities,
@@ -41,16 +22,34 @@ from wizard.routes.ucode_contract_utils import (
     load_ucode_allowlist_from_contract,
     load_ucode_deprecated_aliases,
 )
-from wizard.routes.ucode_setup_story_utils import load_setup_story as _load_setup_story
-from wizard.routes.ucode_user_routes import create_ucode_user_routes
-from wizard.routes.ucode_ok_routes import create_ucode_ok_routes
 from wizard.routes.ucode_dispatch_routes import (
     DispatchRequest,
     create_ucode_dispatch_routes,
 )
+from wizard.routes.ucode_dispatch_utils import (
+    dispatch_non_ok_command,
+    handle_slash_command,
+)
 from wizard.routes.ucode_meta_routes import create_ucode_meta_routes
 from wizard.routes.ucode_ok_dispatch_core import dispatch_ok_command
+from wizard.routes.ucode_ok_mode_utils import (
+    get_ok_cloud_status as _get_ok_cloud_status,
+    get_ok_context_window as _get_ok_context_window,
+    get_ok_default_model as _get_ok_default_model,
+    get_ok_default_models as _get_ok_default_models,
+    get_ok_local_status as _get_ok_local_status,
+    is_dev_mode_active as _is_dev_mode_active,
+    load_ai_modes_config as _load_ai_modes_config,
+    ok_auto_fallback_enabled as _ok_auto_fallback_enabled,
+    resolve_ok_model as _resolve_ok_model,
+    write_ok_modes_config as _write_ok_modes_config,
+)
+from wizard.routes.ucode_ok_routes import create_ucode_ok_routes
 from wizard.routes.ucode_ok_stream_dispatch import dispatch_ok_stream_command
+from wizard.routes.ucode_route_utils import shell_safe
+from wizard.routes.ucode_setup_story_utils import load_setup_story as _load_setup_story
+from wizard.routes.ucode_user_routes import create_ucode_user_routes
+from wizard.services.logging_api import get_logger, new_corr_id
 
 
 def _default_allowlist() -> set[str]:
@@ -68,14 +67,14 @@ def _default_allowlist() -> set[str]:
 
 
 def _load_allowlist() -> set[str]:
-    raw = os.getenv("UCODE_API_ALLOWLIST", "").strip()
+    raw = get_config("UCODE_API_ALLOWLIST", "").strip()
     if not raw:
         return _default_allowlist()
     return {item.strip().upper() for item in raw.split(",") if item.strip()}
 
 
 def _shell_allowed() -> bool:
-    return os.getenv("UCODE_API_ALLOW_SHELL", "").strip().lower() in {"1", "true", "yes"}
+    return get_bool_config("UCODE_API_ALLOW_SHELL", False)
 
 
 def create_ucode_routes(auth_guard=None):
@@ -86,15 +85,20 @@ def create_ucode_routes(auth_guard=None):
     allowlist = _load_allowlist()
     deprecated_aliases = load_ucode_deprecated_aliases()
     wizard_required_commands = load_wizard_required_commands()
-    ok_history: List[Dict[str, Any]] = []
+    ok_history: list[dict[str, Any]] = []
     ok_counter = 0
     ok_limit = 50
-    def _command_capabilities() -> Dict[str, bool]:
+
+    def _command_capabilities() -> dict[str, bool]:
         return detect_wizard_capabilities()
 
-    def _check_command_capability(command_name: str) -> Tuple[bool, Optional[str], List[str]]:
+    def _check_command_capability(
+        command_name: str,
+    ) -> tuple[bool, str | None, list[str]]:
         capabilities = _command_capabilities()
-        return check_command_capabilities(command_name, wizard_required_commands, capabilities)
+        return check_command_capabilities(
+            command_name, wizard_required_commands, capabilities
+        )
 
     router.include_router(
         create_ucode_meta_routes(
@@ -105,7 +109,7 @@ def create_ucode_routes(auth_guard=None):
     )
     router.include_router(create_ucode_user_routes(logger=logger))
 
-    def _run_ok_cloud(prompt: str) -> Tuple[str, str]:
+    def _run_ok_cloud(prompt: str) -> tuple[str, str]:
         from wizard.services.mistral_api import MistralAPI
 
         config = _load_ai_modes_config()
@@ -114,9 +118,9 @@ def create_ucode_routes(auth_guard=None):
         client = MistralAPI()
         return client.chat(prompt, model=model), model
 
-    def _run_ok_local(prompt: str, model: Optional[str] = None) -> str:
-        from wizard.services.vibe_service import VibeService, VibeConfig
+    def _run_ok_local(prompt: str, model: str | None = None) -> str:
         from wizard.services.ai_profile_service import render_system_prompt
+        from wizard.services.vibe_service import VibeConfig, VibeService
 
         prompt_upper = (prompt or "").strip().upper()
         mode = (
@@ -131,7 +135,9 @@ def create_ucode_routes(auth_guard=None):
 
         config = VibeConfig(model=model or _get_ok_default_model())
         vibe = VibeService(config=config)
-        return vibe.generate(prompt, system=render_system_prompt(mode), format="markdown")
+        return vibe.generate(
+            prompt, system=render_system_prompt(mode), format="markdown"
+        )
 
     def _ok_cloud_available() -> bool:
         from wizard.services.mistral_api import MistralAPI
@@ -139,8 +145,8 @@ def create_ucode_routes(auth_guard=None):
         return bool(MistralAPI().available())
 
     def _run_ok_local_stream(prompt: str, model: str):
-        from wizard.services.vibe_service import VibeService, VibeConfig
         from wizard.services.ai_profile_service import render_system_prompt
+        from wizard.services.vibe_service import VibeConfig, VibeService
 
         prompt_upper = (prompt or "").strip().upper()
         mode = (
@@ -156,10 +162,7 @@ def create_ucode_routes(auth_guard=None):
         config = VibeConfig(model=model)
         vibe = VibeService(config=config)
         return vibe.generate(
-            prompt,
-            system=render_system_prompt(mode),
-            format="markdown",
-            stream=True,
+            prompt, system=render_system_prompt(mode), format="markdown", stream=True
         )
 
     router.include_router(
@@ -185,8 +188,8 @@ def create_ucode_routes(auth_guard=None):
         model: str,
         source: str,
         mode: str,
-        file_path: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        file_path: str | None = None,
+    ) -> dict[str, Any]:
         nonlocal ok_counter
         ok_counter += 1
         entry = {
@@ -197,7 +200,7 @@ def create_ucode_routes(auth_guard=None):
             "model": model,
             "source": source,
             "file_path": file_path,
-            "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
         ok_history.append(entry)
         if len(ok_history) > ok_limit:
@@ -207,8 +210,8 @@ def create_ucode_routes(auth_guard=None):
     # Lazy imports to keep wizard usable without core in some deployments.
     try:
         from core.tui.dispatcher import CommandDispatcher
-        from core.tui.state import GameState
         from core.tui.renderer import GridRenderer
+        from core.tui.state import GameState
 
         dispatcher = CommandDispatcher()
         game_state = GameState()
@@ -220,7 +223,7 @@ def create_ucode_routes(auth_guard=None):
 
     def _dispatch_core(
         command: str, payload: DispatchRequest, corr_id: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if not command:
             logger.warn("Empty command rejected", ctx={"corr_id": corr_id})
             raise HTTPException(status_code=400, detail="command is required")

@@ -1,5 +1,4 @@
-"""
-Ollama Service
+"""Ollama Service
 ==============
 
 Shared Ollama helpers for API communication, model management, and pull operations.
@@ -9,16 +8,14 @@ Used by both provider route factories.
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 import subprocess
 import threading
+from typing import Any
 import urllib.request
-from typing import Any, Dict, List, Optional
 
 from core.services.unified_config_loader import get_config
-
 
 # ════════════════════════════════════════════════════════════════════════════
 # Ollama Host & API
@@ -31,8 +28,8 @@ def ollama_host() -> str:
 
 
 def ollama_api_request(
-    path: str, payload: Optional[Dict[str, Any]] = None, timeout: int = 10
-) -> Dict[str, Any]:
+    path: str, payload: dict[str, Any] | None = None, timeout: int = 10
+) -> dict[str, Any]:
     """Make a request to the Ollama API."""
     url = f"{ollama_host()}{path}"
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
@@ -56,7 +53,7 @@ def ollama_reachable() -> bool:
         return False
 
 
-def list_local_models() -> List[str]:
+def list_local_models() -> list[str]:
     """List locally installed Ollama models."""
     try:
         resp = ollama_api_request("/api/tags")
@@ -70,7 +67,7 @@ def list_local_models() -> List[str]:
 # ════════════════════════════════════════════════════════════════════════════
 
 
-POPULAR_MODELS: List[Dict[str, Any]] = [
+POPULAR_MODELS: list[dict[str, Any]] = [
     {
         "name": "mistral",
         "description": "Fast general purpose 7B model from Mistral AI",
@@ -122,7 +119,7 @@ POPULAR_MODELS: List[Dict[str, Any]] = [
 ]
 
 
-def get_popular_models(include_installed: bool = True) -> List[Dict[str, Any]]:
+def get_popular_models(include_installed: bool = True) -> list[dict[str, Any]]:
     """Get list of popular Ollama models with optional install status."""
     models = [m.copy() for m in POPULAR_MODELS]
     if include_installed:
@@ -141,7 +138,7 @@ class PullStatusTracker:
     """Thread-safe pull status tracker for model downloads."""
 
     def __init__(self):
-        self._status: Dict[str, Dict[str, Any]] = {}
+        self._status: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
 
     def set(self, model: str, **fields: Any) -> None:
@@ -151,12 +148,12 @@ class PullStatusTracker:
             current.update(fields)
             self._status[model] = current
 
-    def get(self, model: str) -> Optional[Dict[str, Any]]:
+    def get(self, model: str) -> dict[str, Any] | None:
         """Get pull status for a model."""
         with self._lock:
             return self._status.get(model)
 
-    def get_all(self) -> Dict[str, Dict[str, Any]]:
+    def get_all(self) -> dict[str, dict[str, Any]]:
         """Get all pull statuses."""
         with self._lock:
             return dict(self._status)
@@ -181,7 +178,7 @@ def get_pull_tracker() -> PullStatusTracker:
 # ════════════════════════════════════════════════════════════════════════════
 
 
-def pull_via_api(model: str, tracker: Optional[PullStatusTracker] = None) -> None:
+def pull_via_api(model: str, tracker: PullStatusTracker | None = None) -> None:
     """Pull a model via Ollama API (streaming progress)."""
     tracker = tracker or _pull_tracker
     tracker.set(model, state="connecting", percent=0)
@@ -189,10 +186,7 @@ def pull_via_api(model: str, tracker: Optional[PullStatusTracker] = None) -> Non
         url = f"{ollama_host()}/api/pull"
         data = json.dumps({"name": model}).encode("utf-8")
         req = urllib.request.Request(
-            url,
-            method="POST",
-            data=data,
-            headers={"Content-Type": "application/json"},
+            url, method="POST", data=data, headers={"Content-Type": "application/json"}
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
             for raw in resp:
@@ -224,7 +218,7 @@ def pull_via_api(model: str, tracker: Optional[PullStatusTracker] = None) -> Non
         tracker.set(model, state="error", error=str(exc))
 
 
-def pull_via_cli(model: str, tracker: Optional[PullStatusTracker] = None) -> None:
+def pull_via_cli(model: str, tracker: PullStatusTracker | None = None) -> None:
     """Pull a model via Ollama CLI (fallback)."""
     tracker = tracker or _pull_tracker
     tracker.set(model, state="pulling", percent=None)
@@ -253,7 +247,7 @@ def pull_via_cli(model: str, tracker: Optional[PullStatusTracker] = None) -> Non
         tracker.set(model, state="error", error=str(exc))
 
 
-def start_pull(model: str, tracker: Optional[PullStatusTracker] = None) -> None:
+def start_pull(model: str, tracker: PullStatusTracker | None = None) -> None:
     """Start pulling a model in a background thread.
 
     Prefers API for progress tracking; falls back to CLI if API unreachable.
@@ -261,10 +255,14 @@ def start_pull(model: str, tracker: Optional[PullStatusTracker] = None) -> None:
     tracker = tracker or _pull_tracker
     try:
         ollama_api_request("/api/tags")
-        thread = threading.Thread(target=pull_via_api, args=(model, tracker), daemon=True)
+        thread = threading.Thread(
+            target=pull_via_api, args=(model, tracker), daemon=True
+        )
     except Exception:
         if shutil.which("ollama"):
-            thread = threading.Thread(target=pull_via_cli, args=(model, tracker), daemon=True)
+            thread = threading.Thread(
+                target=pull_via_cli, args=(model, tracker), daemon=True
+            )
         else:
             tracker.set(
                 model,

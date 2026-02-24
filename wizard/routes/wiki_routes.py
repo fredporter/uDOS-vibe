@@ -1,5 +1,4 @@
-"""
-Wiki Routes - Public Wiki Management
+"""Wiki Routes - Public Wiki Management
 
 Provides API endpoints for:
 - Wiki structure and metadata
@@ -7,17 +6,19 @@ Provides API endpoints for:
 - Wiki provisioning and setup
 """
 
-from fastapi import APIRouter, Request, HTTPException
-from typing import Callable, Optional
+from __future__ import annotations
 
-from wizard.services.wiki_provisioning_service import get_wiki_service
-import os
+from collections.abc import Callable
 from pathlib import Path
-from wizard.services.path_utils import get_repo_root
+
+from fastapi import APIRouter, HTTPException, Request
+
 from core.services.unified_config_loader import get_config
+from wizard.services.path_utils import get_repo_root
+from wizard.services.wiki_provisioning_service import get_wiki_service
 
 
-def create_wiki_routes(auth_guard: Optional[Callable] = None) -> APIRouter:
+def create_wiki_routes(auth_guard: Callable | None = None) -> APIRouter:
     """Create wiki routes."""
     router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 
@@ -65,10 +66,7 @@ def create_wiki_routes(auth_guard: Optional[Callable] = None) -> APIRouter:
 
         pages = wiki_service.get_pages_by_category(category_slug)
 
-        return {
-            "category": category.to_dict(),
-            "pages": [p.to_dict() for p in pages],
-        }
+        return {"category": category.to_dict(), "pages": [p.to_dict() for p in pages]}
 
     @router.get("/pages")
     async def list_wiki_pages(request: Request):
@@ -136,7 +134,7 @@ def create_wiki_routes(auth_guard: Optional[Callable] = None) -> APIRouter:
             }
         except Exception as e:
             raise HTTPException(
-                status_code=500, detail=f"Wiki provisioning failed: {str(e)}"
+                status_code=500, detail=f"Wiki provisioning failed: {e!s}"
             )
 
     return router

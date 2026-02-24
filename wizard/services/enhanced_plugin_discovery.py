@@ -1,5 +1,4 @@
-"""
-Enhanced Plugin Discovery Service
+"""Enhanced Plugin Discovery Service
 ==================================
 
 Discovers and catalogs all uDOS plugins and extensions from:
@@ -10,17 +9,18 @@ Discovers and catalogs all uDOS plugins and extensions from:
 Includes git/version control metadata, installer pathways, and update tracking.
 """
 
-import json
-import subprocess
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict, field
-import os
+from __future__ import annotations
 
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+import json
+from pathlib import Path
+import subprocess
+from typing import Any
+
+from core.services.unified_config_loader import get_config
 from wizard.services.logging_api import get_logger
 from wizard.services.path_utils import get_repo_root
-from core.services.unified_config_loader import get_config
 
 logger = get_logger("plugin-discovery")
 
@@ -28,14 +28,15 @@ logger = get_logger("plugin-discovery")
 @dataclass
 class GitMetadata:
     """Git information for a plugin/extension."""
-    remote_url: Optional[str] = None
+
+    remote_url: str | None = None
     branch: str = "main"
-    commit_hash: Optional[str] = None
-    commit_date: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
+    commit_hash: str | None = None
+    commit_date: str | None = None
+    tags: list[str] = field(default_factory=list)
     is_dirty: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -53,7 +54,7 @@ class PluginMetadata:
     # Versioning
     version: str
     installed: bool = False
-    installed_version: Optional[str] = None
+    installed_version: str | None = None
     update_available: bool = False
 
     # Metadata
@@ -64,28 +65,28 @@ class PluginMetadata:
 
     # Paths
     source_path: str = ""  # Path relative to UDOS_ROOT
-    config_path: Optional[str] = None
+    config_path: str | None = None
 
     # Git info
-    git: Optional[GitMetadata] = None
+    git: GitMetadata | None = None
 
     # Installation
     installer_type: str = "git"  # "git" | "apk" | "manual" | "container"
-    installer_script: Optional[str] = None
-    package_file: Optional[str] = None
+    installer_script: str | None = None
+    package_file: str | None = None
 
     # Dependencies
-    dependencies: List[str] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
 
     # Status
     available: bool = True
-    health_check_url: Optional[str] = None
+    health_check_url: str | None = None
     running: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         if self.git:
-            data['git'] = self.git.to_dict()
+            data["git"] = self.git.to_dict()
         return data
 
 
@@ -98,11 +99,7 @@ class EnhancedPluginDiscovery:
             "tier": "core",
             "category": "plugin",
         },
-        "library": {
-            "path": "library",
-            "tier": "library",
-            "category": "container",
-        },
+        "library": {"path": "library", "tier": "library", "category": "container"},
         "extensions_transport": {
             "path": "extensions/transport",
             "tier": "extension",
@@ -119,7 +116,7 @@ class EnhancedPluginDiscovery:
         """Initialize plugin discovery."""
         self.repo_root = Path(repo_root or get_repo_root())
         self.udos_root = self._get_udos_root()
-        self.plugins: Dict[str, PluginMetadata] = {}
+        self.plugins: dict[str, PluginMetadata] = {}
         self.last_scan = None
 
         logger.info(f"[DISCOVERY] Initialized with UDOS_ROOT={self.udos_root}")
@@ -131,7 +128,7 @@ class EnhancedPluginDiscovery:
             return Path(udos_root_env).expanduser()
         return self.repo_root
 
-    def discover_all(self) -> Dict[str, PluginMetadata]:
+    def discover_all(self) -> dict[str, PluginMetadata]:
         """Discover all plugins from all sources."""
         logger.info("[DISCOVERY] Starting plugin discovery scan")
         self.plugins.clear()
@@ -144,7 +141,7 @@ class EnhancedPluginDiscovery:
 
         return self.plugins
 
-    def _discover_source(self, source_key: str, source_info: Dict[str, str]):
+    def _discover_source(self, source_key: str, source_info: dict[str, str]):
         """Discover plugins from a specific source."""
         source_path = self.udos_root / source_info["path"]
 
@@ -161,7 +158,9 @@ class EnhancedPluginDiscovery:
         else:  # extensions
             self._discover_extensions(source_path, source_info)
 
-    def _discover_distribution_plugins(self, plugin_dir: Path, source_info: Dict[str, str]):
+    def _discover_distribution_plugins(
+        self, plugin_dir: Path, source_info: dict[str, str]
+    ):
         """Discover plugins from distribution/plugins."""
         # Load index.json if it exists
         index_path = plugin_dir / "index.json"
@@ -199,9 +198,11 @@ class EnhancedPluginDiscovery:
                     self.plugins[plugin_id] = metadata
                     logger.debug(f"[DISCOVERY] Found plugin: {plugin_id}")
             except Exception as e:
-                logger.error(f"[DISCOVERY] Error reading {index_path}: {str(e)}")
+                logger.error(f"[DISCOVERY] Error reading {index_path}: {e!s}")
 
-    def _discover_library_containers(self, library_dir: Path, source_info: Dict[str, str]):
+    def _discover_library_containers(
+        self, library_dir: Path, source_info: dict[str, str]
+    ):
         """Discover containerized plugins from library/."""
         if not library_dir.exists():
             return
@@ -236,23 +237,35 @@ class EnhancedPluginDiscovery:
                     config_path=f"library/{container_path.name}/container.json",
                     installer_type="container",
                     health_check_url=launch_config.get("health_check_url"),
-                    dependencies=container_data.get("dependencies", {}).get("system", []),
+                    dependencies=container_data.get("dependencies", {}).get(
+                        "system", []
+                    ),
                 )
 
                 # Get git metadata
                 metadata.git = self._get_git_metadata(container_path)
 
                 # Check if there's a manifest in distribution
-                manifest_path = self.udos_root / "distribution" / "plugins" / plugin_id / "manifest.json"
+                manifest_path = (
+                    self.udos_root
+                    / "distribution"
+                    / "plugins"
+                    / plugin_id
+                    / "manifest.json"
+                )
                 if manifest_path.exists():
-                    metadata.package_file = str(manifest_path.relative_to(self.udos_root))
+                    metadata.package_file = str(
+                        manifest_path.relative_to(self.udos_root)
+                    )
 
                 self.plugins[plugin_id] = metadata
                 logger.debug(f"[DISCOVERY] Found container: {plugin_id}")
             except Exception as e:
-                logger.error(f"[DISCOVERY] Error reading container {container_path.name}: {str(e)}")
+                logger.error(
+                    f"[DISCOVERY] Error reading container {container_path.name}: {e!s}"
+                )
 
-    def _discover_extensions(self, ext_dir: Path, source_info: Dict[str, str]):
+    def _discover_extensions(self, ext_dir: Path, source_info: dict[str, str]):
         """Discover extensions (transport, API, etc)."""
         if not ext_dir.exists():
             return
@@ -270,7 +283,7 @@ class EnhancedPluginDiscovery:
                 try:
                     version_data = json.loads(version_file.read_text())
                 except Exception as e:
-                    logger.error(f"[DISCOVERY] Error reading {version_file}: {str(e)}")
+                    logger.error(f"[DISCOVERY] Error reading {version_file}: {e!s}")
                     continue
 
             ext_id = ext_path.name
@@ -281,7 +294,9 @@ class EnhancedPluginDiscovery:
                 description=version_data.get("description", "") if version_data else "",
                 category=source_info["category"],
                 tier=source_info["tier"],
-                version=version_data.get("version", "0.0.0") if version_data else "0.0.0",
+                version=version_data.get("version", "0.0.0")
+                if version_data
+                else "0.0.0",
                 license=version_data.get("license", "MIT") if version_data else "MIT",
                 source_path=f"extensions/{ext_dir.name}/{ext_id}",
                 config_path=f"extensions/{ext_dir.name}/{ext_id}/version.json",
@@ -295,10 +310,12 @@ class EnhancedPluginDiscovery:
             self.plugins[ext_id] = metadata
             logger.debug(f"[DISCOVERY] Found extension: {ext_id}")
 
-    def _get_git_metadata(self, plugin_path: Path) -> Optional[GitMetadata]:
+    def _get_git_metadata(self, plugin_path: Path) -> GitMetadata | None:
         """Extract git metadata from a plugin directory."""
         try:
-            if not (plugin_path / ".git").exists() and not self._is_git_submodule(plugin_path):
+            if not (plugin_path / ".git").exists() and not self._is_git_submodule(
+                plugin_path
+            ):
                 return None
 
             git_meta = GitMetadata()
@@ -375,7 +392,9 @@ class EnhancedPluginDiscovery:
 
             return git_meta
         except Exception as e:
-            logger.debug(f"[DISCOVERY] Error getting git metadata for {plugin_path}: {str(e)}")
+            logger.debug(
+                f"[DISCOVERY] Error getting git metadata for {plugin_path}: {e!s}"
+            )
             return None
 
     def _is_git_submodule(self, path: Path) -> bool:
@@ -390,32 +409,34 @@ class EnhancedPluginDiscovery:
             pass
         return False
 
-    def get_plugin(self, plugin_id: str) -> Optional[PluginMetadata]:
+    def get_plugin(self, plugin_id: str) -> PluginMetadata | None:
         """Get a specific plugin's metadata."""
         return self.plugins.get(plugin_id)
 
-    def get_plugins_by_tier(self, tier: str) -> List[PluginMetadata]:
+    def get_plugins_by_tier(self, tier: str) -> list[PluginMetadata]:
         """Get all plugins in a specific tier."""
         return [p for p in self.plugins.values() if p.tier == tier]
 
-    def get_plugins_by_category(self, category: str) -> List[PluginMetadata]:
+    def get_plugins_by_category(self, category: str) -> list[PluginMetadata]:
         """Get all plugins in a specific category."""
         return [p for p in self.plugins.values() if p.category == category]
 
-    def search_plugins(self, query: str) -> List[PluginMetadata]:
+    def search_plugins(self, query: str) -> list[PluginMetadata]:
         """Search plugins by name or description."""
         query_lower = query.lower()
         results = []
         for plugin in self.plugins.values():
-            if (query_lower in plugin.name.lower() or
-                query_lower in plugin.description.lower() or
-                query_lower in plugin.id.lower()):
+            if (
+                query_lower in plugin.name.lower()
+                or query_lower in plugin.description.lower()
+                or query_lower in plugin.id.lower()
+            ):
                 results.append(plugin)
         return results
 
 
 # Singleton instance
-_discovery_instance: Optional[EnhancedPluginDiscovery] = None
+_discovery_instance: EnhancedPluginDiscovery | None = None
 
 
 def get_discovery_service(repo_root: Path = None) -> EnhancedPluginDiscovery:

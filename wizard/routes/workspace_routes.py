@@ -1,23 +1,21 @@
-"""
-Workspace Routes
+"""Workspace Routes
 ===============
 
 Provide browser-safe access to /memory for Wizard UI.
 """
 
-import os
-from pathlib import Path
-from typing import Optional, Dict
+from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Depends
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from core.services.workspace_ref import split_workspace_root
-from core.services.unified_config_loader import get_config
-from wizard.services.path_utils import get_memory_dir, get_repo_root, get_vault_dir
-
-from core.services.story_service import parse_story_document
 from core.services.spatial_filesystem import WORKSPACE_CONFIG
+from core.services.story_service import parse_story_document
+from core.services.unified_config_loader import get_config
+from core.services.workspace_ref import split_workspace_root
+from wizard.services.path_utils import get_memory_dir, get_repo_root, get_vault_dir
 
 
 class WriteRequest(BaseModel):
@@ -29,10 +27,10 @@ class MkdirRequest(BaseModel):
     path: str
 
 
-def _resolve_workspace_root() -> Dict[str, Path]:
+def _resolve_workspace_root() -> dict[str, Path]:
     env_root = get_config("UDOS_ROOT", "")
     base_root = Path(env_root).expanduser() if env_root else get_repo_root()
-    root_map: Dict[str, Path] = {"memory": get_memory_dir().resolve()}
+    root_map: dict[str, Path] = {"memory": get_memory_dir().resolve()}
 
     for ws_type, config in WORKSPACE_CONFIG.items():
         rel_path = config.get("path")
@@ -46,7 +44,9 @@ def _resolve_workspace_root() -> Dict[str, Path]:
 
 def _split_root(path: str) -> tuple[str, str]:
     root_map = _resolve_workspace_root()
-    return split_workspace_root(path, valid_roots=root_map.keys(), default_root="memory")
+    return split_workspace_root(
+        path, valid_roots=root_map.keys(), default_root="memory"
+    )
 
 
 def _resolve_path(relative_path: str) -> Path:
@@ -75,10 +75,7 @@ def create_workspace_routes(auth_guard=None, prefix="/api/workspace") -> APIRout
         for key in sorted(root_map):
             roots[f"@{key}"] = f"@{key}"
             roots[f"@workspace/{key}"] = f"@workspace/{key}"
-        return {
-            "success": True,
-            "roots": roots,
-        }
+        return {"success": True, "roots": roots}
 
     @router.get("/resolve")
     async def resolve_workspace_path(path: str = ""):
@@ -112,21 +109,21 @@ def create_workspace_routes(auth_guard=None, prefix="/api/workspace") -> APIRout
         root_dir = _resolve_workspace_root()[root_key]
 
         entries = []
-        for entry in sorted(resolved.iterdir(), key=lambda p: (p.is_file(), p.name.lower())):
+        for entry in sorted(
+            resolved.iterdir(), key=lambda p: (p.is_file(), p.name.lower())
+        ):
             rel_path = entry.relative_to(root_dir).as_posix()
             if rel_path:
                 rel_path = f"{root_key}/{rel_path}"
             else:
                 rel_path = root_key
-            entries.append(
-                {
-                    "name": entry.name,
-                    "path": rel_path,
-                    "type": "dir" if entry.is_dir() else "file",
-                    "size": entry.stat().st_size,
-                    "modified": entry.stat().st_mtime,
-                }
-            )
+            entries.append({
+                "name": entry.name,
+                "path": rel_path,
+                "type": "dir" if entry.is_dir() else "file",
+                "size": entry.stat().st_size,
+                "modified": entry.stat().st_mtime,
+            })
 
         normalized_path = root_key if not rel else f"{root_key}/{rel}"
         return {"success": True, "path": normalized_path, "entries": entries}

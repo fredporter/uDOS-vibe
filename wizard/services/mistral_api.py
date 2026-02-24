@@ -1,5 +1,4 @@
-"""
-Mistral API Client
+"""Mistral API Client
 ==================
 
 Minimal client for Mistral Chat Completions.
@@ -7,20 +6,17 @@ Minimal client for Mistral Chat Completions.
 
 from __future__ import annotations
 
-import os
-from typing import Optional
-
 import requests
 
-from wizard.services.logging_api import get_logger
-from wizard.services.ai_context_store import write_context_bundle
 from core.services.unified_config_loader import get_config
+from wizard.services.ai_context_store import write_context_bundle
+from wizard.services.logging_api import get_logger
 
 logger = get_logger("wizard.mistral-api")
 
 
 class MistralAPI:
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = api_key or get_config("MISTRAL_API_KEY", "")
         self.endpoint = "https://api.mistral.ai/v1/chat/completions"
 
@@ -38,9 +34,7 @@ class MistralAPI:
         except Exception:
             context = ""
 
-        system = (
-            "You are the uDOS Wizard Dev Mode assistant. Use the provided context."
-        )
+        system = "You are the uDOS Wizard Dev Mode assistant. Use the provided context."
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": f"{context}\n\nUser request: {prompt}"},

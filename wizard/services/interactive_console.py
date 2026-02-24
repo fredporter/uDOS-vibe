@@ -1,5 +1,4 @@
-"""
-Wizard Server Interactive Console
+"""Wizard Server Interactive Console
 ==================================
 
 Interactive command prompt for Wizard Server that runs while servers are active.
@@ -32,47 +31,50 @@ Commands:
   exit/quit  - Shutdown server gracefully
 """
 
+from __future__ import annotations
+
 import asyncio
-import sys
+from collections.abc import Callable
+from datetime import datetime
 import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
 import threading
 import time
-import urllib.request
+from typing import Any
 import urllib.error
 import urllib.parse
-import subprocess
-import shutil
-from wizard.services.path_utils import get_repo_root
-from typing import Optional, Dict, Any, Callable
-from datetime import datetime
-from pathlib import Path
-import os
-from core.services.unified_config_loader import get_config
-from wizard.services.dev_mode_service import get_dev_mode_service
-from wizard.services.vibe_service import VibeService
-from wizard.services.mistral_api import MistralAPI
-from wizard.services.workflow_manager import WorkflowManager
-from wizard.services.ai_context_store import write_context_bundle
-from wizard.services.editor_utils import (
-    resolve_workspace_path,
-    open_in_editor,
-    ensure_micro_repo,
-)
+import urllib.request
+
 from core.services.maintenance_utils import (
-    create_backup,
-    restore_backup,
-    tidy,
     clean,
     compost,
-    list_backups,
-    default_repo_allowlist,
+    create_backup,
     default_memory_allowlist,
+    default_repo_allowlist,
     get_memory_root,
+    list_backups,
+    restore_backup,
+    tidy,
 )
-from wizard.services.url_to_markdown_service import get_url_to_markdown_service
+from core.services.unified_config_loader import get_config
+from wizard.services.ai_context_store import write_context_bundle
+from wizard.services.dev_mode_service import get_dev_mode_service
+from wizard.services.editor_utils import (
+    ensure_micro_repo,
+    open_in_editor,
+    resolve_workspace_path,
+)
+from wizard.services.mistral_api import MistralAPI
+from wizard.services.path_utils import get_repo_root
 from wizard.services.pdf_ocr_service import get_pdf_ocr_service
+from wizard.services.secret_store import SecretStoreError, get_secret_store
 from wizard.services.tree_service import TreeStructureService
-from wizard.services.secret_store import get_secret_store, SecretStoreError
+from wizard.services.url_to_markdown_service import get_url_to_markdown_service
+from wizard.services.vibe_service import VibeService
+from wizard.services.workflow_manager import WorkflowManager
 
 
 class WizardConsole:
@@ -85,7 +87,7 @@ class WizardConsole:
         self.running = False
         self.start_time = time.time()
         self.repo_root = get_repo_root()
-        self.commands: Dict[str, Callable] = {
+        self.commands: dict[str, Callable] = {
             "status": self.cmd_status,
             "services": self.cmd_services,
             "config": self.cmd_config,
@@ -119,14 +121,14 @@ class WizardConsole:
             "exit": self.cmd_exit,
             "quit": self.cmd_exit,
         }
-        self._current_file: Optional[Path] = None
-        self._dashboard_ready: Optional[bool] = None
+        self._current_file: Path | None = None
+        self._dashboard_ready: bool | None = None
         self.tree_service = TreeStructureService(self.repo_root)
 
     def _run_with_spinner(self, message: str, func: Callable[[], Any]) -> Any:
         spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         done = False
-        error: Optional[BaseException] = None
+        error: BaseException | None = None
         result: Any = None
 
         def runner():
@@ -159,13 +161,15 @@ class WizardConsole:
         return result
 
     def _check_dashboard_build(self) -> bool:
-        dashboard_index = Path(__file__).parent.parent / "dashboard" / "dist" / "index.html"
+        dashboard_index = (
+            Path(__file__).parent.parent / "dashboard" / "dist" / "index.html"
+        )
         return dashboard_index.exists()
 
     def _assistant_keys_path(self) -> Path:
         return Path(__file__).parent.parent / "config" / "assistant_keys.json"
 
-    def _load_assistant_keys(self) -> Dict[str, Any]:
+    def _load_assistant_keys(self) -> dict[str, Any]:
         path = self._assistant_keys_path()
         if not path.exists():
             return {}
@@ -192,20 +196,24 @@ class WizardConsole:
         host = (get_config("OLLAMA_HOST", "http://127.0.0.1:11434")).strip()
         return host.rstrip("/")
 
-    def _check_ollama_status(self) -> Dict[str, Any]:
+    def _check_ollama_status(self) -> dict[str, Any]:
         """Return ollama reachability + available models."""
         endpoint = self._ollama_host()
         try:
             with urllib.request.urlopen(f"{endpoint}/api/tags", timeout=4) as resp:
                 if resp.status != 200:
-                    return {"reachable": False, "models": [], "error": f"HTTP {resp.status}"}
+                    return {
+                        "reachable": False,
+                        "models": [],
+                        "error": f"HTTP {resp.status}",
+                    }
                 payload = json.loads(resp.read().decode("utf-8"))
                 models = [m.get("name", "") for m in payload.get("models", [])]
                 return {"reachable": True, "models": models, "error": None}
         except Exception as exc:
             return {"reachable": False, "models": [], "error": str(exc)}
 
-    def _check_openrouter_key(self) -> Dict[str, Any]:
+    def _check_openrouter_key(self) -> dict[str, Any]:
         """Check if OpenRouter key is configured via assistant_keys or secret store."""
         assistant_keys = self._load_assistant_keys()
         providers_map = assistant_keys.get("providers", {})
@@ -235,7 +243,7 @@ class WizardConsole:
 
         return {"configured": False, "locked": False, "error": "Missing OpenRouter key"}
 
-    def _check_default_ai_setup(self) -> Dict[str, Any]:
+    def _check_default_ai_setup(self) -> dict[str, Any]:
         """Check default AI providers (OF/OL/PR) readiness."""
         ollama = self._check_ollama_status()
         models = [m.split(":")[0] for m in ollama.get("models", [])]
@@ -261,7 +269,9 @@ class WizardConsole:
             print("  • OL (Ollama service): ✅ Reachable")
         else:
             print("  • OL (Ollama service): ⚠️  Not reachable")
-            print(f"    - Start Ollama or set OLLAMA_HOST (currently {self._ollama_host()})")
+            print(
+                f"    - Start Ollama or set OLLAMA_HOST (currently {self._ollama_host()})"
+            )
             print(f"    - Visit Wizard Config to complete setup: {config_url}")
 
         # OF: Offline Devstral model
@@ -318,7 +328,7 @@ class WizardConsole:
                 f"  {status} {service_name:<20} {version_str:<12} {service_info.get('description', '')}"
             )
 
-        print(f"\n⚙️  CONFIGURATION:")
+        print("\n⚙️  CONFIGURATION:")
         print(
             f"  • Rate Limit: {self.config.requests_per_minute}/min, {self.config.requests_per_hour}/hour"
         )
@@ -327,18 +337,18 @@ class WizardConsole:
         )
         print(f"  • Debug Mode: {'Enabled' if self.config.debug else 'Disabled'}")
 
-        print(f"\n🌐 ENDPOINTS:")
+        print("\n🌐 ENDPOINTS:")
         print(
             f"  • Health:         http://{self.config.host}:{self.config.port}/health"
         )
-        print(
-            f"  • API:            http://{self.config.host}:{self.config.port}/api/"
-        )
+        print(f"  • API:            http://{self.config.host}:{self.config.port}/api/")
         print(f"  • WebSocket:      ws://{self.config.host}:{self.config.port}/ws")
         print(f"  • Documentation:  http://{self.config.host}:{self.config.port}/docs")
 
         if self._dashboard_ready is False:
-            print("\n⚠️  Dashboard build missing. Run: cd wizard/dashboard && npm run build")
+            print(
+                "\n⚠️  Dashboard build missing. Run: cd wizard/dashboard && npm run build"
+            )
 
         print("\n💬 INTERACTIVE MODE: Type 'help' for commands, 'exit' to shutdown")
         print("=" * 68)
@@ -357,7 +367,7 @@ class WizardConsole:
             pass
         return "1.1.0.0"
 
-    def _get_service_status(self) -> Dict[str, Dict[str, Any]]:
+    def _get_service_status(self) -> dict[str, dict[str, Any]]:
         """Get status of all services."""
         return {
             "Plugin Repository": {
@@ -446,13 +456,13 @@ class WizardConsole:
         print(f"  Host: {self.config.host}")
         print(f"  Port: {self.config.port}")
         print(f"  Debug: {self.config.debug}")
-        print(f"\n  Rate Limiting:")
+        print("\n  Rate Limiting:")
         print(f"    • Per Minute: {self.config.requests_per_minute}")
         print(f"    • Per Hour: {self.config.requests_per_hour}")
-        print(f"\n  AI Budgets:")
+        print("\n  AI Budgets:")
         print(f"    • Daily: ${self.config.ai_budget_daily}")
         print(f"    • Monthly: ${self.config.ai_budget_monthly}")
-        print(f"\n  Service Toggles:")
+        print("\n  Service Toggles:")
         print(f"    • Plugin Repo: {self.config.plugin_repo_enabled}")
         print(f"    • Web Proxy: {self.config.web_proxy_enabled}")
         print(f"    • OK Gateway: {self.config.ok_gateway_enabled}")
@@ -460,8 +470,11 @@ class WizardConsole:
 
     async def cmd_setup(self, args: list) -> None:
         """Show setup profile information (from TUI story)."""
-        from wizard.services.setup_profiles import load_user_profile, load_install_profile, load_install_metrics
-        import os
+        from wizard.services.setup_profiles import (
+            load_install_metrics,
+            load_install_profile,
+            load_user_profile,
+        )
 
         print("\n🧙 SETUP PROFILE:")
 
@@ -484,11 +497,15 @@ class WizardConsole:
             print()
             print("  💡 This means:")
             print("     • WIZARD_KEY is set but doesn't match the encryption key")
-            print("     • The secrets.tomb file may have been encrypted with a different key")
+            print(
+                "     • The secrets.tomb file may have been encrypted with a different key"
+            )
             print()
             print("  💡 To fix:")
             print("     1. Check .env file: cat .env | grep WIZARD_KEY")
-            print("     2. If you changed the key, you may need to re-run the setup story")
+            print(
+                "     2. If you changed the key, you may need to re-run the setup story"
+            )
             print("     3. Or delete wizard/secrets.tomb and re-submit the story")
             print()
             return
@@ -498,7 +515,9 @@ class WizardConsole:
             print(f"    • Username: {user_result.data.get('username', 'N/A')}")
             print(f"    • Role: {user_result.data.get('role', 'N/A')}")
             print(f"    • Timezone: {user_result.data.get('timezone', 'N/A')}")
-            print(f"    • Location: {user_result.data.get('location_name', 'N/A')} ({user_result.data.get('location_id', 'N/A')})")
+            print(
+                f"    • Location: {user_result.data.get('location_name', 'N/A')} ({user_result.data.get('location_id', 'N/A')})"
+            )
         else:
             print("  ⚠️  No user profile found. Complete the setup story first.")
 
@@ -513,14 +532,16 @@ class WizardConsole:
             print("\n  Installation:")
             print(f"    • ID: {install_result.data.get('installation_id', 'N/A')}")
             print(f"    • OS Type: {install_result.data.get('os_type', 'N/A')}")
-            print(f"    • Lifespan Mode: {install_result.data.get('lifespan_mode', 'infinite')}")
+            print(
+                f"    • Lifespan Mode: {install_result.data.get('lifespan_mode', 'infinite')}"
+            )
 
-            moves_limit = install_result.data.get('moves_limit')
+            moves_limit = install_result.data.get("moves_limit")
             if moves_limit:
                 print(f"    • Moves Limit: {moves_limit}")
 
             # Show capabilities
-            capabilities = install_result.data.get('capabilities', {})
+            capabilities = install_result.data.get("capabilities", {})
             if capabilities:
                 print("\n  Capabilities:")
                 for cap, enabled in capabilities.items():
@@ -531,13 +552,13 @@ class WizardConsole:
 
         # Load metrics
         metrics = load_install_metrics()
-        if metrics and metrics.get('moves_used') is not None:
+        if metrics and metrics.get("moves_used") is not None:
             print("\n  Metrics:")
             print(f"    • Moves Used: {metrics.get('moves_used', 0)}")
-            if metrics.get('moves_limit'):
-                remaining = metrics['moves_limit'] - metrics.get('moves_used', 0)
+            if metrics.get("moves_limit"):
+                remaining = metrics["moves_limit"] - metrics.get("moves_used", 0)
                 print(f"    • Remaining: {remaining}/{metrics['moves_limit']}")
-            last_move = metrics.get('last_move_at')
+            last_move = metrics.get("last_move_at")
             if last_move:
                 print(f"    • Last Move: {last_move}")
 
@@ -579,15 +600,18 @@ class WizardConsole:
         dev_mode = get_dev_mode_service()
         if action == "on":
             result = dev_mode.activate()
-            print(f"\n{result.get('message','Dev mode activated')}")
+            print(f"\n{result.get('message', 'Dev mode activated')}")
             if result.get("status") == "activated":
                 # Check Ollama availability
                 try:
                     import requests
+
                     requests.get("http://127.0.0.1:11434/api/tags", timeout=3)
                     print("✅ Ollama is reachable")
                 except Exception:
-                    print("⚠️  Ollama not reachable. Install/start with: brew install ollama && ollama serve")
+                    print(
+                        "⚠️  Ollama not reachable. Install/start with: brew install ollama && ollama serve"
+                    )
                     print("    Optional: run bin/setup_wizard.sh --auto --no-browser")
 
                 print("\n🔍 Suggested next steps (Vibe/Ollama):")
@@ -602,7 +626,7 @@ class WizardConsole:
             print()
         elif action == "off":
             result = dev_mode.deactivate()
-            print(f"\n{result.get('message','Dev mode deactivated')}\n")
+            print(f"\n{result.get('message', 'Dev mode deactivated')}\n")
         elif action == "status":
             result = dev_mode.get_status()
             print("\nDEV MODE STATUS:")
@@ -662,6 +686,7 @@ class WizardConsole:
             if sub == "status":
                 try:
                     import requests
+
                     resp = requests.get("http://127.0.0.1:11434/api/tags", timeout=5)
                     print("\nOllama status:")
                     print(resp.json())
@@ -696,7 +721,9 @@ class WizardConsole:
         elif action == "push":
             subprocess.run(["git", "push"], cwd=self.repo_root, check=False)
         elif action == "log":
-            subprocess.run(["git", "log", "--oneline", "-5"], cwd=self.repo_root, check=False)
+            subprocess.run(
+                ["git", "log", "--oneline", "-5"], cwd=self.repo_root, check=False
+            )
         else:
             print("\nUsage: git status|pull|push|log\n")
 
@@ -786,7 +813,9 @@ class WizardConsole:
                     for result in results:
                         print(f"   ✅ {result['filename']}")
                         print(f"      📄 {result['output_path']}")
-                        print(f"      🖼️  {result['images']} images, {result['pages']} pages")
+                        print(
+                            f"      🖼️  {result['images']} images, {result['pages']} pages"
+                        )
                 else:
                     print("   (no PDFs found in inbox)")
             else:
@@ -878,7 +907,7 @@ class WizardConsole:
 
             # Show failure patterns
             if monitor.failure_patterns:
-                print(f"\n  Failure Patterns:")
+                print("\n  Failure Patterns:")
                 for pattern, count in sorted(
                     monitor.failure_patterns.items(), key=lambda x: x[1], reverse=True
                 ):
@@ -913,7 +942,9 @@ class WizardConsole:
         print("  logs       - Tail logs from memory/logs")
         print("  tree       - Generate structure.txt snapshots (2 levels)")
         print("  peek       - Convert URL to Markdown (peek <url> [filename])")
-        print("  extract    - Extract PDF to Markdown (extract [file.pdf] or extract for bulk)")
+        print(
+            "  extract    - Extract PDF to Markdown (extract [file.pdf] or extract for bulk)"
+        )
         print("  new/edit/load/save - Open files in editor (/memory)")
         print("  backup     - Create .backup snapshot (workspace default)")
         print("  restore    - Restore latest backup (use --force to overwrite)")
@@ -936,7 +967,11 @@ class WizardConsole:
             return
 
         summary = result.get("results", {})
-        submodules = summary.get("submodules", {}) if isinstance(summary.get("submodules"), dict) else {}
+        submodules = (
+            summary.get("submodules", {})
+            if isinstance(summary.get("submodules"), dict)
+            else {}
+        )
 
         print("\n📁 DIRECTORY TREES (2 levels deep):\n")
         print(f"  Root:      {summary.get('root', '❌ Not updated')}")
@@ -981,15 +1016,13 @@ class WizardConsole:
         target_root, _recursive = self._resolve_scope(scope)
         archive_path, manifest_path = create_backup(target_root, label)
         print(
-            "\n".join(
-                [
-                    "\n=== BACKUP ===",
-                    f"Scope: {scope}",
-                    f"Target: {target_root}",
-                    f"Archive: {archive_path}",
-                    f"Manifest: {manifest_path}\n",
-                ]
-            )
+            "\n".join([
+                "\n=== BACKUP ===",
+                f"Scope: {scope}",
+                f"Target: {target_root}",
+                f"Archive: {archive_path}",
+                f"Manifest: {manifest_path}\n",
+            ])
         )
 
     async def cmd_restore(self, args: list) -> None:
@@ -1019,15 +1052,13 @@ class WizardConsole:
             return
 
         print(
-            "\n".join(
-                [
-                    "\n=== RESTORE ===",
-                    message,
-                    f"Scope: {scope}",
-                    f"Archive: {archive}",
-                    f"Target: {target_root}\n",
-                ]
-            )
+            "\n".join([
+                "\n=== RESTORE ===",
+                message,
+                f"Scope: {scope}",
+                f"Archive: {archive}",
+                f"Target: {target_root}\n",
+            ])
         )
 
     async def cmd_tidy(self, args: list) -> None:
@@ -1035,15 +1066,13 @@ class WizardConsole:
         target_root, recursive = self._resolve_scope(scope)
         moved, archive_root = tidy(target_root, recursive=recursive)
         print(
-            "\n".join(
-                [
-                    "\n=== TIDY ===",
-                    f"Scope: {scope}",
-                    f"Target: {target_root}",
-                    f"Moved: {moved}",
-                    f"Archive: {archive_root}\n",
-                ]
-            )
+            "\n".join([
+                "\n=== TIDY ===",
+                f"Scope: {scope}",
+                f"Target: {target_root}",
+                f"Moved: {moved}",
+                f"Archive: {archive_root}\n",
+            ])
         )
 
     async def cmd_clean(self, args: list) -> None:
@@ -1056,20 +1085,16 @@ class WizardConsole:
         else:
             allowlist = []
         moved, archive_root = clean(
-            target_root,
-            allowed_entries=allowlist,
-            recursive=recursive,
+            target_root, allowed_entries=allowlist, recursive=recursive
         )
         print(
-            "\n".join(
-                [
-                    "\n=== CLEAN ===",
-                    f"Scope: {scope}",
-                    f"Target: {target_root}",
-                    f"Moved: {moved}",
-                    f"Archive: {archive_root}\n",
-                ]
-            )
+            "\n".join([
+                "\n=== CLEAN ===",
+                f"Scope: {scope}",
+                f"Target: {target_root}",
+                f"Moved: {moved}",
+                f"Archive: {archive_root}\n",
+            ])
         )
 
     async def cmd_compost(self, args: list) -> None:
@@ -1077,15 +1102,13 @@ class WizardConsole:
         target_root, recursive = self._resolve_scope(scope)
         moved, compost_root = compost(target_root, recursive=recursive)
         print(
-            "\n".join(
-                [
-                    "\n=== COMPOST ===",
-                    f"Scope: {scope}",
-                    f"Target: {target_root}",
-                    f"Moved: {moved}",
-                    f"Compost: {compost_root}\n",
-                ]
-            )
+            "\n".join([
+                "\n=== COMPOST ===",
+                f"Scope: {scope}",
+                f"Target: {target_root}",
+                f"Moved: {moved}",
+                f"Compost: {compost_root}\n",
+            ])
         )
 
     async def cmd_destroy(self, _args: list) -> None:
@@ -1106,7 +1129,7 @@ class WizardConsole:
         self._current_file = path
         print(f"Opened {path} in {editor_name}")
 
-    def _api_request(self, method: str, path: str, data: Optional[dict] = None):
+    def _api_request(self, method: str, path: str, data: dict | None = None):
         """Call Wizard API from the console."""
         base_host = "localhost" if self.config.host == "0.0.0.0" else self.config.host
         url = f"http://{base_host}:{self.config.port}{path}"
@@ -1145,7 +1168,7 @@ class WizardConsole:
             configured = "✅" if status.get("configured") else "⚠️"
             available = "✅" if status.get("available") else "❌"
             print(
-                f"  {p['id']:<10} {p['name']:<18} configured {configured}  available {available}  type {p.get('type','')}"
+                f"  {p['id']:<10} {p['name']:<18} configured {configured}  available {available}  type {p.get('type', '')}"
             )
         print()
 
@@ -1168,7 +1191,7 @@ class WizardConsole:
                 )
                 status = result.get("status", {})
                 print(
-                    f"\n{result.get('name','')} ({provider_id})\n  configured: {status.get('configured')}\n  available:  {status.get('available')}\n  cli_installed: {status.get('cli_installed')}\n  needs_restart: {status.get('needs_restart')}\n"
+                    f"\n{result.get('name', '')} ({provider_id})\n  configured: {status.get('configured')}\n  available:  {status.get('available')}\n  cli_installed: {status.get('cli_installed')}\n  needs_restart: {status.get('needs_restart')}\n"
                 )
 
             elif action == "flag":
@@ -1178,7 +1201,7 @@ class WizardConsole:
                         "POST", f"/api/providers/{provider_id}/flag"
                     ),
                 )
-                print(f"\n{result.get('message','Flagged')}\n")
+                print(f"\n{result.get('message', 'Flagged')}\n")
 
             elif action == "unflag":
                 result = await loop.run_in_executor(
@@ -1187,7 +1210,7 @@ class WizardConsole:
                         "POST", f"/api/providers/{provider_id}/unflag"
                     ),
                 )
-                print(f"\n{result.get('message','Unflagged')}\n")
+                print(f"\n{result.get('message', 'Unflagged')}\n")
 
             elif action == "setup":
                 # POST with query param
@@ -1197,7 +1220,7 @@ class WizardConsole:
                     None, lambda: self._api_request("POST", path)
                 )
                 if not result.get("success"):
-                    print(f"\n⚠️  {result.get('message','Setup not available')}\n")
+                    print(f"\n⚠️  {result.get('message', 'Setup not available')}\n")
                     return
 
                 commands = result.get("commands", [])
@@ -1243,15 +1266,12 @@ class WizardConsole:
                             print("  • setup: setup_wizard.sh not found")
                             continue
 
-                    print(f"  • {cmd.get('type','cmd')}: {cmd_str}")
+                    print(f"  • {cmd.get('type', 'cmd')}: {cmd_str}")
                     try:
                         completed = await loop.run_in_executor(
                             None,
                             lambda: subprocess.run(
-                                cmd_str,
-                                shell=True,
-                                cwd=self.repo_root,
-                                check=False,
+                                cmd_str, shell=True, cwd=self.repo_root, check=False
                             ),
                         )
                         if completed.returncode != 0:

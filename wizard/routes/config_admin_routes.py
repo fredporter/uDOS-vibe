@@ -1,25 +1,23 @@
 """Admin-token and public export route modules for config APIs."""
 
+from __future__ import annotations
+
+from datetime import UTC, datetime
 import json
 import os
-import secrets
-from datetime import datetime, timezone
 from pathlib import Path
+import secrets
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from wizard.services.path_utils import get_repo_root
+from core.services.unified_config_loader import get_config
 from wizard.services.admin_secret_contract import (
     collect_admin_secret_contract,
     repair_admin_secret_contract,
 )
-from wizard.services.secret_store import (
-    SecretEntry,
-    SecretStoreError,
-    get_secret_store,
-)
-from core.services.unified_config_loader import get_config
+from wizard.services.path_utils import get_repo_root
+from wizard.services.secret_store import SecretEntry, SecretStoreError, get_secret_store
 
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost"}
 EXPORT_DIR = Path(__file__).parent.parent.parent / "memory" / "config_exports"
@@ -92,7 +90,7 @@ def create_admin_token_routes() -> APIRouter:
                 key_id=key_id,
                 provider="wizard_admin",
                 value=token,
-                created_at=datetime.now(timezone.utc).isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
                 metadata={"source": "wizard-dashboard"},
             )
             store.set(entry)
@@ -131,7 +129,7 @@ def create_admin_token_routes() -> APIRouter:
             except Exception as exc:
                 return {
                     "status": "error",
-                    "message": f"Failed to read .env: {str(exc)}",
+                    "message": f"Failed to read .env: {exc!s}",
                     "env": {},
                 }
 
@@ -170,15 +168,13 @@ def create_public_export_routes() -> APIRouter:
             for export_file in EXPORT_DIR.glob("udos-config-export-*.json"):
                 try:
                     stat = export_file.stat()
-                    exports.append(
-                        {
-                            "filename": export_file.name,
-                            "path": str(export_file),
-                            "size": stat.st_size,
-                            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
-                            + "Z",
-                        }
-                    )
+                    exports.append({
+                        "filename": export_file.name,
+                        "path": str(export_file),
+                        "size": stat.st_size,
+                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
+                        + "Z",
+                    })
                 except Exception:
                     pass
 
@@ -202,9 +198,7 @@ def create_public_export_routes() -> APIRouter:
             )
 
         return FileResponse(
-            path=export_path,
-            filename=filename,
-            media_type="application/json",
+            path=export_path, filename=filename, media_type="application/json"
         )
 
     return router

@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-import hmac
-import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Dict, TYPE_CHECKING
+from datetime import UTC, datetime
+import hmac
+from typing import TYPE_CHECKING
 
-from wizard.services.secret_store import get_secret_store, SecretStoreError
-from wizard.services.device_auth import get_device_auth
 from core.services.unified_config_loader import get_config
+from wizard.services.device_auth import get_device_auth
+from wizard.services.secret_store import SecretStoreError, get_secret_store
 
 if TYPE_CHECKING:  # pragma: no cover
     from fastapi import Request
+
     from wizard.services.logging_api import Logger
 
 
@@ -32,12 +32,12 @@ class DeviceSession:
 class WizardAuthService:
     """Handle device/admin authentication and session tracking."""
 
-    def __init__(self, config, logger: "Logger"):
+    def __init__(self, config, logger: Logger):
         self.config = config
         self.logger = logger
-        self.sessions: Dict[str, DeviceSession] = {}
+        self.sessions: dict[str, DeviceSession] = {}
 
-    async def authenticate_device(self, request: "Request") -> str:
+    async def authenticate_device(self, request: Request) -> str:
         from fastapi import HTTPException
 
         auth_header = request.headers.get("Authorization", "")
@@ -50,7 +50,7 @@ class WizardAuthService:
         if not auth.get_device(device_id):
             raise HTTPException(status_code=401, detail="Unknown device")
 
-        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         if device_id not in self.sessions:
             self.sessions[device_id] = DeviceSession(
                 device_id=device_id,
@@ -64,7 +64,7 @@ class WizardAuthService:
         session.request_count += 1
         return device_id
 
-    async def authenticate_admin(self, request: "Request") -> None:
+    async def authenticate_admin(self, request: Request) -> None:
         from fastapi import HTTPException
 
         key_id = getattr(self.config, "admin_api_key_id", None)
@@ -97,8 +97,6 @@ class WizardAuthService:
         except SecretStoreError as exc:
             self.logger.warn("[WIZ] Secret store error during auth: %s", exc)
             if not env_token:
-                raise HTTPException(
-                    status_code=503, detail="Admin secret store locked"
-                )
+                raise HTTPException(status_code=503, detail="Admin secret store locked")
 
         raise HTTPException(status_code=403, detail="Invalid admin token")

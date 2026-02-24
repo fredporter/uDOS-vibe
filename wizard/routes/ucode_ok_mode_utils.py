@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.services.unified_config_loader import get_bool_config
 
 
-def load_ai_modes_config() -> Dict[str, Any]:
+def load_ai_modes_config() -> dict[str, Any]:
     try:
         from core.services.logging_api import get_repo_root
 
@@ -21,7 +20,7 @@ def load_ai_modes_config() -> Dict[str, Any]:
         return {"modes": {}}
 
 
-def write_ok_modes_config(config: Dict[str, Any]) -> None:
+def write_ok_modes_config(config: dict[str, Any]) -> None:
     from core.services.logging_api import get_repo_root
 
     path = get_repo_root() / "core" / "config" / "ok_modes.json"
@@ -40,12 +39,14 @@ def is_dev_mode_active() -> bool:
         return env_active
 
 
-def get_ok_default_models() -> Dict[str, str]:
+def get_ok_default_models() -> dict[str, str]:
     config = load_ai_modes_config()
     mode = (config.get("modes") or {}).get("ofvibe", {})
     default_models = mode.get("default_models") or {}
     core_model = default_models.get("core") or "mistral-small-latest"
-    dev_model = default_models.get("dev") or default_models.get("core") or "devstral-small-2"
+    dev_model = (
+        default_models.get("dev") or default_models.get("core") or "devstral-small-2"
+    )
     return {"core": core_model, "dev": dev_model}
 
 
@@ -57,7 +58,7 @@ def get_ok_default_model(purpose: str = "general") -> str:
     return models["core"]
 
 
-def resolve_ok_model(requested_model: Optional[str], purpose: str = "general") -> str:
+def resolve_ok_model(requested_model: str | None, purpose: str = "general") -> str:
     model = (requested_model or "").strip()
     if model:
         return model
@@ -79,7 +80,7 @@ def get_ok_context_window() -> int:
         return 8192
 
 
-def fetch_ollama_models(endpoint: str) -> Dict[str, Any]:
+def fetch_ollama_models(endpoint: str) -> dict[str, Any]:
     url = endpoint.rstrip("/") + "/api/tags"
     try:
         import requests
@@ -108,7 +109,7 @@ def _normalize_model_names(names: list[str]) -> set[str]:
     return normalized
 
 
-def get_ok_local_status() -> Dict[str, Any]:
+def get_ok_local_status() -> dict[str, Any]:
     config = load_ai_modes_config()
     mode = (config.get("modes") or {}).get("ofvibe", {})
     endpoint = mode.get("ollama_endpoint", "http://127.0.0.1:11434")
@@ -145,7 +146,7 @@ def get_ok_local_status() -> Dict[str, Any]:
     }
 
 
-def get_ok_cloud_status() -> Dict[str, Any]:
+def get_ok_cloud_status() -> dict[str, Any]:
     try:
         from wizard.services.mistral_api import MistralAPI
 
