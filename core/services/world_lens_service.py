@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import os
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.services.chunking_contract import parse_place_ref
 from core.services.json_utils import read_json_file, write_json_file
 from core.services.logging_api import get_repo_root
 from core.services.time_utils import utc_now_iso
+from core.services.unified_config_loader import get_config
 
 
 class WorldLensService:
@@ -19,9 +19,9 @@ class WorldLensService:
     def __init__(
         self,
         *,
-        config_file: Optional[Path] = None,
-        state_file: Optional[Path] = None,
-        seed_file: Optional[Path] = None,
+        config_file: Path | None = None,
+        state_file: Path | None = None,
+        seed_file: Path | None = None,
     ) -> None:
         repo_root = get_repo_root()
         self.config_file = config_file or repo_root / "core" / "config" / "v1_3_22_world_lens_mvp.json"
@@ -35,7 +35,7 @@ class WorldLensService:
     def _now_iso(self) -> str:
         return utc_now_iso()
 
-    def _default_config(self) -> Dict[str, Any]:
+    def _default_config(self) -> dict[str, Any]:
         return {
             "version": "1.3.22",
             "feature_flag": {
@@ -56,7 +56,7 @@ class WorldLensService:
             },
         }
 
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         fallback = self._default_config()
         if not self.config_file.exists():
             return fallback
@@ -71,7 +71,7 @@ class WorldLensService:
                 merged[key].update(incoming)
         return merged
 
-    def _default_state(self) -> Dict[str, Any]:
+    def _default_state(self) -> dict[str, Any]:
         return {
             "version": self._config.get("version", "1.3.22"),
             "enabled": bool(self._config.get("feature_flag", {}).get("default_enabled", False)),
@@ -79,7 +79,7 @@ class WorldLensService:
             "updated_by": "system-default",
         }
 
-    def _load_state(self) -> Dict[str, Any]:
+    def _load_state(self) -> dict[str, Any]:
         if not self.state_file.exists():
             state = self._default_state()
             self._write_state(state)
@@ -93,11 +93,11 @@ class WorldLensService:
         state.update({k: v for k, v in parsed.items() if k in {"enabled", "updated_at", "updated_by", "version"}})
         return state
 
-    def _write_state(self, state: Dict[str, Any]) -> None:
+    def _write_state(self, state: dict[str, Any]) -> None:
         write_json_file(self.state_file, state, indent=2)
 
     @staticmethod
-    def _coerce_env_bool(raw: Optional[str]) -> Optional[bool]:
+    def _coerce_env_bool(raw: str | None) -> bool | None:
         if raw is None:
             return None
         norm = str(raw).strip().lower()
@@ -109,16 +109,16 @@ class WorldLensService:
 
     def _effective_enabled(self) -> tuple[bool, str]:
         env_var = str(self._config.get("feature_flag", {}).get("env_var", "UDOS_3D_WORLD_LENS_ENABLED"))
-        env_enabled = self._coerce_env_bool(os.getenv(env_var))
+        env_enabled = self._coerce_env_bool(get_config(env_var))
         if env_enabled is not None:
             return env_enabled, f"env:{env_var}"
         return bool(self._state.get("enabled", False)), "state"
 
-    def _load_seed_places(self) -> Dict[str, Dict[str, Any]]:
+    def _load_seed_places(self) -> dict[str, dict[str, Any]]:
         raw = read_json_file(self.seed_file, default={})
         if not isinstance(raw, dict):
             return {}
-        out: Dict[str, Dict[str, Any]] = {}
+        out: dict[str, dict[str, Any]] = {}
         for row in raw.get("locations", []):
             if not isinstance(row, dict):
                 continue
@@ -128,7 +128,7 @@ class WorldLensService:
             out[place_id] = row
         return out
 
-    def _slice_contract_status(self) -> Dict[str, Any]:
+    def _slice_contract_status(self) -> dict[str, Any]:
         region = self._config.get("single_region", {})
         allowed = [str(x).strip() for x in region.get("allowed_place_ids", []) if str(x).strip()]
         allowed_set = set(allowed)
@@ -185,7 +185,7 @@ class WorldLensService:
             "disconnected_place_ids": disconnected_place_ids,
         }
 
-    def set_enabled(self, enabled: bool, actor: str = "unknown") -> Dict[str, Any]:
+    def set_enabled(self, enabled: bool, actor: str = "unknown") -> dict[str, Any]:
         self._state["enabled"] = bool(enabled)
         self._state["updated_at"] = self._now_iso()
         self._state["updated_by"] = actor
@@ -196,9 +196,9 @@ class WorldLensService:
         self,
         *,
         username: str,
-        map_status: Optional[Dict[str, Any]] = None,
+        map_status: dict[str, Any] | None = None,
         progression_ready: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         enabled, source = self._effective_enabled()
         region = self._config.get("single_region", {})
         slice_contract = self._slice_contract_status()
@@ -250,7 +250,7 @@ class WorldLensService:
         }
 
 
-_world_lens_service: Optional[WorldLensService] = None
+_world_lens_service: WorldLensService | None = None
 
 
 def get_world_lens_service() -> WorldLensService:

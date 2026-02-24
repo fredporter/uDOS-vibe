@@ -1,5 +1,4 @@
-"""
-System Script Runner
+"""System Script Runner
 =====================
 
 Ensures `/memory/bank/system` scripts exist and invokes them via the TS runtime.
@@ -11,23 +10,23 @@ Author: uDOS Engineering
 Version: v1.0.1
 Date: 2026-02-02
 """
+from __future__ import annotations
 
-import os
-import shutil
 from pathlib import Path
+import shutil
 from typing import Any
 
+from core.services.automation_monitor import AutomationMonitor
 from core.services.hotkey_map import read_hotkey_payload, write_hotkey_payload
 from core.services.logging_api import get_logger, get_repo_root
-from core.services.ts_runtime_service import TSRuntimeService
-from core.services.automation_monitor import AutomationMonitor
-from core.services.provider_registry import (
-    get_provider,
-    ProviderType,
-    ProviderNotAvailableError,
-)
 from core.services.notification_history_service import remind_if_pending
+from core.services.provider_registry import (
+    ProviderNotAvailableError,
+    ProviderType,
+    get_provider,
+)
 from core.services.todo_reminder_service import get_reminder_service
+from core.services.ts_runtime_service import TSRuntimeService
 
 logger = get_logger("system-script")
 
@@ -39,11 +38,9 @@ class SystemScriptRunner:
 
     def __init__(self):
         self.repo_root = get_repo_root()
-        env_memory = os.environ.get("UDOS_MEMORY_ROOT")
-        if env_memory:
-            self.memory_root = Path(env_memory)
-        else:
-            self.memory_root = self.repo_root / "memory"
+        from core.services.paths import get_memory_root
+
+        self.memory_root = get_memory_root()
         self.system_dir = self.memory_root / "bank" / "system"
         self.user_system_dir = self.memory_root / "user" / "system"
         try:
@@ -105,6 +102,7 @@ class SystemScriptRunner:
         return self._run_script("reboot-script.md", "reboot")
 
     def _run_script(self, script_name: str, label: str) -> dict[str, Any]:
+        _previous_hotkeys = read_hotkey_payload(self.memory_root)
         hotkey_payload = write_hotkey_payload(self.memory_root)
         automation_monitor = AutomationMonitor(self.memory_root)
         automation_summary = automation_monitor.summary()
@@ -200,7 +198,9 @@ class SystemScriptRunner:
 
     def _env_override_path(self, label: str) -> Path | None:
         key = self._env_override_key(label)
-        value = (os.getenv(key) or "").strip()
+        from core.services.unified_config_loader import get_config
+
+        value = get_config(key, "").strip()
         if not value:
             return None
         candidate = Path(value)

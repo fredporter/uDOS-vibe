@@ -1589,6 +1589,50 @@ class UCODE:
         )
         return fallback.rstrip("/")
 
+    def _fetch_ollama_models(self, endpoint: str) -> dict[str, Any]:
+        """Fetch available models from Ollama (loopback-only)."""
+        safe_endpoint = self._resolve_loopback_url(
+            endpoint, fallback="http://127.0.0.1:11434", context="OLLAMA_HOST"
+        )
+        try:
+            resp = http_get(f"{safe_endpoint}/api/tags", timeout=5)
+            if resp.get("status_code") != 200:
+                return {"reachable": False, "models": [], "endpoint": safe_endpoint}
+            payload = resp.get("json") or {}
+            names = [m.get("name") for m in payload.get("models", []) if m.get("name")]
+            return {"reachable": True, "models": names, "endpoint": safe_endpoint}
+        except HTTPError:
+            return {"reachable": False, "models": [], "endpoint": safe_endpoint}
+
+    @staticmethod
+    def _normalize_model_names(models: list[str]) -> list[str]:
+        return [m.strip() for m in models if m and str(m).strip()]
+
+    def _get_ok_local_status(self) -> dict[str, Any]:
+        """Return local provider status for OK Local / Vibe checks."""
+        config = self.ai_modes_config or {}
+        ofvibe = config.get("modes", {}).get("ofvibe", {}) if isinstance(config, dict) else {}
+        raw_endpoint = str(ofvibe.get("ollama_endpoint") or "http://127.0.0.1:11434")
+        endpoint = self._resolve_loopback_url(
+            raw_endpoint, fallback="http://127.0.0.1:11434", context="OLLAMA_HOST"
+        )
+        model = self._get_ok_default_model()
+        models_result = self._fetch_ollama_models(endpoint)
+        models = self._normalize_model_names(models_result.get("models", []))
+        reachable = bool(models_result.get("reachable"))
+        ready = reachable and (not model or model in models)
+        issues = []
+        if not reachable:
+            issues.append("ollama down")
+        if model and model not in models:
+            issues.append("missing model")
+        return {
+            "ready": ready,
+            "issues": issues,
+            "model": model,
+            "ollama_endpoint": endpoint,
+        }
+
     def _wizard_headers(self) -> dict[str, str]:
         """Authorization headers for Wizard API."""
         token = self._env_value("WIZARD_ADMIN_TOKEN")

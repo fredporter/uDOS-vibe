@@ -1,5 +1,4 @@
-"""
-Configuration Sync Manager - Bidirectional sync between .env and Wizard keystore
+"""Configuration Sync Manager - Bidirectional sync between .env and Wizard keystore
 
 Manages synchronization of user identity and system configuration between:
   - .env (Core identity - local only, never shared)
@@ -17,19 +16,19 @@ Author: uDOS Engineering
 Version: v1.0.0
 Date: 2026-01-30
 """
+from __future__ import annotations
 
+from datetime import datetime
 import json
 import os
-import uuid
+from typing import Any
 from urllib.parse import urlparse
-from pathlib import Path
-from typing import Dict, Optional, Tuple, Any
-from datetime import datetime
+import uuid
 
+from core.services.logging_api import get_logger, get_repo_root
 from core.services.rate_limit_helpers import guard_wizard_endpoint
-
-from core.services.logging_api import get_logger, get_repo_root, LogTags
-from core.services.stdlib_http import http_post, HTTPError
+from core.services.stdlib_http import HTTPError, http_post
+from core.services.unified_config_loader import get_process_env
 
 logger = get_logger("config-sync-manager")
 
@@ -91,7 +90,7 @@ class ConfigSyncManager:
     # .env File Operations
     # ========================================================================
 
-    def load_env_dict(self) -> Dict[str, str]:
+    def load_env_dict(self) -> dict[str, str]:
         """Load all variables from .env file.
 
         Returns:
@@ -116,7 +115,7 @@ class ConfigSyncManager:
             logger.error(f"[LOCAL] Failed to load .env: {e}")
             return {}
 
-    def load_identity_from_env(self) -> Dict[str, str]:
+    def load_identity_from_env(self) -> dict[str, str]:
         """Load ONLY identity fields from .env (the boundary).
 
         Returns:
@@ -131,7 +130,7 @@ class ConfigSyncManager:
 
         return identity
 
-    def save_identity_to_env(self, data: Dict[str, str]) -> Tuple[bool, str]:
+    def save_identity_to_env(self, data: dict[str, str]) -> tuple[bool, str]:
         """Save identity fields to .env, preserving other variables.
 
         Args:
@@ -159,7 +158,7 @@ class ConfigSyncManager:
             # Ensure WIZARD_KEY exists (if not already set)
             if not env_dict.get('WIZARD_KEY'):
                 env_dict['WIZARD_KEY'] = str(uuid.uuid4())
-                logger.info(f"[LOCAL] Generated new WIZARD_KEY")
+                logger.info("[LOCAL] Generated new WIZARD_KEY")
 
             # Ensure UDOS_ROOT exists (absolute path to repo)
             if 'UDOS_ROOT' not in env_dict:
@@ -180,7 +179,7 @@ class ConfigSyncManager:
             logger.error(f"[LOCAL] Failed to save identity to .env: {e}")
             return False, f"❌ Failed to save: {e}"
 
-    def update_env_vars(self, updates: Dict[str, Optional[str]]) -> Tuple[bool, str]:
+    def update_env_vars(self, updates: dict[str, str | None]) -> tuple[bool, str]:
         """Update arbitrary .env variables, preserving existing content."""
         try:
             env_dict = self.load_env_dict()
@@ -193,7 +192,7 @@ class ConfigSyncManager:
 
             if not env_dict.get('WIZARD_KEY'):
                 env_dict['WIZARD_KEY'] = str(uuid.uuid4())
-                logger.info(f"[LOCAL] Generated new WIZARD_KEY")
+                logger.info("[LOCAL] Generated new WIZARD_KEY")
 
             if 'UDOS_ROOT' not in env_dict:
                 env_dict['UDOS_ROOT'] = str(self.repo_root.resolve())
@@ -209,7 +208,7 @@ class ConfigSyncManager:
             logger.error(f"[LOCAL] Failed to update .env: {e}")
             return False, f"❌ Failed to update .env: {e}"
 
-    def _write_env_file(self, env_dict: Dict[str, str]) -> None:
+    def _write_env_file(self, env_dict: dict[str, str]) -> None:
         """Write environment variables to .env file, maintaining formatting.
 
         Args:
@@ -277,7 +276,7 @@ class ConfigSyncManager:
 
         self.env_file.write_text(content)
 
-    def _load_user_state(self) -> Dict[str, str]:
+    def _load_user_state(self) -> dict[str, str]:
         """Load current username/role from memory user state files."""
         users_file = self.repo_root / "memory" / "bank" / "private" / "users.json"
         current_file = self.repo_root / "memory" / "bank" / "private" / "current_user.txt"
@@ -297,7 +296,7 @@ class ConfigSyncManager:
         except Exception:
             return {}
 
-    def _secret_store_env_lookup(self, key: str) -> Optional[str]:
+    def _secret_store_env_lookup(self, key: str) -> str | None:
         """Resolve secrets from Wizard secret store for env-style keys."""
         try:
             from wizard.security.key_store import get_wizard_key
@@ -324,7 +323,7 @@ class ConfigSyncManager:
               3) memory user state
               4) exported shell env
         """
-        host_env_value = os.getenv(key, "").strip()
+        host_env_value = str(get_process_env(key, "")).strip()
         env_dict = self.load_env_dict()
         file_value = str(env_dict.get(key, "")).strip()
         secret_value = self._secret_store_env_lookup(key)
@@ -336,9 +335,9 @@ class ConfigSyncManager:
 
         return host_env_value or file_value or secret_value or user_value
 
-    def hydrate_runtime_env(self, keys: Optional[list[str]] = None) -> Dict[str, str]:
+    def hydrate_runtime_env(self, keys: list[str] | None = None) -> dict[str, str]:
         """Populate os.environ from canonical config sources for runtime stability."""
-        resolved: Dict[str, str] = {}
+        resolved: dict[str, str] = {}
         for key in (keys or list(self.RUNTIME_KEYS)):
             value = self.resolve_runtime_value(key)
             if value:
@@ -346,10 +345,10 @@ class ConfigSyncManager:
                 resolved[key] = value
 
         # Canonical aliases
-        if resolved.get("USER_NAME") and not os.getenv("USER_USERNAME"):
+        if resolved.get("USER_NAME") and not get_process_env("USER_USERNAME"):
             os.environ["USER_USERNAME"] = resolved["USER_NAME"]
             resolved["USER_USERNAME"] = resolved["USER_NAME"]
-        if resolved.get("USER_ROLE") and not os.getenv("UDOS_USER_ROLE"):
+        if resolved.get("USER_ROLE") and not get_process_env("UDOS_USER_ROLE"):
             os.environ["UDOS_USER_ROLE"] = resolved["USER_ROLE"]
             resolved["UDOS_USER_ROLE"] = resolved["USER_ROLE"]
 
@@ -359,7 +358,7 @@ class ConfigSyncManager:
     # Wizard Profile Operations
     # ========================================================================
 
-    def sync_env_to_wizard(self, wizard_api_url: str = None) -> Tuple[bool, str]:
+    def sync_env_to_wizard(self, wizard_api_url: str = None) -> tuple[bool, str]:
         """Sync .env identity to Wizard profiles via API.
 
         Args:
@@ -422,7 +421,7 @@ class ConfigSyncManager:
             )
 
             if response.get("status_code") == 200:
-                logger.info(f"[WIZ] Synced .env identity to Wizard keystore")
+                logger.info("[WIZ] Synced .env identity to Wizard keystore")
                 return True, "✅ Identity synced to Wizard"
             else:
                 payload = response.get("json")
@@ -440,7 +439,7 @@ class ConfigSyncManager:
             logger.warning(f"[WIZ] Sync failed: {e}")
             return False, f"⚠️  Could not sync to Wizard: {e}"
 
-    def sync_wizard_to_env(self, wizard_data: Dict[str, Any]) -> Tuple[bool, str]:
+    def sync_wizard_to_env(self, wizard_data: dict[str, Any]) -> tuple[bool, str]:
         """Sync Wizard profile back to .env (pull updates).
 
         This is called when Wizard updates identity and we need to keep .env in sync.
@@ -468,7 +467,7 @@ class ConfigSyncManager:
 
             success, msg = self.save_identity_to_env(form_data)
             if success:
-                logger.info(f"[WIZ] Synced Wizard updates back to .env")
+                logger.info("[WIZ] Synced Wizard updates back to .env")
             else:
                 logger.warning(f"[WIZ] Failed to sync Wizard to .env: {msg}")
             return success, msg
@@ -481,7 +480,7 @@ class ConfigSyncManager:
     # Validation
     # ========================================================================
 
-    def validate_identity(self, data: Dict[str, str]) -> Tuple[bool, str]:
+    def validate_identity(self, data: dict[str, str]) -> tuple[bool, str]:
         """Validate identity data before saving.
 
         Args:
@@ -527,7 +526,7 @@ class ConfigSyncManager:
     # Status & Diagnostics
     # ========================================================================
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current sync status and configuration state.
 
         Returns:
@@ -551,18 +550,18 @@ class ConfigSyncManager:
 
         if status['env_identity_configured']:
             identity = status['env_identity']
-            print(f"  ✅ .env identity configured:")
+            print("  ✅ .env identity configured:")
             print(f"     • Username: {identity.get('user_username')}")
             print(f"     • Role: {identity.get('user_role')}")
             print(f"     • Location: {identity.get('user_location')}")
             print(f"     • Timezone: {identity.get('user_timezone')}")
         else:
-            print(f"  ⚠️  No identity configured in .env")
-            print(f"     Run: SETUP to configure")
+            print("  ⚠️  No identity configured in .env")
+            print("     Run: SETUP to configure")
 
         if status['wizard_key_set']:
             print(f"\n  ✅ Wizard gateway: {status['env_identity']['wizard_key'][:8]}...")
         else:
-            print(f"\n  ⚠️  Wizard gateway not configured")
+            print("\n  ⚠️  Wizard gateway not configured")
 
         print()

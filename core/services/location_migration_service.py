@@ -1,5 +1,4 @@
-"""
-Location Migration Service - Migrate locations.json to SQLite when needed.
+"""Location Migration Service - Migrate locations.json to SQLite when needed.
 
 Provides automatic detection and migration of location data from JSON to SQLite
 when file size exceeds 500KB or record count exceeds 1000.
@@ -11,17 +10,19 @@ Thresholds (ADR-0004):
   - Non-destructive (original JSON preserved)
   - Rollback support (delete .db to revert)
 """
+from __future__ import annotations
 
+from datetime import datetime
 import hashlib
 import json
-import os
+from pathlib import Path
 import re
 import sqlite3
 import time
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from core.services.logging_api import get_logger, get_repo_root
+from typing import Any
+
+from core.services.logging_api import get_logger
+from core.services.paths import get_vault_root
 
 logger = get_logger("location_migration")
 
@@ -42,7 +43,7 @@ PLACE_REF_RE = re.compile(
 LOC_ID_DETAIL_RE = re.compile(r"^L(?P<layer>\d{3})-(?P<cell>[A-Z]{2}\d{2})(?:-Z(?P<z>-?\d{1,2}))?$")
 
 
-def _parse_place_ref(ref: str) -> Optional[Dict[str, Any]]:
+def _parse_place_ref(ref: str) -> dict[str, Any] | None:
     match = PLACE_REF_RE.match(ref)
     if not match:
         return None
@@ -74,7 +75,7 @@ def _cell_to_col(cell: str) -> int:
     return (ord(cell[0]) - 65) * 26 + (ord(cell[1]) - 65)
 
 
-def _loc_point(loc_id: str) -> Optional[Tuple[int, int, int, int]]:
+def _loc_point(loc_id: str) -> tuple[int, int, int, int] | None:
     match = LOC_ID_DETAIL_RE.match(loc_id)
     if not match:
         return None
@@ -93,9 +94,8 @@ class LocationMigrator:
     SIZE_THRESHOLD_KB = 500  # 500KB
     RECORD_THRESHOLD = 1000  # 1000 records
 
-    def __init__(self, data_dir: Optional[Path] = None):
-        """
-        Initialize migrator.
+    def __init__(self, data_dir: Path | None = None):
+        """Initialize migrator.
 
         Args:
             data_dir: Path to location data directory
@@ -118,9 +118,8 @@ class LocationMigrator:
 
         logger.info(f"[LOCAL] LocationMigrator initialized (data_dir={self.data_dir})")
 
-    def should_migrate(self) -> Tuple[bool, str]:
-        """
-        Check if migration should be performed.
+    def should_migrate(self) -> tuple[bool, str]:
+        """Check if migration should be performed.
 
         Returns:
             Tuple of (should_migrate: bool, reason: str)
@@ -141,21 +140,20 @@ class LocationMigrator:
 
         # Check record count
         try:
-            with open(self.json_path, "r", encoding="utf-8") as f:
+            with open(self.json_path, encoding="utf-8") as f:
                 data = json.load(f)
                 record_count = len(data.get("locations", []))
 
                 if record_count >= self.RECORD_THRESHOLD:
                     reason = f"Record count {record_count} exceeds {self.RECORD_THRESHOLD} threshold"
                     return True, reason
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             return False, f"Error reading JSON: {e}"
 
         return False, "Below migration thresholds"
 
-    def get_migration_status(self) -> Dict:
-        """
-        Get current migration status.
+    def get_migration_status(self) -> dict:
+        """Get current migration status.
 
         Returns:
             Dict with status information
@@ -165,10 +163,10 @@ class LocationMigrator:
         if self.json_path.exists():
             file_size_kb = self.json_path.stat().st_size / 1024
             try:
-                with open(self.json_path, "r", encoding="utf-8") as f:
+                with open(self.json_path, encoding="utf-8") as f:
                     data = json.load(f)
                     record_count = len(data.get("locations", []))
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 record_count = -1
         else:
             file_size_kb = 0
@@ -198,9 +196,8 @@ class LocationMigrator:
             "record_threshold": self.RECORD_THRESHOLD,
         }
 
-    def perform_migration(self, backup: bool = True) -> Dict:
-        """
-        Perform migration from JSON to SQLite.
+    def perform_migration(self, backup: bool = True) -> dict:
+        """Perform migration from JSON to SQLite.
 
         Args:
             backup: Whether to backup JSON before migration (default: True)
@@ -219,9 +216,9 @@ class LocationMigrator:
 
         # Load JSON data
         try:
-            with open(self.json_path, "r", encoding="utf-8") as f:
+            with open(self.json_path, encoding="utf-8") as f:
                 json_data = json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.error(f"[LOCAL] Failed to load locations.json: {e}")
             return {
                 "success": False,
@@ -273,11 +270,11 @@ class LocationMigrator:
         backup_path = self.backup_dir / f"locations_{timestamp}.json"
 
         try:
-            with open(self.json_path, "r", encoding="utf-8") as f_in:
+            with open(self.json_path, encoding="utf-8") as f_in:
                 with open(backup_path, "w", encoding="utf-8") as f_out:
                     f_out.write(f_in.read())
             logger.info(f"[LOCAL] Backup created: {backup_path}")
-        except IOError as e:
+        except OSError as e:
             logger.warning(f"[LOCAL] Failed to create backup: {e}")
             raise
 
@@ -391,7 +388,7 @@ class LocationMigrator:
         conn.commit()
         conn.close()
 
-    def _seed_spatial_index(self) -> Dict[str, int]:
+    def _seed_spatial_index(self) -> dict[str, int]:
         spatial_db = self._get_spatial_db_path()
         if not spatial_db:
             return {"spatial_places_seeded": 0, "spatial_place_features_seeded": 0}
@@ -406,13 +403,8 @@ class LocationMigrator:
         conn.close()
         return seeded
 
-    def _get_spatial_db_path(self) -> Optional[Path]:
-        env_vault = os.getenv("VAULT_ROOT")
-        vault_root = (
-            Path(env_vault).expanduser()
-            if env_vault
-            else get_repo_root() / "memory" / "vault"
-        )
+    def _get_spatial_db_path(self) -> Path | None:
+        vault_root = get_vault_root()
         candidates = [
             vault_root / ".udos" / "state.db",
             vault_root / "05_DATA" / "sqlite" / "udos.db",
@@ -460,23 +452,23 @@ class LocationMigrator:
                 ),
             )
 
-    def _load_spatial_places(self) -> List[Dict[str, Any]]:
+    def _load_spatial_places(self) -> list[dict[str, Any]]:
         catalog = MEMORY_SPATIAL_DIR / "places.json"
         if not catalog.exists():
             catalog = DEFAULT_PLACE_CATALOG
-        places: List[Dict[str, Any]] = []
+        places: list[dict[str, Any]] = []
         try:
             if catalog.exists():
                 payload = json.loads(catalog.read_text())
                 places = payload.get("places", [])
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             places = []
 
         location_seed_overrides = self._load_location_seed_overrides()
         if not location_seed_overrides:
             return places
 
-        place_by_id: Dict[str, Dict[str, Any]] = {}
+        place_by_id: dict[str, dict[str, Any]] = {}
         for place in places:
             place_id = place.get("placeId")
             if isinstance(place_id, str) and place_id:
@@ -490,16 +482,16 @@ class LocationMigrator:
 
         return list(place_by_id.values())
 
-    def _load_location_seed_overrides(self) -> Dict[str, Dict[str, Any]]:
+    def _load_location_seed_overrides(self) -> dict[str, dict[str, Any]]:
         seed_path = DEFAULT_LOCATIONS_SEED
         if not seed_path.exists():
             return {}
         try:
             payload = json.loads(seed_path.read_text())
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return {}
 
-        overrides: Dict[str, Dict[str, Any]] = {}
+        overrides: dict[str, dict[str, Any]] = {}
         for row in payload.get("locations", []):
             if not isinstance(row, dict):
                 continue
@@ -531,15 +523,15 @@ class LocationMigrator:
         return overrides
 
     def _insert_spatial_places(
-        self, conn: sqlite3.Connection, places: List[Dict[str, Any]]
-    ) -> Dict[str, int]:
+        self, conn: sqlite3.Connection, places: list[dict[str, Any]]
+    ) -> dict[str, int]:
         if not places:
             return {"spatial_places_seeded": 0, "spatial_place_features_seeded": 0}
         cursor = conn.cursor()
         now = int(time.time())
         inserted = 0
         features_seeded = 0
-        records: List[Dict[str, Any]] = []
+        records: list[dict[str, Any]] = []
         for place in places:
             place_ref = place.get("placeRef") or ""
             parsed = _parse_place_ref(place_ref)
@@ -609,13 +601,13 @@ class LocationMigrator:
 
     def _resolve_seed_links(
         self,
-        records: List[Dict[str, Any]],
-        inferred_links: Dict[str, List[str]],
-    ) -> Dict[str, List[str]]:
+        records: list[dict[str, Any]],
+        inferred_links: dict[str, list[str]],
+    ) -> dict[str, list[str]]:
         """Normalize links and enforce deterministic bidirectional connectivity."""
         place_ids = {record["place_id"] for record in records}
-        resolved: Dict[str, List[str]] = {place_id: [] for place_id in place_ids}
-        explicit_valid_counts: Dict[str, int] = {place_id: 0 for place_id in place_ids}
+        resolved: dict[str, list[str]] = {place_id: [] for place_id in place_ids}
+        explicit_valid_counts: dict[str, int] = {place_id: 0 for place_id in place_ids}
 
         for record in records:
             place_id = record["place_id"]
@@ -648,11 +640,11 @@ class LocationMigrator:
 
     def _normalize_links(
         self,
-        links: List[Any],
+        links: list[Any],
         place_id: str,
         known_place_ids: set[str],
-    ) -> List[str]:
-        normalized: List[str] = []
+    ) -> list[str]:
+        normalized: list[str] = []
         seen: set[str] = set()
         for value in links:
             if not isinstance(value, str):
@@ -666,15 +658,15 @@ class LocationMigrator:
             normalized.append(candidate)
         return normalized
 
-    def _infer_seed_links(self, records: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    def _infer_seed_links(self, records: list[dict[str, Any]]) -> dict[str, list[str]]:
         """Infer deterministic adjacency for places with no explicit links."""
-        groups: Dict[Tuple[str, str, int], List[Dict[str, Any]]] = {}
+        groups: dict[tuple[str, str, int], list[dict[str, Any]]] = {}
         for record in records:
             parsed = record["parsed"]
             key = (parsed["anchor_id"], parsed["space"], parsed["effective_layer"])
             groups.setdefault(key, []).append(record)
 
-        inferred: Dict[str, List[str]] = {}
+        inferred: dict[str, list[str]] = {}
         for _group_key, members in groups.items():
             if len(members) < 2:
                 continue
@@ -685,7 +677,7 @@ class LocationMigrator:
                 origin = _loc_point(record["parsed"]["loc_id"])
                 if origin is None:
                     continue
-                neighbors: List[Tuple[int, str]] = []
+                neighbors: list[tuple[int, str]] = []
                 for candidate in members:
                     if candidate["place_id"] == record["place_id"]:
                         continue
@@ -715,7 +707,7 @@ class LocationMigrator:
         )
 
     def _build_place_id(
-        self, anchor_id: str, space: str, loc_id: str, depth: Optional[int], instance: Optional[str]
+        self, anchor_id: str, space: str, loc_id: str, depth: int | None, instance: str | None
     ) -> str:
         base = [anchor_id, space, loc_id, str(depth or ""), instance or ""]
         return hashlib.sha1(":".join(base).encode("utf-8")).hexdigest()
@@ -724,7 +716,7 @@ class LocationMigrator:
         self,
         conn: sqlite3.Connection,
         place_id: str,
-        place: Dict[str, Any],
+        place: dict[str, Any],
         now: int,
     ) -> bool:
         z = place.get("z")
@@ -789,9 +781,8 @@ class LocationMigrator:
         )
         return True
 
-    def _migrate_data(self, json_data: Dict) -> Dict:
-        """
-        Migrate location data from JSON to SQLite.
+    def _migrate_data(self, json_data: dict) -> dict:
+        """Migrate location data from JSON to SQLite.
 
         Args:
             json_data: Parsed JSON data
@@ -814,9 +805,9 @@ class LocationMigrator:
         timezones_data = {}
         if self.timezones_path.exists():
             try:
-                with open(self.timezones_path, "r", encoding="utf-8") as f:
+                with open(self.timezones_path, encoding="utf-8") as f:
                     timezones_data = json.load(f)
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 pass
 
         for zone, tz_info in timezones_data.items():
@@ -907,7 +898,7 @@ class LocationMigrator:
         # Migrate user additions
         if self.user_locations_path.exists():
             try:
-                with open(self.user_locations_path, "r", encoding="utf-8") as f:
+                with open(self.user_locations_path, encoding="utf-8") as f:
                     user_data = json.load(f)
                     for user_loc in user_data.get("locations", []):
                         cursor.execute(
@@ -924,7 +915,7 @@ class LocationMigrator:
                             ),
                         )
                         stats["user_additions_migrated"] += 1
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 pass
 
         conn.commit()

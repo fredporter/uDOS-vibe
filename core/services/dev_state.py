@@ -1,5 +1,4 @@
-"""
-Dev State Helper
+"""Dev State Helper
 ================
 
 Lightweight helper to reflect Wizard DEV mode state in local TUI.
@@ -11,11 +10,11 @@ from __future__ import annotations
 import os
 import time
 from urllib.parse import urlparse
-from typing import Optional
 
-from core.services.stdlib_http import http_get, HTTPError
+from core.services.stdlib_http import HTTPError, http_get
+from core.services.unified_config_loader import get_config
 
-_CACHE_ACTIVE: Optional[bool] = None
+_CACHE_ACTIVE: bool | None = None
 _CACHE_TS: float = 0.0
 _CACHE_TTL = 2.0
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
@@ -30,21 +29,23 @@ def _loopback_wizard_base_url(raw_base_url: str) -> str:
     return "http://localhost:8765"
 
 
-def _env_dev_active() -> Optional[bool]:
-    raw = os.getenv("UDOS_DEV_MODE")
-    if raw is None:
+def _env_dev_active() -> bool | None:
+    raw = get_config("UDOS_DEV_MODE", "")
+    if raw == "":
         return None
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
-def get_dev_active(force: bool = False, ttl: float = _CACHE_TTL) -> Optional[bool]:
+def get_dev_active(force: bool = False, ttl: float = _CACHE_TTL) -> bool | None:
     global _CACHE_ACTIVE, _CACHE_TS
     now = time.time()
     if not force and _CACHE_ACTIVE is not None and (now - _CACHE_TS) < ttl:
         return _CACHE_ACTIVE
 
-    base_url = _loopback_wizard_base_url(os.getenv("WIZARD_BASE_URL", "http://localhost:8765"))
-    admin_token = os.getenv("WIZARD_ADMIN_TOKEN")
+    base_url = _loopback_wizard_base_url(
+        get_config("WIZARD_BASE_URL", "http://localhost:8765")
+    )
+    admin_token = get_config("WIZARD_ADMIN_TOKEN", "")
     if not admin_token:
         active = _env_dev_active()
         _CACHE_ACTIVE = active

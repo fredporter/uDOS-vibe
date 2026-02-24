@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
-import os
 from pathlib import Path
 import secrets
 import subprocess
@@ -82,7 +81,7 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
 
             logger = logging.getLogger(__name__)
             logger.warning(
-                "[TESTING ALERT] Ghost Mode active: WIZARD %s in demo mode. "
+                "[TESTING ALERT] Ghost Mode active: WIZARD %s in demo mode (v1.5). "
                 "Enforcement will be added before v1.5 release.",
                 action,
             )

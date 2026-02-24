@@ -50,6 +50,8 @@ class Permission(Enum):
     DESTROY = "destroy"  # Irreversible operations (delete vault, factory reset)
     RESTORE = "restore"  # Restore from backups
     CONFIG = "config"  # Modify configuration
+    BINDER_COMPILE = "binder_compile"  # Compile binder content
+    RUN_EXECUTE = "run_execute"  # Execute RUN scripts
 
     # Development
     DEV_MODE = "dev_mode"  # Development features

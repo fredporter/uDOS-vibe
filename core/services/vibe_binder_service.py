@@ -1,5 +1,4 @@
-"""
-Vibe Binder Service
+"""Vibe Binder Service
 
 Manages projects, tasks, and completed items within uDOS binders.
 Each binder represents a project with workflow files:
@@ -14,16 +13,17 @@ Supports multiple item types in tasks.json:
 - reminder: Time-sensitive reminders
 - imported: Generic imported items from external systems
 """
+from __future__ import annotations
 
-import os
-import json
-import uuid
-from typing import Dict, List, Any, Optional
-from pathlib import Path
+from dataclasses import dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
+import json
+from pathlib import Path
+from typing import Any
+import uuid
 
 from core.services.logging_manager import get_logger
+from core.services.paths import get_vault_root
 from core.services.persistence_service import get_persistence_service
 
 _logger = get_logger(__name__)
@@ -33,6 +33,7 @@ _binder_service_instance = None
 @dataclass
 class Mission:
     """Mission definition."""
+
     id: str
     name: str
     description: str
@@ -44,8 +45,7 @@ class Mission:
 
 @dataclass
 class Move:
-    """
-    Enhanced active task/move with support for multiple item types.
+    """Enhanced active task/move with support for multiple item types.
 
     Unified format suitable for AI ingestion:
     - Consistent schema across all item types
@@ -53,53 +53,54 @@ class Move:
     - Source tracking for imported items
     - Multiple date fields for scheduling
     """
+
     id: str
     mission_id: str
     title: str
     description: str
     item_type: str  # "task", "calendar_event", "invite", "reminder", "imported"
     status: str  # "todo", "in_progress", "blocked", "review", "done", "archived"
-    priority: Optional[str] = None  # "high", "medium", "low"
-    assigned_to: Optional[str] = None
-    tags: Optional[List[str]] = None
+    priority: str | None = None  # "high", "medium", "low"
+    assigned_to: str | None = None
+    tags: list[str] | None = None
 
     # Date fields (for calendar events, reminders, deadlines)
-    due_date: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    due_date: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
 
     # Participants (for invites, meetings)
-    organizer: Optional[str] = None
-    attendees: Optional[List[Dict[str, Any]]] = None
+    organizer: str | None = None
+    attendees: list[dict[str, Any]] | None = None
 
     # Source tracking (for imported items)
     source: str = "manual"  # "manual", "calendar", "invite", "reminder", "email", etc.
-    source_id: Optional[str] = None  # Original ID from source system
+    source_id: str | None = None  # Original ID from source system
 
     # Extensible metadata for AI ingestion and future features
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
     # Timestamps
     created: str = None
     updated: str = None
-    completed: Optional[str] = None
+    completed: str | None = None
 
 
 @dataclass
 class Milestone:
     """Completed task/achievement."""
+
     id: str
     mission_id: str
     title: str
     description: str
     item_type: str = "task"
     completed: str = None
-    achievements: List[str] = None
+    achievements: list[str] = None
 
 
 class VibeBinderService:
-    """
-    Manage missions, tasks (moves), and completed tasks (milestones)
+    """Manage missions, tasks (moves), and completed tasks (milestones)
     within project binders in vault/@binders/.
     """
 
@@ -109,14 +110,14 @@ class VibeBinderService:
         """Initialize binder service."""
         self.logger = get_logger("vibe-binder-service")
         self.persistence_service = get_persistence_service()
-        self.vault_root = Path(os.getenv("VAULT_ROOT", "./vault"))
+        self.vault_root = get_vault_root()
         self.binder_root = self.vault_root / "@binders"
 
         # Ensure binder directory exists
         self.binder_root.mkdir(parents=True, exist_ok=True)
 
         # Cache: project_id -> {project, tasks, completed}
-        self.binders: Dict[str, Dict[str, Any]] = {}
+        self.binders: dict[str, dict[str, Any]] = {}
         self._load_binders()
 
     def _load_binders(self) -> None:
@@ -159,16 +160,16 @@ class VibeBinderService:
         if data:
             self.logger.debug("Loaded binder state from persistence")
 
-    def _load_json(self, file_path: Path) -> Dict[str, Any]:
+    def _load_json(self, file_path: Path) -> dict[str, Any]:
         """Helper to load JSON file."""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
             self.logger.error(f"Error loading {file_path}: {e}")
             return {}
 
-    def _save_mission_file(self, mission_id: str, filename: str, data: Dict[str, Any]) -> bool:
+    def _save_mission_file(self, mission_id: str, filename: str, data: dict[str, Any]) -> bool:
         """Save mission-specific JSON file."""
         mission_dir = self.binder_root / mission_id
         mission_dir.mkdir(parents=True, exist_ok=True)
@@ -183,7 +184,7 @@ class VibeBinderService:
             self.logger.error(f"Error saving {file_path}: {e}")
             return False
 
-    def list_binders(self) -> Dict[str, Any]:
+    def list_binders(self) -> dict[str, Any]:
         """List all available binders (missions)."""
         binder_list = []
 
@@ -206,7 +207,7 @@ class VibeBinderService:
         mission_id: str,
         name: str,
         template: str | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Initialize a binder project and load it into the in-memory cache."""
         from core.services.mission_templates import ProjectInitializer
 
@@ -241,7 +242,7 @@ class VibeBinderService:
             "paths": init_result.get("paths", {}),
         }
 
-    def get_mission(self, mission_id: str) -> Dict[str, Any]:
+    def get_mission(self, mission_id: str) -> dict[str, Any]:
         """Get mission definition and all related data."""
         if mission_id not in self.binders:
             return {
@@ -259,9 +260,8 @@ class VibeBinderService:
             "completed_milestones_count": len(binder_data.get("milestones", [])),
         }
 
-    def list_moves(self, mission_id: str, status: Optional[str] = None, item_type: Optional[str] = None) -> Dict[str, Any]:
-        """
-        List active moves (tasks) for a mission.
+    def list_moves(self, mission_id: str, status: str | None = None, item_type: str | None = None) -> dict[str, Any]:
+        """List active moves (tasks) for a mission.
 
         Args:
             mission_id: Target mission
@@ -295,9 +295,8 @@ class VibeBinderService:
         start_date: str,
         end_date: str,
         date_field: str = "due_date"
-    ) -> Dict[str, Any]:
-        """
-        List moves within a date range.
+    ) -> dict[str, Any]:
+        """List moves within a date range.
 
         Args:
             mission_id: Target mission
@@ -327,9 +326,8 @@ class VibeBinderService:
             "count": len(filtered),
         }
 
-    def list_moves_by_tag(self, mission_id: str, tag: str) -> Dict[str, Any]:
-        """
-        List moves with a specific tag.
+    def list_moves_by_tag(self, mission_id: str, tag: str) -> dict[str, Any]:
+        """List moves with a specific tag.
 
         Args:
             mission_id: Target mission
@@ -352,9 +350,8 @@ class VibeBinderService:
             "count": len(filtered),
         }
 
-    def list_moves_by_source(self, mission_id: str, source: str) -> Dict[str, Any]:
-        """
-        List moves from a specific source (imported items mapping).
+    def list_moves_by_source(self, mission_id: str, source: str) -> dict[str, Any]:
+        """List moves from a specific source (imported items mapping).
 
         Args:
             mission_id: Target mission
@@ -385,9 +382,8 @@ class VibeBinderService:
         priority: str = "medium",
         item_type: str = "task",
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        Add a new move (task) to a mission.
+    ) -> dict[str, Any]:
+        """Add a new move (task) to a mission.
 
         Supports multiple item types: task, calendar_event, invite, reminder, imported
         Additional fields depend on item_type (see add_calendar_event, add_invite, etc.)
@@ -454,13 +450,12 @@ class VibeBinderService:
         title: str,
         description: str,
         start_date: str,
-        end_date: Optional[str] = None,
-        location: Optional[str] = None,
-        organizer: Optional[str] = None,
+        end_date: str | None = None,
+        location: str | None = None,
+        organizer: str | None = None,
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        Add a calendar event as a task.
+    ) -> dict[str, Any]:
+        """Add a calendar event as a task.
 
         Args:
             mission_id: Target mission
@@ -525,13 +520,12 @@ class VibeBinderService:
         title: str,
         description: str,
         organizer: str,
-        attendees: List[Dict[str, str]],
-        event_date: Optional[str] = None,
-        response_due: Optional[str] = None,
+        attendees: list[dict[str, str]],
+        event_date: str | None = None,
+        response_due: str | None = None,
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        Add a meeting invite as a task.
+    ) -> dict[str, Any]:
+        """Add a meeting invite as a task.
 
         Args:
             mission_id: Target mission
@@ -595,11 +589,10 @@ class VibeBinderService:
         description: str,
         due_date: str,
         alert_type: str = "notification",
-        alert_interval: Optional[str] = None,
+        alert_interval: str | None = None,
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        Add a reminder as a task.
+    ) -> dict[str, Any]:
+        """Add a reminder as a task.
 
         Args:
             mission_id: Target mission
@@ -662,9 +655,8 @@ class VibeBinderService:
         source_id: str,
         item_category: str = "imported",
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        Add a generic imported item (from email, external systems, etc).
+    ) -> dict[str, Any]:
+        """Add a generic imported item (from email, external systems, etc).
 
         Args:
             mission_id: Target mission
@@ -724,9 +716,8 @@ class VibeBinderService:
         mission_id: str,
         move_id: str,
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        Update a move's status or details.
+    ) -> dict[str, Any]:
+        """Update a move's status or details.
 
         Supports updating any field: status, priority, assigned_to, tags, metadata, etc.
         """
@@ -770,7 +761,7 @@ class VibeBinderService:
             "move": move,
         }
 
-    def complete_move(self, mission_id: str, move_id: str) -> Dict[str, Any]:
+    def complete_move(self, mission_id: str, move_id: str) -> dict[str, Any]:
         """Move a task from active moves to milestones."""
         if mission_id not in self.binders:
             return {
@@ -821,7 +812,7 @@ class VibeBinderService:
             "milestone": milestone,
         }
 
-    def list_milestones(self, mission_id: str) -> Dict[str, Any]:
+    def list_milestones(self, mission_id: str) -> dict[str, Any]:
         """List completed tasks (milestones) for a mission."""
         if mission_id not in self.binders:
             return {
@@ -838,9 +829,8 @@ class VibeBinderService:
             "count": len(milestones),
         }
 
-    def get_imported_items_summary(self, mission_id: str) -> Dict[str, Any]:
-        """
-        Get summary of imported items for a mission.
+    def get_imported_items_summary(self, mission_id: str) -> dict[str, Any]:
+        """Get summary of imported items for a mission.
         Useful for understanding what external items have been mapped to tasks.
         """
         if mission_id not in self.binders:
@@ -877,9 +867,8 @@ class VibeBinderService:
             },
         }
 
-    def get_task_summary_for_ai(self, mission_id: str) -> Dict[str, Any]:
-        """
-        Get comprehensive task summary suitable for AI ingestion.
+    def get_task_summary_for_ai(self, mission_id: str) -> dict[str, Any]:
+        """Get comprehensive task summary suitable for AI ingestion.
         Includes full task details, metadata, and relationships.
         """
         if mission_id not in self.binders:
@@ -930,7 +919,7 @@ class VibeBinderService:
             "milestones": milestones,
         }
 
-    def _calculate_avg_priority(self, moves: List[Dict[str, Any]]) -> str:
+    def _calculate_avg_priority(self, moves: list[dict[str, Any]]) -> str:
         """Helper to calculate average priority across moves."""
         if not moves:
             return "medium"

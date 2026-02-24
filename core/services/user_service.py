@@ -31,7 +31,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import json
-import os
 from pathlib import Path
 
 from core.services.permission_handler import Permission
@@ -78,6 +77,8 @@ class UserManager:
             Permission.REPAIR,
             Permission.CONFIG,
             Permission.DESTROY,
+            Permission.BINDER_COMPILE,
+            Permission.RUN_EXECUTE,
             Permission.READ,
             Permission.WRITE,
             Permission.DELETE,
@@ -94,6 +95,8 @@ class UserManager:
             Permission.TOYBOX_ADMIN,
         ],
         UserRole.USER: [
+            Permission.BINDER_COMPILE,
+            Permission.RUN_EXECUTE,
             Permission.READ,
             Permission.WRITE,
             Permission.DELETE,
@@ -182,12 +185,17 @@ class UserManager:
         from datetime import datetime
 
         if not self.users:
-            default_user = os.getenv("UDOS_DEFAULT_USER", "").lower()
+            from core.services.unified_config_loader import (
+                get_bool_config,
+                get_config,
+                get_process_env,
+            )
+
+            default_user = get_config("UDOS_DEFAULT_USER", "").lower()
             if not default_user:
                 # Prefer admin in test runs; ghost otherwise
-                if (
-                    os.getenv("PYTEST_CURRENT_TEST")
-                    or os.getenv("UDOS_TEST_MODE") == "1"
+                if get_process_env("PYTEST_CURRENT_TEST") or get_bool_config(
+                    "UDOS_TEST_MODE"
                 ):
                     default_user = "admin"
                 else:

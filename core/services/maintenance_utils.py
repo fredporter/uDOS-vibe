@@ -1,22 +1,20 @@
-"""
-Maintenance utilities for Core TUI.
+"""Maintenance utilities for Core TUI.
 
 Implements BACKUP/RESTORE/TIDY/CLEAN/COMPOST helpers with uDOS conventions.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
+from datetime import datetime
 import fnmatch
 import json
-import os
+from pathlib import Path
 import shutil
 import tarfile
-from datetime import datetime
-from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple
 
 from core.services.logging_api import get_repo_root
-
+from core.services.unified_config_loader import get_config
 
 DEFAULT_EXCLUDES = [
     ".git/*",
@@ -122,10 +120,10 @@ def _path_size_bytes(path: Path) -> int:
     return 0
 
 
-def _dedupe_move_candidates(candidates: List[Path]) -> List[Path]:
+def _dedupe_move_candidates(candidates: list[Path]) -> list[Path]:
     """Remove nested children when a parent is already scheduled for move."""
     ordered = sorted({p.resolve() for p in candidates}, key=lambda p: len(p.parts))
-    chosen: List[Path] = []
+    chosen: list[Path] = []
     for candidate in ordered:
         if any(parent in candidate.parents for parent in chosen):
             continue
@@ -143,8 +141,8 @@ def _compost_type_root(compost_type: str) -> Path:
     return root
 
 
-def _iter_compost_type_roots(compost_root: Path, compost_type: str) -> List[Path]:
-    roots: List[Path] = []
+def _iter_compost_type_roots(compost_root: Path, compost_type: str) -> list[Path]:
+    roots: list[Path] = []
 
     direct = compost_root / compost_type
     if direct.exists() and direct.is_dir():
@@ -163,7 +161,7 @@ def _iter_compost_type_roots(compost_root: Path, compost_type: str) -> List[Path
 def _prune_compost_by_priority(
     compost_root: Path,
     bytes_needed: int,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Prune compost until at least bytes_needed reclaimed, ordered by priority."""
     if bytes_needed <= 0:
         return 0, 0
@@ -176,7 +174,7 @@ def _prune_compost_by_priority(
         tier_roots = _iter_compost_type_roots(compost_root, tier_name)
         if not tier_roots:
             continue
-        tier_entries: List[Path] = []
+        tier_entries: list[Path] = []
         for tier in tier_roots:
             tier_entries.extend(tier.rglob("*"))
 
@@ -254,9 +252,9 @@ def _ensure_compost_capacity(incoming_bytes: int = 0) -> None:
     compost_root = get_compost_root()
     repo_root = get_repo_root()
 
-    reserve_mb_raw = os.getenv("UDOS_COMPOST_RESERVE_MB", "512").strip()
-    max_mb_raw = os.getenv("UDOS_COMPOST_MAX_MB", "").strip()
-    max_bytes_raw = os.getenv("UDOS_COMPOST_MAX_BYTES", "").strip()
+    reserve_mb_raw = str(get_config("UDOS_COMPOST_RESERVE_MB", "512")).strip()
+    max_mb_raw = str(get_config("UDOS_COMPOST_MAX_MB", "")).strip()
+    max_bytes_raw = str(get_config("UDOS_COMPOST_MAX_BYTES", "")).strip()
 
     try:
         reserve_bytes = max(0, int(float(reserve_mb_raw) * 1024 * 1024))
@@ -299,10 +297,10 @@ def _backup_root_for(target_root: Path) -> Path:
     return backup_root
 
 
-def list_backups(target_root: Path) -> List[Path]:
+def list_backups(target_root: Path) -> list[Path]:
     compost_root = get_compost_root()
     scope = _scope_key(target_root)
-    archives: List[Path] = []
+    archives: list[Path] = []
     for root in _iter_compost_type_roots(compost_root, "backups"):
         backup_root = root / scope
         if not backup_root.exists():
@@ -314,9 +312,9 @@ def list_backups(target_root: Path) -> List[Path]:
 def create_backup(
     target_root: Path,
     label: str,
-    excludes: Optional[List[str]] = None,
-    on_progress: Optional[Callable[[int, int, str], None]] = None,
-) -> Tuple[Path, Path]:
+    excludes: list[str] | None = None,
+    on_progress: Callable[[int, int, str], None] | None = None,
+) -> tuple[Path, Path]:
     """Create a tar.gz backup in /.compost/<date>/backups and return (archive, manifest)."""
     excludes = excludes or []
     backup_root = _backup_root_for(target_root)
@@ -332,7 +330,7 @@ def create_backup(
             return False
         return True
 
-    files_to_add: List[Path] = []
+    files_to_add: list[Path] = []
     for root, dirs, files in os.walk(target_root):
         root_path = Path(root)
         dirs[:] = [d for d in dirs if _include(root_path / d)]
@@ -370,7 +368,7 @@ def restore_backup(
     archive_path: Path,
     target_root: Path,
     force: bool = False,
-    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_progress: Callable[[int, int, str], None] | None = None,
 ) -> str:
     if not archive_path.exists():
         raise FileNotFoundError(f"Backup not found: {archive_path}")
@@ -396,10 +394,10 @@ def tidy(
     scope_root: Path,
     recursive: bool = True,
     archive_name: str = ".compost",
-) -> Tuple[int, Path]:
+) -> tuple[int, Path]:
     """Move junk patterns into /.compost/<date>/trash."""
     archive_root = _compost_type_root("trash") / _now_stamp() / _scope_key(scope_root)
-    candidates: List[Path] = []
+    candidates: list[Path] = []
     for root, dirs, files in os.walk(scope_root):
         root_path = Path(root)
         if ".compost" in root_path.parts:
@@ -426,15 +424,14 @@ def tidy(
 
 def clean(
     scope_root: Path,
-    allowed_entries: Optional[List[str]] = None,
+    allowed_entries: list[str] | None = None,
     recursive: bool = False,
     archive_name: str = ".compost",
-) -> Tuple[int, Path]:
-    """
-    Reset scope_root by moving non-allowed entries to /.compost/<date>/trash.
+) -> tuple[int, Path]:
+    """Reset scope_root by moving non-allowed entries to /.compost/<date>/trash.
     """
     archive_root = _compost_type_root("trash") / _now_stamp() / _scope_key(scope_root)
-    candidates: List[Path] = []
+    candidates: list[Path] = []
     allowed = set(allowed_entries or [])
     allowed.update({archive_name, ".compost"})
 
@@ -476,7 +473,7 @@ def clean(
     return moved, archive_root
 
 
-def compost(scope_root: Path, recursive: bool = True) -> Tuple[int, Path]:
+def compost(scope_root: Path, recursive: bool = True) -> tuple[int, Path]:
     """Move local runtime archive dirs into /.compost/<date>/archive."""
     compost_root = _compost_type_root("archive") / _now_stamp() / _scope_key(scope_root)
     _ensure_dir(compost_root)
@@ -576,7 +573,7 @@ def compost_cleanup(days: int = 30, dry_run: bool = True) -> dict:
     }
 
 
-def default_repo_allowlist() -> List[str]:
+def default_repo_allowlist() -> list[str]:
     return [
         "core",
         "wizard",
@@ -606,7 +603,7 @@ def default_repo_allowlist() -> List[str]:
     ]
 
 
-def default_memory_allowlist() -> List[str]:
+def default_memory_allowlist() -> list[str]:
     return [
         "logs",
         "system",

@@ -1,5 +1,4 @@
-"""
-Environment Auto-Detection Service
+"""Environment Auto-Detection Service
 
 Auto-detects and writes system information to .env on startup:
 - OS_TYPE (mac/alpine/ubuntu/windows)
@@ -11,18 +10,16 @@ Author: uDOS Engineering
 Version: v1.0.0
 Date: 2026-02-09
 """
+from __future__ import annotations
 
-import os
-import platform
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
-from datetime import datetime, timezone
 
-from core.services.logging_api import get_logger, get_repo_root
 from core.services.config_sync_service import ConfigSyncManager
+from core.services.logging_api import get_logger, get_repo_root
 from core.services.os_detector import get_os_detector
+from core.services.unified_config_loader import get_config
 from core.services.viewport_service import ViewportService
-
 
 logger = get_logger("core", category="env-autodetect")
 
@@ -36,9 +33,8 @@ class EnvAutoDetectService:
         self.env_file = self.repo_root / ".env"
         self.sync = ConfigSyncManager()
 
-    def detect_all(self, force: bool = False) -> Dict[str, any]:
-        """
-        Detect all system information and update .env.
+    def detect_all(self, force: bool = False) -> dict[str, any]:
+        """Detect all system information and update .env.
 
         Args:
             force: If True, always update. If False, only update missing values.
@@ -64,8 +60,10 @@ class EnvAutoDetectService:
 
         # Detect OS Type
         try:
+            from core.services.unified_config_loader import get_config
+
             os_type = self._detect_os_type()
-            current_os = os.getenv("OS_TYPE")
+            current_os = get_config("OS_TYPE", "")
 
             if force or not current_os:
                 updates["OS_TYPE"] = os_type
@@ -80,8 +78,10 @@ class EnvAutoDetectService:
 
         # Detect Timezone
         try:
+            from core.services.unified_config_loader import get_config
+
             tz = self._detect_timezone()
-            current_tz = os.getenv("UDOS_TIMEZONE")
+            current_tz = get_config("UDOS_TIMEZONE", "")
 
             if force or not current_tz:
                 updates["UDOS_TIMEZONE"] = tz
@@ -116,8 +116,10 @@ class EnvAutoDetectService:
                             logger.info(f"[AUTO-DETECT] Matched location: {city_name} → {grid_id}")
 
                             # Store in .env
-                            current_location = os.getenv("UDOS_LOCATION")
-                            current_grid = os.getenv("UDOS_GRID_ID")
+                            from core.services.unified_config_loader import get_config
+
+                            current_location = get_config("UDOS_LOCATION", "")
+                            current_grid = get_config("UDOS_GRID_ID", "")
 
                             if force or not current_location:
                                 updates["UDOS_LOCATION"] = city_name
@@ -154,7 +156,7 @@ class EnvAutoDetectService:
         # Detect UDOS_ROOT
         try:
             root = str(self.repo_root)
-            current_root = os.getenv("UDOS_ROOT")
+            current_root = get_config("UDOS_ROOT", "")
 
             if force or not current_root:
                 updates["UDOS_ROOT"] = root
@@ -194,8 +196,7 @@ class EnvAutoDetectService:
         return results
 
     def _detect_os_type(self) -> str:
-        """
-        Detect OS type using OSDetector.
+        """Detect OS type using OSDetector.
 
         Returns:
             "mac", "alpine", "ubuntu", "windows", or "linux"
@@ -215,8 +216,7 @@ class EnvAutoDetectService:
         return os_map.get(platform_name, "linux")
 
     def _detect_timezone(self) -> str:
-        """
-        Detect system timezone.
+        """Detect system timezone.
 
         Returns:
             IANA timezone string (e.g., "America/New_York")
@@ -248,7 +248,7 @@ class EnvAutoDetectService:
             pass
 
         # Method 3: Check TZ environment variable
-        tz_env = os.getenv("TZ", "").strip()
+        tz_env = str(get_config("TZ", "")).strip()
         if tz_env and ('/' in tz_env or tz_env == 'UTC'):
             return tz_env
 
@@ -268,9 +268,8 @@ class EnvAutoDetectService:
         logger.warning("[AUTO-DETECT] Could not detect timezone, defaulting to UTC")
         return "UTC"
 
-    def parse_city_from_timezone(self, timezone_str: str) -> Optional[str]:
-        """
-        Extract city name from IANA timezone string.
+    def parse_city_from_timezone(self, timezone_str: str) -> str | None:
+        """Extract city name from IANA timezone string.
 
         Args:
             timezone_str: IANA timezone (e.g., "Australia/Brisbane", "America/New_York")

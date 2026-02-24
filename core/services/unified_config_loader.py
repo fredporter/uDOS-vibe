@@ -384,7 +384,7 @@ class UnifiedConfigLoader:
             return Path(repo_root).resolve()
 
         # Environment variable
-        env_root = os.getenv("UDOS_ROOT")
+        env_root = os.environ.get("UDOS_ROOT")
         if env_root:
             return Path(env_root).resolve()
 
@@ -436,6 +436,19 @@ def get_config(key: str, default: Any = None) -> Any:
         Configuration value
     """
     return get_config_loader().get(key, default)
+
+
+def get_process_env(key: str, default: str | None = None) -> str | None:
+    """Return a raw process environment value.
+
+    Args:
+        key: Environment key
+        default: Default value when unset
+
+    Returns:
+        Process environment value or default
+    """
+    return os.environ.get(key, default)
 
 
 def get_bool_config(key: str, default: bool = False) -> bool:

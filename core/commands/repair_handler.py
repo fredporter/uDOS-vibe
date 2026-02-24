@@ -58,7 +58,7 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
         if is_ghost_mode():
             logger = logging.getLogger(__name__)
             logger.warning(
-                "[TESTING ALERT] Ghost Mode active: REPAIR executing in demo mode. "
+                "[TESTING ALERT] Ghost Mode active: REPAIR executing in demo mode (v1.5). "
                 "Enforcement will be added before v1.5 release."
             )
 
