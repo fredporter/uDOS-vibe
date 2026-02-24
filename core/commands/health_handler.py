@@ -323,7 +323,11 @@ class HealthHandler(BaseCommandHandler):
             total = 0
             free = 0
 
-        reserve_mb = self._safe_float(os.getenv("UDOS_COMPOST_RESERVE_MB"), default=512.0)
+        from core.services.unified_config_loader import get_config
+
+        reserve_mb = self._safe_float(
+            get_config("UDOS_COMPOST_RESERVE_MB", ""), default=512.0
+        )
         reserve_bytes = int(max(0.0, reserve_mb) * 1024 * 1024)
 
         compost_root = get_compost_root()

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import List, Dict, Optional
 from pathlib import Path
 import json
-import os
 
 from core.commands.base import BaseCommandHandler
 from core.services.logging_api import get_logger, get_repo_root
@@ -22,11 +21,9 @@ class ScriptHandler(BaseCommandHandler):
     def __init__(self):
         super().__init__()
         self.repo_root = get_repo_root()
-        env_memory = os.environ.get("UDOS_MEMORY_ROOT")
-        if env_memory:
-            self.memory_root = Path(env_memory)
-        else:
-            self.memory_root = self.repo_root / "memory"
+        from core.services.paths import get_memory_root
+
+        self.memory_root = get_memory_root()
         self.script_dirs = [
             self.memory_root / "bank" / "system",
             self.memory_root / "system",

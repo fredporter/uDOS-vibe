@@ -6,7 +6,8 @@ from enum import StrEnum
 import os
 
 from core.services.dev_state import get_dev_active
-from core.services.user_service import Permission, get_user_manager, is_ghost_mode
+from core.services.permission_handler import Permission
+from core.services.user_service import get_user_manager, is_ghost_mode
 from core.services.wizard_mode_state import get_wizard_mode_active
 
 

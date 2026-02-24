@@ -7,15 +7,16 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
-import os
 import uuid
+
+from core.services.unified_config_loader import get_config
 
 
 def detect_udos_root(reference_file: Optional[Path] = None, logger=None) -> Path:
     """
     Auto-detect uDOS repository root for UDOS_ROOT .env variable.
     """
-    env_root = os.getenv("UDOS_ROOT")
+    env_root = get_config("UDOS_ROOT", "")
     if env_root:
         env_path = Path(env_root).expanduser()
         marker = env_path / "uDOS.py"

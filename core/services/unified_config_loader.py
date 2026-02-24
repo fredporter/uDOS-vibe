@@ -1,5 +1,4 @@
-"""
-Unified Configuration Loader
+"""Unified Configuration Loader
 
 Central source of truth for all uDOS configuration.
 Replaces scattered os.getenv() calls and ad-hoc config loading.
@@ -38,12 +37,13 @@ loader.watch_config_changes(callback=my_callback)
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 import json
 import logging
 import os
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -110,11 +110,12 @@ class UnifiedConfigLoader:
         """Get configuration value by key.
 
         Searches in priority order:
-          1. .env
-          2. TOML
-          3. JSON configs
-          4. Defaults
-          5. Provided default
+          1. Process env
+          2. .env
+          3. TOML
+          4. JSON configs
+          5. Defaults
+          6. Provided default
 
         Args:
             key: Configuration key
@@ -123,7 +124,10 @@ class UnifiedConfigLoader:
         Returns:
             Configuration value or default
         """
-        # Check cached all values first
+        if env_value := os.environ.get(key):
+            return env_value
+
+        # Check cached all values
         if key in self._all_values:
             return self._all_values[key].value
 
@@ -235,6 +239,8 @@ class UnifiedConfigLoader:
         Returns:
             "env", "toml", "json", or "default"
         """
+        if key in os.environ:
+            return "env"
         if key in self._all_values:
             return self._all_values[key].source
         return "default"
@@ -251,6 +257,7 @@ class UnifiedConfigLoader:
             List of matching keys
         """
         import fnmatch
+
         all_keys = self.list_all_keys()
         return fnmatch.filter(all_keys, pattern)
 
@@ -290,14 +297,13 @@ class UnifiedConfigLoader:
 
         try:
             from dotenv import dotenv_values
+
             env_values = dotenv_values(env_file)
             for key, value in env_values.items():
                 if value:
                     self._env_cache[key] = value
                     self._all_values[key] = ConfigValue(
-                        key=key,
-                        value=value,
-                        source="env",
+                        key=key, value=value, source="env"
                     )
             self.logger.debug(f"[CONFIG] Loaded {len(env_values)} values from .env")
         except Exception as exc:
@@ -312,6 +318,7 @@ class UnifiedConfigLoader:
 
         try:
             import tomllib
+
             with open(toml_file, "rb") as f:
                 toml_data = tomllib.load(f)
 
@@ -337,7 +344,10 @@ class UnifiedConfigLoader:
         json_files = [
             ("wizard", self._repo_root / "wizard" / "config" / "wizard.json"),
             ("ok_modes", self._repo_root / "core" / "config" / "ok_modes.json"),
-            ("provider_flags", self._repo_root / "wizard" / "config" / "provider_setup_flags.json"),
+            (
+                "provider_flags",
+                self._repo_root / "wizard" / "config" / "provider_setup_flags.json",
+            ),
         ]
 
         for config_name, config_path in json_files:
@@ -345,7 +355,7 @@ class UnifiedConfigLoader:
                 continue
 
             try:
-                with open(config_path, "r") as f:
+                with open(config_path) as f:
                     data = json.load(f)
 
                 self._json_caches[config_name] = data
@@ -381,6 +391,7 @@ class UnifiedConfigLoader:
         # Parent of core/ directory
         try:
             import core
+
             core_path = Path(core.__file__).parent
             repo = core_path.parent
             if (repo / "core").exists():
@@ -412,6 +423,7 @@ def get_config_loader(repo_root: Path | str | None = None) -> UnifiedConfigLoade
 
 
 # Convenience functions
+
 
 def get_config(key: str, default: Any = None) -> Any:
     """Convenience wrapper to get config value.

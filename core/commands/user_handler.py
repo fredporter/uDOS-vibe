@@ -1,5 +1,4 @@
-"""
-USER Handler - User profile and permission management
+"""USER Handler - User profile and permission management
 
 Commands:
     USER                        # Show current user
@@ -32,33 +31,33 @@ Version: v1.0.0
 Date: 2026-01-28
 """
 
+from __future__ import annotations
+
 from .base import BaseCommandHandler
-from datetime import datetime
 
 
 class UserHandler(BaseCommandHandler):
     """User profile and permission management."""
-    
+
     def handle(self, command, params, grid, parser):
         """Handle USER command.
-        
+
         Args:
             command: Command name (USER)
             params: Parameter list [subcommand, ...]
             grid: Grid object
             parser: Parser object
-        
+
         Returns:
             Output dict
         """
-        from core.services.user_service import get_user_manager
         # No params: show current user
         if not params:
             return self._show_current_user()
-        
+
         subcommand = params[0].lower()
         subparams = params[1:] if len(params) > 1 else []
-        
+
         # Route to subcommand
         if subcommand == "list":
             return self._list_users()
@@ -78,32 +77,28 @@ class UserHandler(BaseCommandHandler):
             return self._show_help()
         else:
             return {
-                'output': f'Unknown subcommand: {subcommand}\nType: USER help',
-                'status': 'error'
+                "output": f"Unknown subcommand: {subcommand}\nType: USER help",
+                "status": "error",
             }
-    
+
     def _show_current_user(self):
         """Show current user info.
-        
+
         Returns:
             Output dict
         """
         from core.services.user_service import get_user_manager
-        from core.tui.output import OutputToolkit
-        
+
         user_mgr = get_user_manager()
         user = user_mgr.current()
-        
+
         if not user:
-            return {
-                'output': '❌ No current user',
-                'status': 'error'
-            }
-        
+            return {"output": "❌ No current user", "status": "error"}
+
         # Get permissions
         perms = user_mgr.ROLE_PERMISSIONS.get(user.role, [])
         perm_names = [p.value for p in perms]
-        
+
         output_text = f"""
 ╔════════════════════════════════════════╗
 ║      CURRENT USER                      ║
@@ -112,16 +107,16 @@ class UserHandler(BaseCommandHandler):
 User:       {user.username}
 Role:       {user.role.value}
 Created:    {user.created}
-Last Login: {user.last_login or 'Never'}
+Last Login: {user.last_login or "Never"}
 
 Permissions ({len(perm_names)}):
 """
         for perm in perm_names[:8]:  # Show first 8
             output_text += f"  • {perm}\n"
-        
+
         if len(perm_names) > 8:
             output_text += f"  ... and {len(perm_names) - 8} more\n"
-        
+
         output_text += """
 Commands:
   USER list              - List all users
@@ -129,24 +124,20 @@ Commands:
   USER perms             - Show all permissions
   USER help              - Show detailed help
 """
-        return {
-            'output': output_text.strip(),
-            'status': 'info',
-            'user': user.username
-        }
-    
+        return {"output": output_text.strip(), "status": "info", "user": user.username}
+
     def _list_users(self):
         """List all users.
-        
+
         Returns:
             Output dict
         """
         from core.services.user_service import get_user_manager
-        
+
         user_mgr = get_user_manager()
         users = user_mgr.list_users()
         current = user_mgr.current()
-        
+
         output_text = """
 ╔════════════════════════════════════════╗
 ║      USER LIST                         ║
@@ -156,7 +147,7 @@ Commands:
         for user_data in users:
             marker = "→ " if user_data["username"] == current.username else "  "
             output_text += f"{marker}{user_data['username']:15} {user_data['role']:8} ({user_data['created'][:10]})\n"
-        
+
         output_text += f"""
 Total: {len(users)} users
 
@@ -168,209 +159,180 @@ Commands:
   USER perms [name]          - Show permissions
 """
         return {
-            'output': output_text.strip(),
-            'status': 'info',
-            'user_count': len(users)
+            "output": output_text.strip(),
+            "status": "info",
+            "user_count": len(users),
         }
-    
+
     def _create_user(self, params):
         """Create new user.
-        
+
         Args:
             params: [username, role]
-        
+
         Returns:
             Output dict
         """
         if len(params) < 1:
             return {
-                'output': 'Syntax: USER create [name] [role]\nRole defaults to "user"',
-                'status': 'error'
+                "output": 'Syntax: USER create [name] [role]\nRole defaults to "user"',
+                "status": "error",
             }
-        
+
         username = params[0]
         role_str = params[1].lower() if len(params) > 1 else "user"
-        
+
         # Validate role
         try:
             role = UserRole(role_str)
         except ValueError:
             return {
-                'output': f'Invalid role: {role_str}\nValid roles: admin, user, guest',
-                'status': 'error'
+                "output": f"Invalid role: {role_str}\nValid roles: admin, user, guest",
+                "status": "error",
             }
-        
+
         # Check permissions
+        from core.services.permission_handler import Permission, get_permission_handler
+
         user_mgr = get_user_manager()
-        if not user_mgr.has_permission(Permission.ADMIN):
+        if not get_permission_handler().require(Permission.ADMIN, action="user_create"):
             return {
-                'output': '❌ Only admin users can create other users',
-                'status': 'error'
+                "output": "❌ Only admin users can create other users",
+                "status": "error",
             }
-        
+
         success, msg = user_mgr.create_user(username, role)
-        
+
         if success:
             unified.log_core(
-                category='users',
-                message=f'User {username} created with role {role.value}',
-                metadata={'username': username, 'role': role.value}
+                category="users",
+                message=f"User {username} created with role {role.value}",
+                metadata={"username": username, "role": role.value},
             )
-            return {
-                'output': f'✅ {msg}',
-                'status': 'success',
-                'user': username
-            }
+            return {"output": f"✅ {msg}", "status": "success", "user": username}
         else:
-            return {
-                'output': f'❌ {msg}',
-                'status': 'error'
-            }
-    
+            return {"output": f"❌ {msg}", "status": "error"}
+
     def _delete_user(self, params):
         """Delete user.
-        
+
         Args:
             params: [username]
-        
+
         Returns:
             Output dict
         """
         if not params:
-            return {
-                'output': 'Syntax: USER delete [name]',
-                'status': 'error'
-            }
-        
+            return {"output": "Syntax: USER delete [name]", "status": "error"}
+
         username = params[0]
-        
+
         # Check permissions
+        from core.services.permission_handler import Permission, get_permission_handler
+
         user_mgr = get_user_manager()
-        if not user_mgr.has_permission(Permission.ADMIN):
+        if not get_permission_handler().require(Permission.ADMIN, action="user_delete"):
             return {
-                'output': '❌ Only admin users can delete other users',
-                'status': 'error'
+                "output": "❌ Only admin users can delete other users",
+                "status": "error",
             }
-        
+
         success, msg = user_mgr.delete_user(username)
-        
+
         if success:
             unified.log_core(
-                category='users',
-                message=f'User {username} deleted',
-                metadata={'username': username}
+                category="users",
+                message=f"User {username} deleted",
+                metadata={"username": username},
             )
-            return {
-                'output': f'✅ {msg}',
-                'status': 'success'
-            }
+            return {"output": f"✅ {msg}", "status": "success"}
         else:
-            return {
-                'output': f'❌ {msg}',
-                'status': 'error'
-            }
-    
+            return {"output": f"❌ {msg}", "status": "error"}
+
     def _switch_user(self, params):
         """Switch to user.
-        
+
         Args:
             params: [username]
-        
+
         Returns:
             Output dict
         """
         if not params:
-            return {
-                'output': 'Syntax: USER switch [name]',
-                'status': 'error'
-            }
-        
+            return {"output": "Syntax: USER switch [name]", "status": "error"}
+
         username = params[0]
         user_mgr = get_user_manager()
-        
+
         success, msg = user_mgr.switch_user(username)
-        
+
         if success:
             unified.log_core(
-                category='users',
-                message=f'Switched to user {username}',
-                metadata={'username': username}
+                category="users",
+                message=f"Switched to user {username}",
+                metadata={"username": username},
             )
-            return {
-                'output': f'✅ {msg}',
-                'status': 'success',
-                'user': username
-            }
+            return {"output": f"✅ {msg}", "status": "success", "user": username}
         else:
-            return {
-                'output': f'❌ {msg}',
-                'status': 'error'
-            }
-    
+            return {"output": f"❌ {msg}", "status": "error"}
+
     def _set_role(self, params):
         """Set user role.
-        
+
         Args:
             params: [username, role]
-        
+
         Returns:
             Output dict
         """
         if len(params) < 2:
             return {
-                'output': 'Syntax: USER role [name] [role]\nRoles: admin, user, guest',
-                'status': 'error'
+                "output": "Syntax: USER role [name] [role]\nRoles: admin, user, guest",
+                "status": "error",
             }
-        
+
         username = params[0]
         role_str = params[1].lower()
-        
+
         # Validate role
         try:
             role = UserRole(role_str)
         except ValueError:
             return {
-                'output': f'Invalid role: {role_str}\nValid roles: admin, user, guest',
-                'status': 'error'
+                "output": f"Invalid role: {role_str}\nValid roles: admin, user, guest",
+                "status": "error",
             }
-        
+
         # Check permissions
+        from core.services.permission_handler import Permission, get_permission_handler
+
         user_mgr = get_user_manager()
-        if not user_mgr.has_permission(Permission.ADMIN):
-            return {
-                'output': '❌ Only admin users can change roles',
-                'status': 'error'
-            }
-        
+        if not get_permission_handler().require(Permission.ADMIN, action="user_role"):
+            return {"output": "❌ Only admin users can change roles", "status": "error"}
+
         success, msg = user_mgr.set_role(username, role)
-        
+
         if success:
             unified.log_core(
-                category='users',
-                message=f'User {username} role set to {role.value}',
-                metadata={'username': username, 'role': role.value}
+                category="users",
+                message=f"User {username} role set to {role.value}",
+                metadata={"username": username, "role": role.value},
             )
-            return {
-                'output': f'✅ {msg}',
-                'status': 'success'
-            }
+            return {"output": f"✅ {msg}", "status": "success"}
         else:
-            return {
-                'output': f'❌ {msg}',
-                'status': 'error'
-            }
-    
+            return {"output": f"❌ {msg}", "status": "error"}
+
     def _show_perms(self, params):
         """Show user permissions.
-        
+
         Args:
             params: [username] or empty for current user
-        
+
         Returns:
             Output dict
         """
         user_mgr = get_user_manager()
-        
+
         if params:
             username = params[0]
             perms = user_mgr.get_user_perms(username)
@@ -380,7 +342,7 @@ Commands:
             username = user.username
             perms = user_mgr.get_user_perms(username)
             title = f"Permissions for {username} (current)"
-        
+
         output_text = f"""
 ╔════════════════════════════════════════╗
 ║      {title:38} ║
@@ -391,31 +353,43 @@ Commands:
             output_text += "No permissions\n"
         else:
             # Group permissions
-            system_perms = [p for p in perms if any(x in p for x in ['admin', 'repair', 'config', 'destroy'])]
-            data_perms = [p for p in perms if any(x in p for x in ['read', 'write', 'delete'])]
-            dev_perms = [p for p in perms if any(x in p for x in ['dev_mode', 'hot_reload', 'debug'])]
-            network_perms = [p for p in perms if any(x in p for x in ['wizard', 'plugin', 'web'])]
-            
+            system_perms = [
+                p
+                for p in perms
+                if any(x in p for x in ["admin", "repair", "config", "destroy"])
+            ]
+            data_perms = [
+                p for p in perms if any(x in p for x in ["read", "write", "delete"])
+            ]
+            dev_perms = [
+                p
+                for p in perms
+                if any(x in p for x in ["dev_mode", "hot_reload", "debug"])
+            ]
+            network_perms = [
+                p for p in perms if any(x in p for x in ["wizard", "plugin", "web"])
+            ]
+
             if system_perms:
                 output_text += "System:\n"
                 for p in system_perms:
                     output_text += f"  • {p}\n"
-            
+
             if data_perms:
                 output_text += "Data:\n"
                 for p in data_perms:
                     output_text += f"  • {p}\n"
-            
+
             if dev_perms:
                 output_text += "Development:\n"
                 for p in dev_perms:
                     output_text += f"  • {p}\n"
-            
+
             if network_perms:
                 output_text += "Network:\n"
                 for p in network_perms:
                     output_text += f"  • {p}\n"
-        
+
         output_text += f"""
 Total: {len(perms)} permissions
 
@@ -424,14 +398,11 @@ Commands:
   USER list                  - List all users
   USER help                  - Show help
 """
-        return {
-            'output': output_text.strip(),
-            'status': 'info'
-        }
-    
+        return {"output": output_text.strip(), "status": "info"}
+
     def _show_help(self):
         """Show help.
-        
+
         Returns:
             Output dict
         """
@@ -548,7 +519,4 @@ SECURITY:
   • Switch requires user to exist
   • Roles enforce permissions automatically
 """
-        return {
-            'output': help_text.strip(),
-            'status': 'info'
-        }
+        return {"output": help_text.strip(), "status": "info"}

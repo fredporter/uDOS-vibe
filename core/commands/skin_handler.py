@@ -71,11 +71,10 @@ class SkinHandler(BaseCommandHandler, HandlerLoggingMixin):
             return result
 
     def _active_skin(self) -> str:
-        value = os.environ.get(self.ENV_SKIN)
-        if value:
-            return value
-        env = self.sync.load_env_dict()
-        return env.get(self.ENV_SKIN, "default")
+        from core.services.unified_config_loader import get_config
+
+        value = get_config(self.ENV_SKIN, "").strip()
+        return value or "default"
 
     def _skin_dirs(self) -> List[Path]:
         if not self.skin_root.exists():

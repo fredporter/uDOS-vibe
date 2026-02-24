@@ -1,35 +1,35 @@
-"""
-Renderer Routes
+"""Renderer Routes
 ===============
 
 Expose metadata about theme packs, static exports, missions, and contributions so the portal
 and SvelteKit admin lanes consume the same contracts described in `docs/Theme-Pack-Contract.md`
 and `docs/Mission-Job-Schema.md`.
 """
+from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
+from typing import Any
 import uuid
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from wizard.services.contribution_service import ContributionService
-from wizard.services.path_utils import get_repo_root, get_vault_dir
-from wizard.services.permission_guard import require_role
-from wizard.services.spatial_parser import scan_vault_places
-from wizard.services.spatial_store import get_spatial_db_path, fetch_spatial_rows
+from core.services.permission_handler import get_permission_handler
 from core.tools.contract_validator import (
     validate_theme_pack,
     validate_vault_contract,
     validate_world_contract,
 )
+from wizard.services.contribution_service import ContributionService
+from wizard.services.path_utils import get_repo_root, get_vault_dir
+from wizard.services.spatial_parser import scan_vault_places
+from wizard.services.spatial_store import fetch_spatial_rows, get_spatial_db_path
 
 
 def _themes_root() -> Path:
@@ -55,19 +55,35 @@ def _contributions_root() -> Path:
     return _vault_root() / "contributions"
 
 
+ROLE_HEADER = "X-UDOS-Role"
+
+
+def _require_role(*allowed: str):
+    async def guard(request: Request) -> None:
+        role = request.headers.get(ROLE_HEADER)
+        if get_permission_handler().require_role(role, *allowed):
+            return
+        raise HTTPException(
+            status_code=403,
+            detail=f"Role '{role or 'unknown'}' is not permitted; requires one of {sorted(set(allowed))}",
+        )
+
+    return guard
+
+
 CONTRIBUTION_SERVICE = ContributionService(_vault_root())
-CONTRIB_SUBMIT_GUARD = require_role("contributor", "editor", "maintainer")
-CONTRIB_APPROVE_GUARD = require_role("maintainer")
+CONTRIB_SUBMIT_GUARD = _require_role("contributor", "editor", "maintainer")
+CONTRIB_APPROVE_GUARD = _require_role("maintainer")
 
 
-def _load_json(path: Path) -> Optional[Dict[str, Any]]:
+def _load_json(path: Path) -> dict[str, Any] | None:
     try:
         return json.loads(path.read_text())
     except (json.JSONDecodeError, OSError):
         return None
 
 
-def _datetime_from_stat(path: Path) -> Optional[str]:
+def _datetime_from_stat(path: Path) -> str | None:
     try:
         mtime = path.stat().st_mtime
         return datetime.utcfromtimestamp(mtime).isoformat() + "Z"
@@ -75,13 +91,13 @@ def _datetime_from_stat(path: Path) -> Optional[str]:
         return None
 
 
-def _site_stats(theme_name: str) -> Dict[str, Any]:
+def _site_stats(theme_name: str) -> dict[str, Any]:
     site_dir = _site_root() / theme_name
     if not site_dir.exists():
         return {"files": 0, "totalSize": 0, "lastModified": None}
     file_count = 0
     total_size = 0
-    last_modified: Optional[float] = None
+    last_modified: float | None = None
     for path in site_dir.rglob("*"):
         if not path.is_file():
             continue
@@ -105,11 +121,11 @@ def _site_stats(theme_name: str) -> Dict[str, Any]:
     }
 
 
-def _list_site_files(theme_name: str) -> List[Dict[str, Any]]:
+def _list_site_files(theme_name: str) -> list[dict[str, Any]]:
     site_dir = _site_root() / theme_name
     if not site_dir.exists():
         raise HTTPException(status_code=404, detail="Theme site not found")
-    files: List[Dict[str, Any]] = []
+    files: list[dict[str, Any]] = []
     for path in sorted(site_dir.rglob("*.html")):
         files.append(
             {
@@ -121,11 +137,11 @@ def _list_site_files(theme_name: str) -> List[Dict[str, Any]]:
     return files
 
 
-def _collect_theme_metadata() -> List[Dict[str, Any]]:
+def _collect_theme_metadata() -> list[dict[str, Any]]:
     themes_dir = _themes_root()
     if not themes_dir.exists():
         return []
-    metadata: List[Dict[str, Any]] = []
+    metadata: list[dict[str, Any]] = []
     for entry in sorted(themes_dir.iterdir()):
         if not entry.is_dir():
             continue
@@ -139,7 +155,7 @@ def _collect_theme_metadata() -> List[Dict[str, Any]]:
     return metadata
 
 
-def _load_theme_metadata(theme_name: str) -> Dict[str, Any]:
+def _load_theme_metadata(theme_name: str) -> dict[str, Any]:
     meta = _load_json(_themes_root() / theme_name / "theme.json")
     if not meta:
         raise HTTPException(status_code=404, detail="Theme not found or invalid JSON")
@@ -193,7 +209,7 @@ def _build_theme_preview_html(theme_name: str) -> str:
     return html
 
 
-def _validate_theme(theme_name: str) -> Dict[str, Any]:
+def _validate_theme(theme_name: str) -> dict[str, Any]:
     theme_dir = _themes_root() / theme_name
     report = validate_theme_pack(theme_dir)
     return {
@@ -205,9 +221,9 @@ def _validate_theme(theme_name: str) -> Dict[str, Any]:
     }
 
 
-def _collect_missions() -> List[Dict[str, Any]]:
+def _collect_missions() -> list[dict[str, Any]]:
     runs_root = _missions_root()
-    missions: List[Dict[str, Any]] = []
+    missions: list[dict[str, Any]] = []
     if not runs_root.exists():
         return missions
     for mission_dir in sorted(runs_root.iterdir()):
@@ -223,7 +239,7 @@ def _collect_missions() -> List[Dict[str, Any]]:
     return missions
 
 
-def _find_mission(mission_id: str) -> Optional[Dict[str, Any]]:
+def _find_mission(mission_id: str) -> dict[str, Any] | None:
     missions = _collect_missions()
     for mission in missions:
         if mission.get("mission_id") == mission_id or mission.get("job_id") == mission_id:
@@ -235,7 +251,7 @@ def _renderer_cli_path() -> Path:
     return get_repo_root() / "v1-3" / "core" / "dist" / "renderer" / "cli.js"
 
 
-def _renderer_env() -> Dict[str, str]:
+def _renderer_env() -> dict[str, str]:
     env = os.environ.copy()
     env.update(
         {
@@ -247,7 +263,7 @@ def _renderer_env() -> Dict[str, str]:
     return env
 
 
-def _invoke_renderer(theme: str, mission_id: Optional[str] = None) -> Dict[str, Any]:
+def _invoke_renderer(theme: str, mission_id: str | None = None) -> dict[str, Any]:
     cli_path = _renderer_cli_path()
     if not cli_path.exists():
         raise HTTPException(
@@ -259,7 +275,7 @@ def _invoke_renderer(theme: str, mission_id: Optional[str] = None) -> Dict[str, 
     if mission_id:
         env["MISSION_ID"] = mission_id
 
-    started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    started_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     result = subprocess.run(
         ["node", str(cli_path)],
         capture_output=True,
@@ -278,7 +294,7 @@ def _invoke_renderer(theme: str, mission_id: Optional[str] = None) -> Dict[str, 
             "runner": "renderer-cli",
             "theme": theme,
             "started_at": started_at,
-            "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "completed_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "error": result.stderr.strip(),
         }
         _write_mission_output(error_report)
@@ -295,13 +311,13 @@ def _invoke_renderer(theme: str, mission_id: Optional[str] = None) -> Dict[str, 
 
     # Write success report to 06_RUNS
     result_payload["started_at"] = started_at
-    result_payload["completed_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    result_payload["completed_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     _write_mission_output(result_payload)
 
     return result_payload
 
 
-def _write_mission_output(report: Dict[str, Any]) -> Optional[Path]:
+def _write_mission_output(report: dict[str, Any]) -> Path | None:
     """Write mission output/report to memory/vault/06_RUNS/<mission_id>/"""
     try:
         mission_id = report.get("mission_id", "unknown")
@@ -320,23 +336,23 @@ def _write_mission_output(report: Dict[str, Any]) -> Optional[Path]:
 
 
 class ContributionSubmission(BaseModel):
-    id: Optional[str]
-    mission_id: Optional[str]
-    notes: Optional[str]
-    artifact: Optional[str]
-    bundle: Optional[Dict[str, Any]]
-    patch: Optional[str]
+    id: str | None
+    mission_id: str | None
+    notes: str | None
+    artifact: str | None
+    bundle: dict[str, Any] | None
+    patch: str | None
 
 
 class ContributionStatusUpdate(BaseModel):
     status: str
-    reviewer: Optional[str]
-    note: Optional[str]
+    reviewer: str | None
+    note: str | None
 
 
 class RenderRequest(BaseModel):
-    theme: Optional[str] = None
-    mission_id: Optional[str] = None
+    theme: str | None = None
+    mission_id: str | None = None
 
 
 def create_renderer_routes(auth_guard=None) -> APIRouter:
@@ -374,7 +390,7 @@ def create_renderer_routes(auth_guard=None) -> APIRouter:
         return {"themes": results}
 
     @router.post("/contracts/validate")
-    async def validate_contracts(payload: Optional[Dict[str, Any]] = Body(None)):
+    async def validate_contracts(payload: dict[str, Any] | None = Body(None)):
         theme_name = None
         if payload and isinstance(payload, dict):
             theme_name = payload.get("theme")
@@ -436,7 +452,7 @@ def create_renderer_routes(auth_guard=None) -> APIRouter:
         return mission
 
     @router.get("/contributions")
-    async def contributions(status: Optional[str] = Query(None)):
+    async def contributions(status: str | None = Query(None)):
         if status and status not in ContributionService.STATUSES:
             raise HTTPException(status_code=400, detail="Unknown contribution status")
         return {"contributions": CONTRIBUTION_SERVICE.list(status)}
@@ -505,8 +521,8 @@ def create_renderer_routes(auth_guard=None) -> APIRouter:
 
     @router.post("/render")
     async def trigger_render(
-        payload: Optional[RenderRequest] = Body(None),
-        theme: Optional[str] = Query(None),
+        payload: RenderRequest | None = Body(None),
+        theme: str | None = Query(None),
     ):
         resolved_theme = theme or (payload.theme if payload else None)
         if not resolved_theme:
@@ -525,7 +541,7 @@ def create_renderer_routes(auth_guard=None) -> APIRouter:
             "started_at": result.get("started_at"),
             "completed_at": result.get("completed_at"),
             "mission_output_path": f"06_RUNS/{real_mission_id}/{job_id}.json",
-            "submitted_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "submitted_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
     return router

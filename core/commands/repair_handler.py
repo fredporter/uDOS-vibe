@@ -138,11 +138,12 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
         }
 
     def _require_permission(self):
-        from core.services.user_service import Permission, get_user_manager
+        from core.services.permission_handler import Permission, get_permission_handler
+        from core.services.user_service import get_user_manager
 
         user_mgr = get_user_manager()
         user = user_mgr.current()
-        if not user_mgr.has_permission(Permission.REPAIR):
+        if not get_permission_handler().require(Permission.REPAIR, action="repair"):
             self.log_permission_denied("REPAIR", "missing repair permission")
             return None, {
                 "status": "error",

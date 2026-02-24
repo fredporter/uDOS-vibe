@@ -40,7 +40,6 @@ from enum import Enum
 import json
 import os
 from pathlib import Path
-import re
 import secrets
 import socket
 import subprocess
@@ -49,7 +48,6 @@ import threading
 import time
 from typing import Any
 from urllib.parse import quote, urlparse
-import warnings
 
 import psutil
 
@@ -65,6 +63,12 @@ from core.input.confirmation_utils import (
     normalize_default,
     parse_confirmation,
 )
+from core.services.background_service_manager import get_wizard_process_manager
+from core.services.command_catalog import (
+    SUBCOMMAND_ALIASES as SHARED_SUBCOMMAND_ALIASES,
+    parse_slash_command,
+)
+from core.services.command_dispatch_service import match_ucode_command
 from core.services.health_training import read_last_summary
 from core.services.hotkey_map import write_hotkey_payload
 from core.services.logging_api import (
@@ -76,12 +80,6 @@ from core.services.logging_api import (
 )
 from core.services.memory_test_scheduler import MemoryTestScheduler
 from core.services.mode_policy import mode_summary
-from core.services.command_dispatch_service import match_ucode_command
-from core.services.command_catalog import (
-    SUBCOMMAND_ALIASES as SHARED_SUBCOMMAND_ALIASES,
-    parse_slash_command,
-)
-from core.services.background_service_manager import get_wizard_process_manager
 from core.services.network_gate_policy import (
     bootstrap_download_gate,
     close_bootstrap_gate,
@@ -268,6 +266,7 @@ class ComponentDetector:
 
 class UCODE:
     """Unified Terminal TUI for uDOS."""
+
     _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
     def __init__(self):
@@ -282,6 +281,7 @@ class UCODE:
         except Exception as exc:
             self.logger.debug(f"[CONFIG] Runtime env hydration skipped: {exc}")
         from core.services.unified_config_loader import get_bool_config, get_config
+
         self.quiet = get_bool_config("UDOS_QUIET")
         self.ucode_version = get_config("UCODE_VERSION", "1.0.1")
         self.running = False
@@ -292,7 +292,6 @@ class UCODE:
         self.detector = ComponentDetector(self.repo_root)
         self.components = self.detector.detect_all()
         self.ai_modes_config = self._load_ai_modes_config()
-        self._env_file_cache: dict[str, str] | None = None
 
         # Core components (always available)
         self.dispatcher = CommandDispatcher()
@@ -368,6 +367,7 @@ class UCODE:
         if not self.quiet:
             mode = "fallback" if self.prompt.use_fallback else "advanced"
             from core.services.unified_config_loader import get_config
+
             profile = get_config("UDOS_KEYMAP_PROFILE", "auto")
             self._ui_line(f"Prompt mode: {mode} | keymap: {profile}", level="info")
 
@@ -398,7 +398,9 @@ class UCODE:
 
         if cmd in {"HELP", "STATUS"}:
             full_cmd = f"{cmd} {args}".strip()
-            self.dispatcher.dispatch(full_cmd, parser=self.prompt, game_state=self.state)
+            self.dispatcher.dispatch(
+                full_cmd, parser=self.prompt, game_state=self.state
+            )
             return True
 
         if cmd in self.commands:
@@ -450,11 +452,7 @@ class UCODE:
 
     def _ucode_aliases(self) -> dict[str, str]:
         aliases = dict(SHARED_SUBCOMMAND_ALIASES)
-        aliases.update({
-            "?": "HELP",
-            "H": "HELP",
-            "LS": "BINDER",
-        })
+        aliases.update({"?": "HELP", "H": "HELP", "LS": "BINDER"})
         return aliases
 
     def _match_ucode_command(self, input_str: str) -> tuple[str | None, float]:
@@ -586,9 +584,7 @@ class UCODE:
             if not prompt:
                 return {"status": "error", "message": "OK prompt required"}
             self._run_ok_request(
-                prompt,
-                mode="LOCAL",
-                use_cloud=(self._ok_primary_provider() == "cloud"),
+                prompt, mode="LOCAL", use_cloud=(self._ok_primary_provider() == "cloud")
             )
             return {"status": "success", "command": "OK"}
 
@@ -908,6 +904,7 @@ class UCODE:
     def _run_startup_sequence(self) -> None:
         """Run startup steps with consistent progress bars + spinner feedback."""
         from core.services.unified_config_loader import get_bool_config
+
         clean_startup = get_bool_config("UDOS_TUI_CLEAN_STARTUP", default=True)
         startup_extras = get_bool_config("UDOS_TUI_STARTUP_EXTRAS", default=False)
         steps = [
@@ -955,7 +952,9 @@ class UCODE:
 
     def _maybe_prompt_setup_vibe(self, ai_status: dict[str, Any] | None) -> None:
         """Prompt once when local Vibe is unavailable during startup."""
-        if self.quiet or os.getenv("UDOS_AUTOMATION") == "1":
+        from core.services.unified_config_loader import get_bool_config
+
+        if self.quiet or get_bool_config("UDOS_AUTOMATION"):
             return
         if not self._startup_setup_prompt_enabled():
             return
@@ -1081,6 +1080,7 @@ class UCODE:
     def _show_status_bar(self) -> None:
         """Render status bar line for the current session."""
         from core.services.unified_config_loader import get_bool_config
+
         force_status = get_bool_config("UDOS_TUI_FORCE_STATUS")
         if self._get_io_phase() != IOLifecyclePhase.INPUT and not force_status:
             return
@@ -1168,18 +1168,16 @@ class UCODE:
         except Exception:
             return
 
-        self._emit_lines(
-            [
-                "",
-                "No network detected. Using offline mode.",
-                "Try:",
-                "  UCODE DEMO LIST",
-                "  UCODE DOCS --query <text>",
-                "  UCODE SYSTEM INFO",
-                "  UCODE CAPABILITIES --filter <text>",
-                "",
-            ]
-        )
+        self._emit_lines([
+            "",
+            "No network detected. Using offline mode.",
+            "Try:",
+            "  UCODE DEMO LIST",
+            "  UCODE DOCS --query <text>",
+            "  UCODE SYSTEM INFO",
+            "  UCODE CAPABILITIES --filter <text>",
+            "",
+        ])
 
     def _show_mode_policy_summary(self) -> None:
         """Show active runtime mode policy summary."""
@@ -1195,7 +1193,9 @@ class UCODE:
         """Show startup banner."""
         if self.quiet:
             return
-        if os.getenv("UDOS_LAUNCHER_BANNER") == "1":
+        from core.services.unified_config_loader import get_bool_config
+
+        if get_bool_config("UDOS_LAUNCHER_BANNER"):
             return
         vibe_banner = self._get_vibe_banner()
         if vibe_banner:
@@ -1394,7 +1394,9 @@ class UCODE:
     def _prompt_health_actions(self) -> None:
         """Prompt for REPAIR/RESTORE/DESTROY when health checks report issues."""
         # Skip prompts for non-interactive or automation runs.
-        if self.quiet or os.getenv("UDOS_AUTOMATION") == "1":
+        from core.services.unified_config_loader import get_bool_config
+
+        if self.quiet or get_bool_config("UDOS_AUTOMATION"):
             return
         has_self_heal_issue = False
         has_test_failure = False
@@ -1472,6 +1474,7 @@ class UCODE:
                 model = default_models.get("dev") or model
         except Exception:
             from core.services.unified_config_loader import get_bool_config
+
             if get_bool_config("UDOS_DEV_MODE"):
                 model = default_models.get("dev") or model
         return model or "devstral-small-2"
@@ -1495,20 +1498,17 @@ class UCODE:
 
     def _provider_route_details(self) -> tuple[str, str]:
         """Return provider route and where that decision came from."""
-        env_value = os.getenv("VIBE_PRIMARY_PROVIDER", "").strip().lower()
+        env_value = os.environ.get("VIBE_PRIMARY_PROVIDER", "").strip().lower()
         if env_value in {"local", "cloud"}:
             return env_value, "shell-env"
 
-        try:
-            from core.services.config_sync_service import ConfigSyncManager
+        from core.services.unified_config_loader import get_config_loader
 
-            env_file_value = (
-                ConfigSyncManager().load_env_dict().get("VIBE_PRIMARY_PROVIDER", "").strip().lower()
-            )
-            if env_file_value in {"local", "cloud"}:
-                return env_file_value, ".env"
-        except Exception:
-            pass
+        env_file_value = (
+            get_config_loader().get_str("VIBE_PRIMARY_PROVIDER", "").strip().lower()
+        )
+        if env_file_value in {"local", "cloud"}:
+            return env_file_value, ".env"
 
         return "local", "default"
 
@@ -1534,21 +1534,27 @@ class UCODE:
 
     def _ok_auto_fallback_enabled(self) -> bool:
         """Return whether OK should auto-fallback between local and cloud."""
-        env_value = os.getenv("UDOS_OK_AUTO_FALLBACK", "").strip().lower()
-        if env_value in {"1", "true", "yes", "on"}:
-            return True
-        if env_value in {"0", "false", "no", "off"}:
-            return False
+        from core.services.unified_config_loader import get_config_loader
+
+        if raw_value := get_config_loader().get("UDOS_OK_AUTO_FALLBACK"):
+            env_value = str(raw_value).strip().lower()
+            if env_value in {"1", "true", "yes", "on"}:
+                return True
+            if env_value in {"0", "false", "no", "off"}:
+                return False
         mode = (self.ai_modes_config.get("modes") or {}).get("ofvibe", {})
         return bool(mode.get("auto_fallback", False))
 
     def _ok_cloud_sanity_check_enabled(self) -> bool:
         """Return whether low-confidence local responses should trigger cloud sanity checks."""
-        env_value = os.getenv("UDOS_OK_CLOUD_SANITY_CHECK", "").strip().lower()
-        if env_value in {"1", "true", "yes", "on"}:
-            return True
-        if env_value in {"0", "false", "no", "off"}:
-            return False
+        from core.services.unified_config_loader import get_config_loader
+
+        if raw_value := get_config_loader().get("UDOS_OK_CLOUD_SANITY_CHECK"):
+            env_value = str(raw_value).strip().lower()
+            if env_value in {"1", "true", "yes", "on"}:
+                return True
+            if env_value in {"0", "false", "no", "off"}:
+                return False
         mode = (self.ai_modes_config.get("modes") or {}).get("ofvibe", {})
         return bool(mode.get("cloud_sanity_check", False))
 
@@ -1592,22 +1598,15 @@ class UCODE:
 
     def _env_value(self, key: str) -> str:
         """Read config value from process env first, then repo .env file."""
-        value = os.getenv(key, "").strip()
-        if value:
-            return value
-        if self._env_file_cache is None:
-            try:
-                from core.services.config_sync_service import ConfigSyncManager
+        from core.services.unified_config_loader import get_config_loader
 
-                self._env_file_cache = ConfigSyncManager().load_env_dict()
-            except Exception:
-                self._env_file_cache = {}
-        return str((self._env_file_cache or {}).get(key, "")).strip()
+        return get_config_loader().get_str(key, "").strip()
 
     def _startup_setup_prompt_enabled(self) -> bool:
         """Return whether startup should prompt to run SETUP vibe."""
-        token = os.getenv("UDOS_PROMPT_SETUP_VIBE", "").strip().lower()
-        return token in {"1", "true", "yes", "on"}
+        from core.services.unified_config_loader import get_bool_config
+
+        return get_bool_config("UDOS_PROMPT_SETUP_VIBE")
 
     # NOTE: _get_ok_cloud_status() removed 2025-02-24 — use AIProviderHandler.check_cloud_provider() instead
     # See: core/services/ai_provider_handler.py
@@ -1621,8 +1620,8 @@ class UCODE:
 
     def _show_ai_startup_sequence(self) -> dict[str, Any]:
         """Show Vibe startup summary and return local/cloud readiness."""
-        from core.services.provider_registry import CoreProviderRegistry
         from core.services.ai_provider_handler import get_ai_provider_handler
+        from core.services.provider_registry import CoreProviderRegistry
 
         CoreProviderRegistry.auto_register_vibe()
         if self.quiet:
@@ -1638,7 +1637,9 @@ class UCODE:
             "ready": local_status.is_available,
             "issue": local_status.issue,
             "model": local_status.default_model,
-            "ollama_endpoint": local_status.details.get("endpoint", "http://127.0.0.1:11434"),
+            "ollama_endpoint": local_status.details.get(
+                "endpoint", "http://127.0.0.1:11434"
+            ),
         }
         cloud_status = {
             "ready": cloud_status_obj.is_available,
@@ -1696,8 +1697,7 @@ class UCODE:
         print(self._theme_text("\nVibe (Local)"))
         route, source = self._provider_route_details()
         self.renderer.stream_text(
-            f"Provider route: {route} (source: {source})",
-            prefix="vibe> ",
+            f"Provider route: {route} (source: {source})", prefix="vibe> "
         )
         self.renderer.stream_text("\n".join(lines), prefix="vibe> ")
         print("")
@@ -2012,11 +2012,12 @@ class UCODE:
         form_spec = {"title": title, "description": description, "fields": fields}
 
         # Inject dynamic defaults for known setup fields
-        import os
+        from core.services.unified_config_loader import get_config, get_path_config
 
-        udos_root = os.getenv("UDOS_ROOT") or str(self.repo_root)
-        vault_root = os.getenv("VAULT_ROOT") or str(
-            (self.repo_root / "memory" / "vault").resolve()
+        udos_root = str(get_path_config("UDOS_ROOT") or self.repo_root)
+        vault_root = str(
+            get_path_config("VAULT_ROOT")
+            or (self.repo_root / "memory" / "vault").resolve()
         )
         for field in fields:
             if field.get("name") == "setup_udos_root":
@@ -2031,12 +2032,12 @@ class UCODE:
                     field["placeholder"] = vault_root
             # Also inject username default from .env if exists
             if field.get("name") == "user_username":
-                env_username = os.getenv("USER_USERNAME")
+                env_username = get_config("USER_USERNAME", "")
                 if env_username and not field.get("default"):
                     field["default"] = env_username
 
-        env_udos_root = os.getenv("UDOS_ROOT")
-        env_vault_root = os.getenv("VAULT_ROOT") or os.getenv("VAULT_MD_ROOT")
+        env_udos_root = get_config("UDOS_ROOT", "")
+        env_vault_root = get_config("VAULT_ROOT", "") or get_config("VAULT_MD_ROOT", "")
         if env_udos_root or env_vault_root:
             filtered = []
             for field in fields:
@@ -2184,7 +2185,11 @@ class UCODE:
                             timeout=10,
                         )
                         status_code = int(response.get("status_code") or 0)
-                        payload = response.get("json") if isinstance(response.get("json"), dict) else {}
+                        payload = (
+                            response.get("json")
+                            if isinstance(response.get("json"), dict)
+                            else {}
+                        )
                     except HTTPError as exc:
                         status_code = exc.code
                         if exc.response_text:
@@ -2357,15 +2362,9 @@ class UCODE:
     def _ensure_wizard_admin_token(self) -> str | None:
         """Ensure WIZARD_ADMIN_TOKEN exists and is synced to token files."""
         env_path = self.repo_root / ".env"
-        token = os.getenv("WIZARD_ADMIN_TOKEN", "").strip()
+        from core.services.unified_config_loader import get_config
 
-        try:
-            from core.services.config_sync_service import ConfigSyncManager
-
-            env_data = ConfigSyncManager().load_env_dict()
-            token = token or env_data.get("WIZARD_ADMIN_TOKEN", "").strip()
-        except Exception:
-            env_data = {}
+        token = get_config("WIZARD_ADMIN_TOKEN", "").strip()
 
         if not token:
             token = self._fetch_or_generate_admin_token(env_path)
@@ -2445,7 +2444,9 @@ class UCODE:
         """Store Mistral API key in Wizard secret store (best effort)."""
         if not api_key:
             return
-        token = os.getenv("WIZARD_ADMIN_TOKEN", "").strip()
+        from core.services.unified_config_loader import get_config
+
+        token = get_config("WIZARD_ADMIN_TOKEN", "").strip()
         if not token:
             return
         base_url = self._wizard_base_url().rstrip("/")
@@ -2801,7 +2802,9 @@ class UCODE:
 
     def _infer_tui_map_level(self) -> str | None:
         """Infer map-level theme bucket for TUI messaging."""
-        env_level = os.getenv("UDOS_TUI_MAP_LEVEL", "").strip().lower()
+        from core.services.unified_config_loader import get_config
+
+        env_level = get_config("UDOS_TUI_MAP_LEVEL", "").strip().lower()
         if env_level:
             return env_level
 
@@ -3026,16 +3029,20 @@ class UCODE:
         wizard_quota = False
         try:
             response = http_post(
-                url,
-                headers=self._wizard_headers(),
-                json_data=payload,
-                timeout=15,
+                url, headers=self._wizard_headers(), json_data=payload, timeout=15
             )
             if response.get("status_code") == 429:
                 wizard_quota = True
             if response.get("status_code") == 200:
-                data = response.get("json") if isinstance(response.get("json"), dict) else {}
-                return {"response": data.get("response", ""), "model": data.get("model", "")}
+                data = (
+                    response.get("json")
+                    if isinstance(response.get("json"), dict)
+                    else {}
+                )
+                return {
+                    "response": data.get("response", ""),
+                    "model": data.get("model", ""),
+                }
         except HTTPError as exc:
             if exc.code == 429:
                 wizard_quota = True
@@ -3057,10 +3064,7 @@ class UCODE:
             }
 
         if wizard_quota:
-            return {
-                "response": quota_message,
-                "model": "cloud-quota-exceeded",
-            }
+            return {"response": quota_message, "model": "cloud-quota-exceeded"}
 
         return {
             "response": (
@@ -3174,11 +3178,9 @@ class UCODE:
         source = "local"
         response = None
         auto_fallback = self._ok_auto_fallback_enabled()
-        dev_mode = os.getenv("UDOS_DEV_MODE", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-        }
+        from core.services.unified_config_loader import get_bool_config
+
+        dev_mode = get_bool_config("UDOS_DEV_MODE")
         if dev_mode and not use_cloud:
             auto_fallback = False
 
@@ -3205,9 +3207,8 @@ class UCODE:
                 response = self._run_ok_local(prompt, model=model)
             except Exception as exc:
                 should_try_cloud = (
-                    (auto_fallback and not use_cloud)
-                    or self._ok_primary_provider() == "cloud"
-                )
+                    auto_fallback and not use_cloud
+                ) or self._ok_primary_provider() == "cloud"
                 if should_try_cloud:
                     try:
                         print(
@@ -3297,8 +3298,7 @@ class UCODE:
             if not allow_downloads:
                 self._ui_line("Web gate closed. Setup skipped.", level="warn")
                 self._ui_line(
-                    "Run WIZARD START to manage networking when ready.",
-                    level="info",
+                    "Run WIZARD START to manage networking when ready.", level="info"
                 )
                 print("")
                 return
@@ -3323,8 +3323,7 @@ class UCODE:
         finally:
             close_bootstrap_gate(reason="setup-complete")
             self._ui_line(
-                "Web gate closed. WIZARD START to manage networking.",
-                level="info",
+                "Web gate closed. WIZARD START to manage networking.", level="info"
             )
         self._ui_line("OK SETUP complete", level="ok")
         print("")
@@ -3558,12 +3557,16 @@ class UCODE:
             status = self._run_with_progress(
                 "loading",
                 "Wizard startup",
-                lambda: manager.ensure_running(base_url=wizard_base_url, wait_seconds=45),
+                lambda: manager.ensure_running(
+                    base_url=wizard_base_url, wait_seconds=45
+                ),
                 spinner_label="⏳ Starting Wizard",
             )
             if status.connected:
                 self._ui_line(
-                    "Wizard already running" if before.connected else "Wizard Server started",
+                    "Wizard already running"
+                    if before.connected
+                    else "Wizard Server started",
                     level="ok",
                 )
                 if status.pid:
@@ -3572,7 +3575,9 @@ class UCODE:
                 return
 
             self._ui_line(f"Wizard unavailable ({status.message})", level="warn")
-            self._ui_line("Check memory/logs/wizard-daemon.log for startup logs", level="info")
+            self._ui_line(
+                "Check memory/logs/wizard-daemon.log for startup logs", level="info"
+            )
             sys.stdout.flush()
 
         except Exception as e:
@@ -3592,7 +3597,9 @@ class UCODE:
                 spinner_label="⏳ Stopping Wizard",
             )
             if status.connected or status.running:
-                self._ui_line("Wizard Server still responding after stop command", level="warn")
+                self._ui_line(
+                    "Wizard Server still responding after stop command", level="warn"
+                )
             else:
                 self._ui_line("Wizard Server stopped", level="ok")
 
@@ -3682,7 +3689,9 @@ class UCODE:
 
         except HTTPError as exc:
             if exc.code == 0:
-                self._ui_line("Wizard not running. Start with: WIZARD start", level="error")
+                self._ui_line(
+                    "Wizard not running. Start with: WIZARD start", level="error"
+                )
             else:
                 self._ui_line(f"Request failed: {exc.code}", level="error")
         except Exception as e:

@@ -42,7 +42,9 @@ class UcodeHandler(BaseCommandHandler):
     def __init__(self) -> None:
         super().__init__()
         self.repo_root = Path(__file__).resolve().parents[2]
-        env_ucode_root = (os.getenv("UDOS_UCODE_ROOT") or "").strip()
+        from core.services.unified_config_loader import get_config
+
+        env_ucode_root = get_config("UDOS_UCODE_ROOT", "").strip()
         if env_ucode_root:
             candidate = Path(env_ucode_root).expanduser()
             self.ucode_root = (
@@ -929,7 +931,9 @@ class UcodeHandler(BaseCommandHandler):
         return json.dumps(normalized, separators=(",", ":"), sort_keys=True)
 
     def _bundle_signing_key(self) -> str:
-        env_key = os.getenv("UCODE_BUNDLE_SIGNING_KEY", "").strip()
+        from core.services.unified_config_loader import get_config
+
+        env_key = get_config("UCODE_BUNDLE_SIGNING_KEY", "").strip()
         if env_key:
             return env_key
         if self.bundle_signing_key_path.exists():

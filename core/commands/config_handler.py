@@ -210,9 +210,10 @@ class ConfigHandler(BaseCommandHandler, HandlerLoggingMixin, InteractiveMenuMixi
             )
 
         import subprocess
-        import os
 
-        editor = os.environ.get("EDITOR")
+        from core.services.unified_config_loader import get_config
+
+        editor = get_config("EDITOR", "")
         if not editor:
             from core.services.editor_utils import pick_editor
 

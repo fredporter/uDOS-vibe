@@ -1,5 +1,4 @@
-"""
-Centralized Permission Handler
+"""Centralized Permission Handler
 
 Unified permission checking system for both TUI and Wizard.
 Integrates with UserManager for role-based access control.
@@ -34,9 +33,9 @@ perms.log_check(Permission.ADMIN, granted=True, context={"command": "DESTROY"})
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from enum import Enum
+import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -50,16 +49,20 @@ class Permission(Enum):
     REPAIR = "repair"  # Fix/heal system state
     DESTROY = "destroy"  # Irreversible operations (delete vault, factory reset)
     RESTORE = "restore"  # Restore from backups
+    CONFIG = "config"  # Modify configuration
 
     # Development
     DEV_MODE = "dev_mode"  # Development features
     TEST_MODE = "test_mode"  # Test features
     HOT_RELOAD = "hot_reload"  # Hot reload system
+    DEBUG = "debug"  # Debug features
 
     # Wizard/Services
     WIZARD = "wizard"  # Start/control Wizard server
     WIZARD_CONTROL = "wizard_control"  # Restart/reconfigure Wizard
     EXTENSION = "extension"  # Load/manage extensions
+    PLUGIN = "plugin"  # Install plugins
+    WEB = "web"  # Web access
 
     # Vault/Secrets
     VAULT_WRITE = "vault_write"  # Write to vault
@@ -75,6 +78,18 @@ class Permission(Enum):
     DATA_EXPORT = "data_export"  # Export user data
     DATA_IMPORT = "data_import"  # Import user data
 
+    # File operations
+    READ = "read"  # Read files/data
+    WRITE = "write"  # Write files/data
+    DELETE = "delete"  # Delete files/data
+
+    # Gameplay
+    GAMEPLAY_VIEW = "gameplay_view"  # View gameplay profile/stats
+    GAMEPLAY_MUTATE = "gameplay_mutate"  # Update gameplay stats
+    GAMEPLAY_GATE_ADMIN = "gameplay_gate_admin"  # Gate reset/override
+    TOYBOX_LAUNCH = "toybox_launch"  # Launch runtime containers
+    TOYBOX_ADMIN = "toybox_admin"  # Manage TOYBOX profile selection
+
     def __str__(self) -> str:
         return self.value
 
@@ -85,55 +100,24 @@ class PermissionCheckResult:
 
     granted: bool
     permission: Permission
-    user_role: str | None
-    reason: str | None = None
-    context: dict[str, Any] | None = None
 
-
-class PermissionHandler:
-    """Centralized permission checking for TUI and Wizard."""
-
-    def __init__(self):
-        """Initialize permission handler."""
-        self.logger = logger
-        self._cache: dict[str, bool] = {}
-
-    def has_permission(self, permission: Permission, user_role: str | None = None) -> bool:
-        """Check if user has a specific permission.
-
-        Args:
-            permission: Permission to check
-            user_role: Optional override of current user role
+    @staticmethod
+    def _get_role_permissions_map() -> dict[str, set[Permission]]:
+        """Return role to permissions mapping from UserManager.
 
         Returns:
-            True if permission granted (or in testing mode)
+            Dict mapping role names to sets of allowed permissions
         """
-        try:
-            from core.services.user_service import get_current_user
+        from core.services.user_service import get_user_manager
 
-            if user_role is None:
-                current_user = get_current_user()
-                user_role = current_user.role.value if current_user else "ghost"
-        except Exception:
-            user_role = "ghost"
+        user_mgr = get_user_manager()
+        return {
+            role.value: set(perms) for role, perms in user_mgr.ROLE_PERMISSIONS.items()
+        }
 
-        result = self._check_permission(permission, user_role)
-        self.log_check(permission, granted=result.granted, reason=result.reason)
-        return result.granted
-
-    def any_permission(self, *permissions: Permission, user_role: str | None = None) -> bool:
-        """Check if user has ANY of the given permissions.
-
-        Args:
-            permissions: Permissions to check (OR logic)
-            user_role: Optional override of current user role
-
-        Returns:
-            True if user has at least one permission
-        """
-        return any(self.has_permission(p, user_role) for p in permissions)
-
-    def all_permissions(self, *permissions: Permission, user_role: str | None = None) -> bool:
+    def all_permissions(
+        self, *permissions: Permission, user_role: str | None = None
+    ) -> bool:
         """Check if user has ALL of the given permissions.
 
         Args:
@@ -174,8 +158,37 @@ class PermissionHandler:
             self.log_denied(permission, context)
 
             if raise_on_error:
-                raise PermissionError(f"Permission denied: {permission.value} for {action}")
+                raise PermissionError(
+                    f"Permission denied: {permission.value} for {action}"
+                )
 
+        return granted
+
+    def require_role(self, role: str | None, *allowed: str) -> bool:
+        """Require a specific role for access.
+
+        Args:
+            role: Role string (e.g., admin, maintainer)
+            allowed: Allowed roles
+
+        Returns:
+            True if role is allowed, False otherwise
+        """
+        normalized_role = (role or "").strip().lower()
+        if not normalized_role:
+            normalized_role = self._default_role()
+
+        allowed_roles = {r.strip().lower() for r in allowed if r}
+        if not allowed_roles:
+            return True
+
+        granted = normalized_role in allowed_roles
+        self.log_check(
+            Permission.ADMIN,
+            granted=granted,
+            reason=f"role '{normalized_role}'",
+            context={"allowed": sorted(allowed_roles)},
+        )
         return granted
 
     def log_check(
@@ -239,10 +252,7 @@ class PermissionHandler:
         if is_testing:
             reason = "alert-only mode (v1.4.x testing)"
             return PermissionCheckResult(
-                granted=True,
-                permission=permission,
-                user_role=user_role,
-                reason=reason,
+                granted=True, permission=permission, user_role=user_role, reason=reason
             )
 
         # Role-based access control mapping
@@ -256,19 +266,13 @@ class PermissionHandler:
         if not has_perm and is_ghost_mode():
             reason = "ghost mode active"
             return PermissionCheckResult(
-                granted=False,
-                permission=permission,
-                user_role=user_role,
-                reason=reason,
+                granted=False, permission=permission, user_role=user_role, reason=reason
             )
 
         if not has_perm:
             reason = f"role '{user_role}' does not have permission"
             return PermissionCheckResult(
-                granted=False,
-                permission=permission,
-                user_role=user_role,
-                reason=reason,
+                granted=False, permission=permission, user_role=user_role, reason=reason
             )
 
         return PermissionCheckResult(
@@ -280,55 +284,17 @@ class PermissionHandler:
 
     @staticmethod
     def _get_role_permissions_map() -> dict[str, set[Permission]]:
-        """Return role to permissions mapping.
-
-        Future: Load from config file or database.
+        """Return role to permissions mapping from UserManager.
 
         Returns:
             Dict mapping role names to sets of allowed permissions
         """
+        from core.services.user_service import get_user_manager
+
+        user_mgr = get_user_manager()
         return {
-            "admin": {
-                Permission.ADMIN,
-                Permission.REPAIR,
-                Permission.DESTROY,
-                Permission.RESTORE,
-                Permission.DEV_MODE,
-                Permission.TEST_MODE,
-                Permission.HOT_RELOAD,
-                Permission.WIZARD,
-                Permission.WIZARD_CONTROL,
-                Permission.EXTENSION,
-                Permission.VAULT_WRITE,
-                Permission.VAULT_DELETE,
-                Permission.SECRET_CREATE,
-                Permission.USER_CREATE,
-                Permission.USER_DELETE,
-                Permission.CONFIG_WRITE,
-                Permission.DATA_EXPORT,
-                Permission.DATA_IMPORT,
-            },
-            "maintainer": {
-                Permission.REPAIR,
-                Permission.RESTORE,
-                Permission.DEV_MODE,
-                Permission.WIZARD,
-                Permission.EXTENSION,
-                Permission.VAULT_WRITE,
-                Permission.SECRET_CREATE,
-                Permission.CONFIG_WRITE,
-                Permission.DATA_EXPORT,
-            },
-            "user": {
-                Permission.VAULT_WRITE,
-                Permission.SECRET_CREATE,
-                Permission.DATA_EXPORT,
-                Permission.DATA_IMPORT,
-            },
-            "guest": {
-                Permission.DATA_EXPORT,
-            },
-            "ghost": set(),  # Ghost mode has no permissions
+            role.value: set(perms)
+            for role, perms in user_mgr.ROLE_PERMISSIONS.items()
         }
 
     @staticmethod
@@ -341,25 +307,19 @@ class PermissionHandler:
         Returns:
             True if in alert-only mode
         """
-        import os
-        from core.services.config_sync_service import ConfigSyncManager
+        from core.services.unified_config_loader import get_bool_config
 
-        # Check environment variable
-        env_mode = os.getenv("UDOS_TEST_MODE", "").lower()
-        if env_mode in ("1", "true", "yes", "on"):
+        if get_bool_config("UDOS_TEST_MODE"):
             return True
-
-        # Check .env file
-        try:
-            config = ConfigSyncManager().load_env_dict()
-            env_test = config.get("UDOS_TEST_MODE", "").lower()
-            if env_test in ("1", "true", "yes", "on"):
-                return True
-        except Exception:
-            pass
 
         # v1.4.x is intentionally in testing/alert-only mode
         return True
+
+    @staticmethod
+    def _default_role() -> str:
+        from core.services.unified_config_loader import get_config
+
+        return get_config("UDOS_DEFAULT_ROLE", "maintainer").strip().lower()
 
     def clear_cache(self) -> None:
         """Clear permission check cache."""

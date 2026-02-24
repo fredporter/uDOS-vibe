@@ -22,7 +22,7 @@ from core.services.destructive_ops import (
 from core.services.error_contract import CommandError
 from core.services.logging_api import get_repo_root
 from core.services.logging_manager import get_logger
-from core.services.user_service import Permission, get_user_manager
+from core.services.permission_handler import Permission
 from core.services.wizard_mode_state import (
     get_wizard_mode_active,
     set_wizard_mode_active,
@@ -256,8 +256,9 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
                 )
 
     def _require_admin(self) -> None:
-        users = get_user_manager()
-        if users.has_permission(Permission.ADMIN):
+        from core.services.permission_handler import get_permission_handler
+
+        if get_permission_handler().require(Permission.ADMIN, action="wizard_mode"):
             return
         raise CommandError(
             code="ERR_AUTH_FORBIDDEN",
@@ -526,7 +527,9 @@ class WizardHandler(BaseCommandHandler, InteractiveMenuMixin):
         ]
         if body is not None:
             cmd.extend(["-H", "Content-Type: application/json", "-d", json.dumps(body)])
-        token = os.environ.get("WIZARD_ADMIN_TOKEN", "").strip()
+        from core.services.unified_config_loader import get_config
+
+        token = get_config("WIZARD_ADMIN_TOKEN", "").strip()
         if token:
             cmd.extend(["-H", f"Authorization: Bearer {token}"])
         try:

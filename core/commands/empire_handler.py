@@ -306,7 +306,9 @@ class EmpireHandler(BaseCommandHandler):
             }
 
         api_base = "http://127.0.0.1:8991"
-        token = os.getenv("EMPIRE_API_TOKEN")
+        from core.services.unified_config_loader import get_config
+
+        token = get_config("EMPIRE_API_TOKEN", "")
         headers = {"Authorization": f"Bearer {token}"} if token else {}
 
         try:

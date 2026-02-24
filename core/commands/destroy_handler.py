@@ -103,7 +103,8 @@ class DestroyHandler(BaseCommandHandler):
 
         # Import here to avoid circular deps
         from core.services.logging_api import get_logger
-        from core.services.user_service import Permission, get_user_manager
+        from core.services.permission_handler import Permission, get_permission_handler
+        from core.services.user_service import get_user_manager
         from core.tui.output import OutputToolkit
 
         logger = get_logger("core", category="destroy", name="destroy-handler")
@@ -126,7 +127,9 @@ class DestroyHandler(BaseCommandHandler):
         if (
             user
             and user.username != "ghost"
-            and not user_mgr.has_permission(Permission.DESTROY)
+            and not get_permission_handler().require(
+                Permission.DESTROY, action="destroy"
+            )
         ):
             return {
                 "output": f"❌ DESTROY permission denied for user {user.username if user else 'unknown'}",

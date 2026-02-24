@@ -294,12 +294,12 @@ set $user.completed true
         try:
             from core.tui.story_form_handler import get_form_handler
             from core.services.logging_api import get_repo_root
-            import os
+            from core.services.paths import get_udos_root, get_vault_root
 
             # Inject dynamic defaults for known setup fields.
             repo_root = get_repo_root()
-            udos_root = os.getenv("UDOS_ROOT") or str(repo_root)
-            vault_root = os.getenv("VAULT_ROOT") or str((repo_root / "memory" / "vault").resolve())
+            udos_root = str(get_udos_root() or repo_root)
+            vault_root = str(get_vault_root() or (repo_root / "memory" / "vault").resolve())
             fields = form_spec.get("fields", [])
             for field in fields:
                 if field.get("name") == "setup_udos_root":

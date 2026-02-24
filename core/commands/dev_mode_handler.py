@@ -4,7 +4,6 @@ from typing import List, Dict, Optional
 from pathlib import Path
 from core.services.stdlib_http import http_get, http_post, HTTPError
 import json
-import os
 
 from core.services.logging_manager import get_logger
 
@@ -26,7 +25,9 @@ class DevModeHandler(BaseCommandHandler):
         self.wizard_port = 8765
 
     def _admin_token(self) -> str:
-        return os.getenv("WIZARD_ADMIN_TOKEN", "").strip()
+        from core.services.unified_config_loader import get_config
+
+        return get_config("WIZARD_ADMIN_TOKEN", "").strip()
 
     def _headers(self) -> Dict[str, str]:
         headers: Dict[str, str] = {}
@@ -37,10 +38,9 @@ class DevModeHandler(BaseCommandHandler):
 
     def _admin_guard(self) -> Optional[Dict]:
         try:
-            from core.services.user_service import get_user_manager, Permission
+            from core.services.permission_handler import Permission, get_permission_handler
 
-            user_mgr = get_user_manager()
-            if not user_mgr.has_permission(Permission.ADMIN):
+            if not get_permission_handler().require(Permission.ADMIN, action="dev_mode"):
                 output = "\n".join(
                     [
                         OutputToolkit.banner("DEV MODE"),
