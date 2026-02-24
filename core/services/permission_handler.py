@@ -97,25 +97,70 @@ class Permission(Enum):
 
 
 @dataclass
+@dataclass
 class PermissionCheckResult:
     """Result of a permission check."""
 
     granted: bool
     permission: Permission
+    user_role: str | None = None
+    reason: str | None = None
 
-    @staticmethod
-    def _get_role_permissions_map() -> dict[str, set[Permission]]:
-        """Return role to permissions mapping from UserManager.
+
+class PermissionHandler:
+    """Centralized permission checking system for both TUI and Wizard.
+
+    Enforces role-based access control with testing mode (alert-only v1.4.x)
+    and future enforcement mode (v1.5+).
+    """
+
+    def __init__(self):
+        """Initialize permission handler with logger and cache."""
+        self.logger = logging.getLogger("permission_handler")
+        self._cache: dict[tuple[Permission, str], bool] = {}
+
+    def has_permission(
+        self, permission: Permission, user_role: str | None = None
+    ) -> bool:
+        """Check if user has a specific permission.
+
+        Args:
+            permission: Permission to check
+            user_role: Optional user role (uses default if not provided)
 
         Returns:
-            Dict mapping role names to sets of allowed permissions
+            True if permission is granted (alert-only mode in v1.4.x always True)
         """
-        from core.services.user_service import get_user_manager
+        if user_role is None:
+            user_role = self._default_role()
 
-        user_mgr = get_user_manager()
-        return {
-            role.value: set(perms) for role, perms in user_mgr.ROLE_PERMISSIONS.items()
-        }
+        # Check cache
+        cache_key = (permission, user_role)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        # Perform permission check
+        result = self._check_permission(permission, user_role)
+        self._cache[cache_key] = result.granted
+
+        # Log the check
+        self.log_check(permission, result.granted, reason=result.reason)
+
+        return result.granted
+
+    def any_permission(
+        self, *permissions: Permission, user_role: str | None = None
+    ) -> bool:
+        """Check if user has ANY of the given permissions.
+
+        Args:
+            permissions: Permissions to check (OR logic)
+            user_role: Optional user role
+
+        Returns:
+            True if user has at least one permission
+        """
+        return any(self.has_permission(p, user_role) for p in permissions)
 
     def all_permissions(
         self, *permissions: Permission, user_role: str | None = None
@@ -295,8 +340,7 @@ class PermissionCheckResult:
 
         user_mgr = get_user_manager()
         return {
-            role.value: set(perms)
-            for role, perms in user_mgr.ROLE_PERMISSIONS.items()
+            role.value: set(perms) for role, perms in user_mgr.ROLE_PERMISSIONS.items()
         }
 
     @staticmethod
