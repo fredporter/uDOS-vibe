@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections import deque
+from collections.abc import Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 import json
 import os
 import pty
@@ -12,10 +15,7 @@ import shutil
 import signal
 import threading
 import time
-from collections import deque
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Callable, Deque, Dict, List, Optional
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -36,11 +36,11 @@ class PTYAdapter:
         *,
         adapter_id: str,
         env_cmd_var: str,
-        command_candidates: List[str],
-        startup_args: Optional[List[str]] = None,
-        parse_fn: Optional[Callable[[str], List[Dict[str, Any]]]] = None,
+        command_candidates: list[str],
+        startup_args: list[str] | None = None,
+        parse_fn: Callable[[str], list[dict[str, Any]]] | None = None,
         max_start_retries: int = 3,
-        retry_backoff_seconds: Optional[List[float]] = None,
+        retry_backoff_seconds: list[float] | None = None,
     ) -> None:
         self.adapter_id = adapter_id
         self.env_cmd_var = env_cmd_var
@@ -51,33 +51,35 @@ class PTYAdapter:
         self.retry_backoff_seconds = list(retry_backoff_seconds or [1.0, 2.0, 4.0])
 
         self.repo_root = get_repo_root()
-        self.event_file = self.repo_root / "memory" / "bank" / "private" / "gameplay_events.ndjson"
+        self.event_file = (
+            self.repo_root / "memory" / "bank" / "private" / "gameplay_events.ndjson"
+        )
         self.event_file.parent.mkdir(parents=True, exist_ok=True)
 
-        self.proc_pid: Optional[int] = None
-        self.returncode: Optional[int] = None
-        self.master_fd: Optional[int] = None
-        self.buffer: Deque[str] = deque(maxlen=2000)
+        self.proc_pid: int | None = None
+        self.returncode: int | None = None
+        self.master_fd: int | None = None
+        self.buffer: deque[str] = deque(maxlen=2000)
         self.running = False
-        self._reader_thread: Optional[threading.Thread] = None
+        self._reader_thread: threading.Thread | None = None
         self._lock = threading.Lock()
-        self._last_error: Optional[str] = None
-        self._resolved_command: Optional[List[str]] = None
+        self._last_error: str | None = None
+        self._resolved_command: list[str] | None = None
         self._last_depth = 1
         self.state = "stopped"
         self.retries = 0
         self.last_transition_at = self._now_iso()
 
-    def _transition(self, state: str, *, error: Optional[str] = None) -> None:
+    def _transition(self, state: str, *, error: str | None = None) -> None:
         self.state = state
         self.last_transition_at = self._now_iso()
         if error:
             self._last_error = error
 
     def _now_iso(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()
 
-    def _resolve_command(self) -> List[str]:
+    def _resolve_command(self) -> list[str]:
         env_cmd = get_dynamic_config(self.env_cmd_var, "").strip()
         if env_cmd:
             return shlex.split(env_cmd)
@@ -92,7 +94,7 @@ class PTYAdapter:
             + ", ".join(self.command_candidates)
         )
 
-    def _probe_pid_alive(self, pid: Optional[int]) -> bool:
+    def _probe_pid_alive(self, pid: int | None) -> bool:
         if not pid:
             return False
         try:
@@ -101,7 +103,7 @@ class PTYAdapter:
         except OSError:
             return False
 
-    def _spawn_once(self, cmd: List[str], proc_env: Dict[str, str]) -> tuple[int, int]:
+    def _spawn_once(self, cmd: list[str], proc_env: dict[str, str]) -> tuple[int, int]:
         pid, master_fd = pty.fork()
         if pid == 0:
             os.chdir(str(self.repo_root))
@@ -111,7 +113,7 @@ class PTYAdapter:
                 os._exit(127)
         return pid, master_fd
 
-    def _attempt_start(self, cmd: List[str]) -> bool:
+    def _attempt_start(self, cmd: list[str]) -> bool:
         proc_env = os.environ.copy()
         proc_env.setdefault("TERM", "xterm-256color")
         proc_env.setdefault("LINES", "30")
@@ -163,7 +165,10 @@ class PTYAdapter:
                 if self._attempt_start(cmd):
                     self.retries = max(0, attempts - 1)
                     self._transition("running")
-                    self._emit_event("TOYBOX_RUNTIME_STARTED", {"command": cmd, "retries": self.retries})
+                    self._emit_event(
+                        "TOYBOX_RUNTIME_STARTED",
+                        {"command": cmd, "retries": self.retries},
+                    )
                     return
             except Exception as exc:
                 self._last_error = str(exc)
@@ -179,11 +184,19 @@ class PTYAdapter:
                         "error": self._last_error or "startup failed",
                     },
                 )
-                raise RuntimeError(self._last_error or f"Failed to start adapter {self.adapter_id}")
+                raise RuntimeError(
+                    self._last_error or f"Failed to start adapter {self.adapter_id}"
+                )
 
             self.retries = max(0, attempts)
-            backoff_idx = min(self.retries - 1, max(0, len(self.retry_backoff_seconds) - 1))
-            delay = float(self.retry_backoff_seconds[backoff_idx]) if self.retry_backoff_seconds else 1.0
+            backoff_idx = min(
+                self.retries - 1, max(0, len(self.retry_backoff_seconds) - 1)
+            )
+            delay = (
+                float(self.retry_backoff_seconds[backoff_idx])
+                if self.retry_backoff_seconds
+                else 1.0
+            )
             time.sleep(max(0.0, delay))
 
     def stop(self) -> None:
@@ -262,7 +275,10 @@ class PTYAdapter:
                 pass
         if self.state in {"running", "starting", "degraded"}:
             if self.returncode is not None and int(self.returncode) != 0:
-                self._transition("failed", error=self._last_error or f"runtime exited rc={self.returncode}")
+                self._transition(
+                    "failed",
+                    error=self._last_error or f"runtime exited rc={self.returncode}",
+                )
             else:
                 self._transition("stopped")
 
@@ -280,7 +296,7 @@ class PTYAdapter:
                 payload.setdefault("depth", self._last_depth)
                 self._emit_event(str(event.get("type", "TOYBOX_OUTPUT_EVENT")), payload)
 
-    def _emit_event(self, event_type: str, payload: Dict[str, Any]) -> None:
+    def _emit_event(self, event_type: str, payload: dict[str, Any]) -> None:
         row = {
             "ts": self._now_iso(),
             "source": f"toybox:{self.adapter_id}",
@@ -297,7 +313,7 @@ class PTYAdapter:
             return "warn"
         return "fail"
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         alive = self._probe_pid_alive(self.proc_pid)
         return {
             "adapter_id": self.adapter_id,
@@ -313,7 +329,7 @@ class PTYAdapter:
             "depth": self._last_depth,
         }
 
-    def health(self) -> Dict[str, Any]:
+    def health(self) -> dict[str, Any]:
         row = self.status()
         return {"ok": row.get("health") == "ok", **row}
 
@@ -335,19 +351,19 @@ def create_app(adapter: PTYAdapter) -> FastAPI:
     app = FastAPI(title=f"TOYBOX {adapter.adapter_id}", lifespan=lifespan)
 
     @app.get("/health")
-    def health() -> Dict[str, Any]:
+    def health() -> dict[str, Any]:
         return adapter.health()
 
     @app.get("/status")
-    def status() -> Dict[str, Any]:
+    def status() -> dict[str, Any]:
         return adapter.status()
 
     @app.get("/output")
-    def output() -> Dict[str, Any]:
+    def output() -> dict[str, Any]:
         return {"output": adapter.output_text()}
 
     @app.post("/input")
-    def input_text(req: InputRequest) -> Dict[str, Any]:
+    def input_text(req: InputRequest) -> dict[str, Any]:
         try:
             adapter.send(req.text)
             return {"ok": True}

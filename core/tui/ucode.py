@@ -92,12 +92,12 @@ from core.services.stdlib_http import HTTPError, http_get, http_post
 from core.services.system_script_runner import SystemScriptRunner
 from core.services.theme_service import get_theme_service
 from core.services.todo_reminder_service import get_reminder_service
-from core.services.unified_config_loader import get_config
 from core.services.todo_service import (
     CalendarGridRenderer as TodoCalendarGridRenderer,
     GanttGridRenderer as TodoGanttGridRenderer,
     get_service as get_todo_manager,
 )
+from core.services.unified_config_loader import get_config
 from core.services.viewport_service import ViewportService
 from core.tui.advanced_form_handler import AdvancedFormField
 from core.tui.dispatcher import CommandDispatcher

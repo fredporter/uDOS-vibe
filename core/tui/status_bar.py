@@ -1,5 +1,4 @@
-"""
-TUI Status Bar - Persistent display of system/server status
+"""TUI Status Bar - Persistent display of system/server status
 
 Shows:
 - Current mode (ghost/user/admin)
@@ -12,21 +11,23 @@ Version: v1.0.0
 Date: 2026-01-30
 """
 
-import os
-import socket
-import psutil
-from pathlib import Path
-from typing import Dict, Optional
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
+import socket
 
-from core.services.viewport_service import ViewportService
+import psutil
+
 from core.services.unified_config_loader import get_bool_config
-from core.utils.text_width import truncate_to_width
+from core.services.viewport_service import ViewportService
 from core.tui.output import OutputToolkit
+from core.utils.text_width import truncate_to_width
+
 
 class ServerStatus(Enum):
     """Server availability status."""
+
     RUNNING = "●"
     STOPPED = "○"
     ERROR = "▲"
@@ -35,6 +36,7 @@ class ServerStatus(Enum):
 
 class TUIStatusBar:
     """Persistent status bar for uCODE."""
+
     _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
     def __init__(self):
@@ -43,9 +45,10 @@ class TUIStatusBar:
         self.last_update = None
         self.cache_ttl = 2  # seconds
 
-    def get_status_line(self, user_role: str = "ghost", ghost_mode: bool = False) -> str:
-        """
-        Get a one-line status bar for persistent display.
+    def get_status_line(
+        self, user_role: str = "ghost", ghost_mode: bool = False
+    ) -> str:
+        """Get a one-line status bar for persistent display.
 
         Format:
         [MODE: ghost] [WIZ: ●] [EXT: ○] [Mem: 45%] [CPU: 12%] [F1-F8 help]
@@ -59,7 +62,13 @@ class TUIStatusBar:
         parts = []
 
         # Mode indicator
-        mode_label = "GHOST" if ghost_mode or user_role == "ghost" else "USER" if user_role == "user" else "ADMIN"
+        mode_label = (
+            "GHOST"
+            if ghost_mode or user_role == "ghost"
+            else "USER"
+            if user_role == "user"
+            else "ADMIN"
+        )
         parts.append(f"[MODE: {mode_label}]")
         if ghost_mode:
             parts.append("[GHOST MODE]")
@@ -67,7 +76,6 @@ class TUIStatusBar:
         # Server status
         wizard_status = self._check_server("localhost", self.wizard_port)
         parts.append(f"[WIZ: {wizard_status.value}]")
-
 
         # System stats
         mem_percent = self._get_memory_percent()
@@ -81,9 +89,10 @@ class TUIStatusBar:
         line = " ".join(parts)
         return truncate_to_width(line, ViewportService().get_cols())
 
-    def get_status_panel(self, user_role: str = "ghost", ghost_mode: bool = False) -> str:
-        """
-        Get a detailed multi-line status panel for full display.
+    def get_status_panel(
+        self, user_role: str = "ghost", ghost_mode: bool = False
+    ) -> str:
+        """Get a detailed multi-line status panel for full display.
 
         Returns:
             Formatted status panel with detailed information
@@ -107,7 +116,9 @@ class TUIStatusBar:
         # System resources
         lines.append("\nSystem Resources:")
         mem = psutil.virtual_memory()
-        lines.append(f"  Memory:         {mem.percent}% ({mem.used // (1024**3)}GB / {mem.total // (1024**3)}GB)")
+        lines.append(
+            f"  Memory:         {mem.percent}% ({mem.used // (1024**3)}GB / {mem.total // (1024**3)}GB)"
+        )
 
         cpu_percent = psutil.cpu_percent(interval=0.1)
         lines.append(f"  CPU:            {cpu_percent}%")
@@ -123,16 +134,28 @@ class TUIStatusBar:
 
         mem_stat = OutputToolkit.stat_block("Mem", f"{int(mem.percent)}%", invert=True)
         cpu_stat = OutputToolkit.stat_block("CPU", f"{int(cpu_percent)}%", invert=True)
-        uptime_stat = OutputToolkit.stat_block("Uptime", f"{hours}h {minutes}m", invert=True)
+        uptime_stat = OutputToolkit.stat_block(
+            "Uptime", f"{hours}h {minutes}m", invert=True
+        )
         stats_row = OutputToolkit.columns(
-            [mem_stat, OutputToolkit.progress_block(int(mem.percent), 100, label="Memory")],
-            [cpu_stat, OutputToolkit.progress_block(int(cpu_percent), 100, label="CPU")],
+            [
+                mem_stat,
+                OutputToolkit.progress_block(int(mem.percent), 100, label="Memory"),
+            ],
+            [
+                cpu_stat,
+                OutputToolkit.progress_block(int(cpu_percent), 100, label="CPU"),
+            ],
         )
         lines.append("\n" + stats_row)
         lines.append(
             OutputToolkit.columns(
                 [uptime_stat],
-                [OutputToolkit.progress_block(int(minutes + hours * 60), 240, label="Session")],
+                [
+                    OutputToolkit.progress_block(
+                        int(minutes + hours * 60), 240, label="Session"
+                    )
+                ],
             )
         )
         if get_bool_config("UDOS_TUI_FULL_METERS", False):
@@ -164,8 +187,7 @@ class TUIStatusBar:
 
     @staticmethod
     def _check_server(host: str, port: int) -> ServerStatus:
-        """
-        Check if a server is running on the given host:port.
+        """Check if a server is running on the given host:port.
 
         Args:
             host: Hostname or IP

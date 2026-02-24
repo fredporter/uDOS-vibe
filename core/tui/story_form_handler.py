@@ -1,5 +1,4 @@
-"""
-Interactive Story Form Handler - TUI integration for story-based forms.
+"""Interactive Story Form Handler - TUI integration for story-based forms.
 
 Handles:
 - Interactive field rendering
@@ -8,26 +7,25 @@ Handles:
 - Data collection and validation
 """
 
+from __future__ import annotations
+
+from datetime import datetime
 import os
 import sys
 import termios
 import tty
-from typing import Dict, List, Optional, Any
-from pathlib import Path
-from datetime import datetime
+from typing import Any
 
-from core.tui.form_fields import (
-    TUIFormRenderer,
-    FieldType,
-    DatePicker,
-    TimePicker,
-    BarSelector,
-    SmartNumberPicker,
+from core.input.confirmation_utils import (
+    format_error,
+    format_prompt,
+    normalize_default,
+    parse_confirmation,
 )
 from core.services.logging_api import get_logger
 from core.services.unified_config_loader import get_bool_config
+from core.tui.form_fields import FieldType, TUIFormRenderer
 from core.utils.tty import interactive_tty_status
-from core.input.confirmation_utils import normalize_default, parse_confirmation, format_prompt, format_error
 
 logger = get_logger("story-form")
 
@@ -37,18 +35,17 @@ class StoryFormHandler:
 
     def __init__(self):
         """Initialize story form handler."""
-        self.renderer: Optional[TUIFormRenderer] = None
+        self.renderer: TUIFormRenderer | None = None
         self.original_settings = None
         self.original_log_dest = None
-        self._tty_in: Optional[Any] = None
-        self._tty_out: Optional[Any] = None
+        self._tty_in: Any | None = None
+        self._tty_out: Any | None = None
         self._override_fields_inserted = False
-        self._pending_location_specs: List[Dict[str, Any]] = []
-        self.interactive_reason: Optional[str] = None
+        self._pending_location_specs: list[dict[str, Any]] = []
+        self.interactive_reason: str | None = None
 
-    def process_story_form(self, form_spec: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process interactive form from story specification.
+    def process_story_form(self, form_spec: dict[str, Any]) -> dict[str, Any]:
+        """Process interactive form from story specification.
 
         Args:
             form_spec: Story form specification with fields
@@ -57,13 +54,15 @@ class StoryFormHandler:
             Dictionary with collected data
         """
         if not self._is_interactive():
-            logger.info("[LOCAL] Non-interactive terminal detected, using fallback form handler")
+            logger.info(
+                "[LOCAL] Non-interactive terminal detected, using fallback form handler"
+            )
             return SimpleFallbackFormHandler().process_story_form(form_spec)
 
         # Build form from spec
         renderer = TUIFormRenderer(
-            title=form_spec.get('title', 'Form'),
-            description=form_spec.get('description', ''),
+            title=form_spec.get("title", "Form"),
+            description=form_spec.get("description", ""),
             on_field_complete=self._on_field_complete,
         )
         self.renderer = renderer
@@ -71,7 +70,7 @@ class StoryFormHandler:
         self._pending_location_specs = []
 
         # Add fields (non-location first, location fields queued for last)
-        fields = form_spec.get('fields', [])
+        fields = form_spec.get("fields", [])
         for field_spec in fields:
             self._add_field_from_spec(renderer, field_spec)
 
@@ -82,23 +81,25 @@ class StoryFormHandler:
         # Run interactive form
         return self._run_interactive_form(renderer, form_spec)
 
-    def _add_field_from_spec(self, renderer: TUIFormRenderer, spec: Dict, force_add: bool = False) -> None:
+    def _add_field_from_spec(
+        self, renderer: TUIFormRenderer, spec: dict, force_add: bool = False
+    ) -> None:
         """Add field to renderer from specification."""
-        name = spec.get('name', 'unknown')
-        label = spec.get('label', name)
-        ftype_str = spec.get('type', 'text').lower()
+        name = spec.get("name", "unknown")
+        label = spec.get("label", name)
+        ftype_str = spec.get("type", "text").lower()
 
         # Map string type to FieldType
         type_map = {
-            'text': FieldType.TEXT,
-            'number': FieldType.NUMBER,
-            'date': FieldType.DATE,
-            'time': FieldType.TIME,
-            'datetime_approve': FieldType.DATETIME_APPROVE,
-            'select': FieldType.SELECT,
-            'checkbox': FieldType.CHECKBOX,
-            'textarea': FieldType.TEXTAREA,
-            'location': FieldType.LOCATION,
+            "text": FieldType.TEXT,
+            "number": FieldType.NUMBER,
+            "date": FieldType.DATE,
+            "time": FieldType.TIME,
+            "datetime_approve": FieldType.DATETIME_APPROVE,
+            "select": FieldType.SELECT,
+            "checkbox": FieldType.CHECKBOX,
+            "textarea": FieldType.TEXTAREA,
+            "location": FieldType.LOCATION,
         }
 
         ftype = type_map.get(ftype_str, FieldType.TEXT)
@@ -109,23 +110,23 @@ class StoryFormHandler:
 
         # Build kwargs from spec
         kwargs = {
-            'required': spec.get('required', False),
-            'placeholder': spec.get('placeholder', ''),
-            'default': spec.get('default'),
+            "required": spec.get("required", False),
+            "placeholder": spec.get("placeholder", ""),
+            "default": spec.get("default"),
         }
 
         if ftype == FieldType.SELECT:
-            kwargs['options'] = spec.get('options', [])
+            kwargs["options"] = spec.get("options", [])
 
         if ftype == FieldType.CHECKBOX:
-            kwargs['options'] = spec.get('options', [])
+            kwargs["options"] = spec.get("options", [])
 
         if ftype == FieldType.NUMBER:
-            kwargs['min_value'] = spec.get('min_value')
-            kwargs['max_value'] = spec.get('max_value')
+            kwargs["min_value"] = spec.get("min_value")
+            kwargs["max_value"] = spec.get("max_value")
 
         if ftype == FieldType.LOCATION:
-            kwargs['timezone_field'] = spec.get('timezone_field', 'user_timezone')
+            kwargs["timezone_field"] = spec.get("timezone_field", "user_timezone")
 
         renderer.add_field(name, label, ftype, **kwargs)
 
@@ -133,22 +134,29 @@ class StoryFormHandler:
         """Ensure location fields render last."""
         if not self.renderer:
             return
-        location_fields = [f for f in self.renderer.fields if f['type'] == FieldType.LOCATION]
+        location_fields = [
+            f for f in self.renderer.fields if f["type"] == FieldType.LOCATION
+        ]
         if not location_fields:
             return
-        non_location = [f for f in self.renderer.fields if f['type'] != FieldType.LOCATION]
+        non_location = [
+            f for f in self.renderer.fields if f["type"] != FieldType.LOCATION
+        ]
         self.renderer.fields = non_location + location_fields
 
-    def _run_interactive_form(self, renderer: TUIFormRenderer, form_spec: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Run interactive form with keyboard input.
+    def _run_interactive_form(
+        self, renderer: TUIFormRenderer, form_spec: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Run interactive form with keyboard input.
 
         Returns:
             Collected form data
         """
         # Setup terminal
         if not self._setup_terminal():
-            logger.warning("[LOCAL] Terminal not interactive, using fallback form handler")
+            logger.warning(
+                "[LOCAL] Terminal not interactive, using fallback form handler"
+            )
             return SimpleFallbackFormHandler().process_story_form(form_spec)
 
         try:
@@ -160,11 +168,13 @@ class StoryFormHandler:
                 # Clear screen and render current field
                 self._clear_screen()
                 current_field = renderer.fields[renderer.current_field_index]
-                logger.info(f"[TUI-DEBUG] Rendering field {renderer.current_field_index}: {current_field['label']} (type: {current_field['type']})")
+                logger.info(
+                    f"[TUI-DEBUG] Rendering field {renderer.current_field_index}: {current_field['label']} (type: {current_field['type']})"
+                )
                 output = renderer.render()
 
                 # In raw mode, we need \r\n for line breaks, not just \n
-                output = output.replace('\n', '\r\n')
+                output = output.replace("\n", "\r\n")
 
                 output_stream = self._tty_out or sys.stdout
                 output_stream.write(output)
@@ -172,9 +182,9 @@ class StoryFormHandler:
 
                 # Get input
                 key = self._read_key()
-                logger.info(f"[TUI-DEBUG] Key pressed: {repr(key)} (len={len(key)})")
+                logger.info(f"[TUI-DEBUG] Key pressed: {key!r} (len={len(key)})")
 
-                if key == '\x1b':  # Escape key
+                if key == "\x1b":  # Escape key
                     logger.info("[LOCAL] Form cancelled by user")
                     return {"status": "cancelled", "data": {}}
 
@@ -193,7 +203,9 @@ class StoryFormHandler:
             # Restore terminal
             self._restore_terminal()
 
-    def _on_field_complete(self, name: str, result: Any, submitted_data: Dict[str, Any]) -> None:
+    def _on_field_complete(
+        self, name: str, result: Any, submitted_data: dict[str, Any]
+    ) -> None:
         """Hook called after each field is completed."""
         if name == "system_datetime_approve" and isinstance(result, dict):
             tz = result.get("timezone")
@@ -213,9 +225,13 @@ class StoryFormHandler:
     def _remove_field(self, name: str) -> None:
         if not self.renderer:
             return
-        self.renderer.fields = [f for f in self.renderer.fields if f.get("name") != name]
+        self.renderer.fields = [
+            f for f in self.renderer.fields if f.get("name") != name
+        ]
 
-    def _insert_datetime_override_fields(self, approval_payload: Dict[str, Any]) -> None:
+    def _insert_datetime_override_fields(
+        self, approval_payload: dict[str, Any]
+    ) -> None:
         """Insert manual override fields after the datetime approval question."""
         if self._override_fields_inserted or not self.renderer:
             return
@@ -226,7 +242,9 @@ class StoryFormHandler:
         self._override_fields_inserted = True
         self._reorder_location_fields()
 
-    def _build_datetime_override_fields(self, approval_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _build_datetime_override_fields(
+        self, approval_payload: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Build the override field definitions."""
         timezone_default = approval_payload.get("timezone", "UTC")
         date_default = approval_payload.get("date")
@@ -276,8 +294,8 @@ class StoryFormHandler:
         ]
 
     def _create_field_record(
-        self, name: str, label: str, field_type: FieldType, config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, name: str, label: str, field_type: FieldType, config: dict[str, Any]
+    ) -> dict[str, Any]:
         """Create a renderer field record."""
         return {
             "name": name,
@@ -316,19 +334,22 @@ class StoryFormHandler:
 
             # Enter alternate screen buffer (much more reliable than clear codes)
             # This gives us a clean screen that we can fully control
-            output_stream.write('\033[?1049h')  # Save screen and enter alt buffer
+            output_stream.write("\033[?1049h")  # Save screen and enter alt buffer
             output_stream.flush()
 
             # Suppress logging to stdout during interactive form
             # This prevents log messages from breaking cursor positioning
             try:
                 from core.services.logging_api import LoggerRegistry
+
                 registry = LoggerRegistry._instance
                 if registry:
                     # Store original config
-                    self.original_log_dest = getattr(registry, '_log_dest_config', None)
+                    self.original_log_dest = getattr(registry, "_log_dest_config", None)
                     # Temporarily set logging to file-only
-                    if hasattr(registry, '_config') and hasattr(registry._config, 'dest'):
+                    if hasattr(registry, "_config") and hasattr(
+                        registry._config, "dest"
+                    ):
                         old_dest = registry._config.dest
                         registry._config.dest = "file"  # Don't write to stdout
                         self.original_log_dest = old_dest
@@ -345,7 +366,7 @@ class StoryFormHandler:
         # Exit alternate screen buffer first (restore original screen)
         try:
             output_stream = self._tty_out or sys.stdout
-            output_stream.write('\033[?1049l')  # Exit alt buffer and restore screen
+            output_stream.write("\033[?1049l")  # Exit alt buffer and restore screen
             output_stream.flush()
         except Exception:
             pass
@@ -372,9 +393,14 @@ class StoryFormHandler:
         # Re-enable logging to stdout if it was disabled
         try:
             from core.services.logging_api import LoggerRegistry
+
             registry = LoggerRegistry._instance
-            if registry and hasattr(self, 'original_log_dest') and self.original_log_dest:
-                if hasattr(registry, '_config') and hasattr(registry._config, 'dest'):
+            if (
+                registry
+                and hasattr(self, "original_log_dest")
+                and self.original_log_dest
+            ):
+                if hasattr(registry, "_config") and hasattr(registry._config, "dest"):
                     registry._config.dest = self.original_log_dest
         except Exception:
             pass
@@ -400,8 +426,7 @@ class StoryFormHandler:
             return False
 
     def _read_key(self) -> str:
-        """
-        Read a single key with support for arrow keys.
+        """Read a single key with support for arrow keys.
 
         Returns:
             Key string ('up', 'down', 'left', 'right', or character)
@@ -415,29 +440,29 @@ class StoryFormHandler:
             return ch_local
 
         ch = _read_char()
-        logger.info(f"[TUI-DEBUG] _read_key first char: {repr(ch)}")
+        logger.info(f"[TUI-DEBUG] _read_key first char: {ch!r}")
 
-        if ch == '\x1b':  # Escape sequence
+        if ch == "\x1b":  # Escape sequence
             next_ch = _read_char()
-            logger.info(f"[TUI-DEBUG] Escape sequence next char: {repr(next_ch)}")
-            if next_ch in ('[', 'O'):
+            logger.info(f"[TUI-DEBUG] Escape sequence next char: {next_ch!r}")
+            if next_ch in ("[", "O"):
                 seq = ""
                 for _ in range(8):
                     part = _read_char()
                     if not part:
                         break
                     seq += part
-                    if part.isalpha() or part == '~':
+                    if part.isalpha() or part == "~":
                         break
-                logger.info(f"[TUI-DEBUG] Escape sequence tail: {repr(seq)}")
-                if seq.endswith('A'):
-                    return 'up'
-                if seq.endswith('B'):
-                    return 'down'
-                if seq.endswith('C'):
-                    return 'right'
-                if seq.endswith('D'):
-                    return 'left'
+                logger.info(f"[TUI-DEBUG] Escape sequence tail: {seq!r}")
+                if seq.endswith("A"):
+                    return "up"
+                if seq.endswith("B"):
+                    return "down"
+                if seq.endswith("C"):
+                    return "right"
+                if seq.endswith("D"):
+                    return "left"
 
         return ch
 
@@ -448,8 +473,8 @@ class StoryFormHandler:
         # \033[2J = clear entire screen
         # \033[H = move cursor to home (1,1)
         output_stream = self._tty_out or sys.stdout
-        output_stream.write('\033[2J')
-        output_stream.write('\033[H')
+        output_stream.write("\033[2J")
+        output_stream.write("\033[H")
         output_stream.flush()
 
 
@@ -457,16 +482,16 @@ class StoryFormHandler:
 class SimpleFallbackFormHandler:
     """Fallback form handler using simple input() calls (no interactive UI)."""
 
-    def process_story_form(self, form_spec: Dict[str, Any]) -> Dict[str, Any]:
+    def process_story_form(self, form_spec: dict[str, Any]) -> dict[str, Any]:
         """Process form using simple input prompts."""
         data = {}
 
-        for field_spec in form_spec.get('fields', []):
-            name = field_spec.get('name', 'unknown')
-            label = field_spec.get('label', name)
-            default = field_spec.get('default', '')
-            options = field_spec.get('options', [])
-            ftype = field_spec.get('type', 'text')
+        for field_spec in form_spec.get("fields", []):
+            name = field_spec.get("name", "unknown")
+            label = field_spec.get("label", name)
+            default = field_spec.get("default", "")
+            options = field_spec.get("options", [])
+            ftype = field_spec.get("type", "text")
 
             if options:
                 # Simple selection
@@ -481,12 +506,12 @@ class SimpleFallbackFormHandler:
                 except ValueError:
                     pass
 
-            elif ftype in ['date', 'time']:
+            elif ftype in ["date", "time"]:
                 # Prompt for date/time
                 prompt = f"{label} ({default}): "
                 value = input(prompt).strip() or default
                 data[name] = value
-            elif ftype == 'datetime_approve':
+            elif ftype == "datetime_approve":
                 now = datetime.now().astimezone()
                 date_str = now.strftime("%Y-%m-%d")
                 time_str = now.strftime("%H:%M:%S")
@@ -529,16 +554,24 @@ class SimpleFallbackFormHandler:
 
         return {"status": "success", "data": data}
 
-    def _collect_datetime_overrides(self, base_payload: Dict[str, str]) -> Dict[str, str]:
+    def _collect_datetime_overrides(
+        self, base_payload: dict[str, str]
+    ) -> dict[str, str]:
         """Prompt for timezone, date, and time overrides when approval is declined."""
         overrides = {}
         tz_default = base_payload.get("timezone", "UTC")
         date_default = base_payload.get("date", "")
         time_default = base_payload.get("time", "")
 
-        overrides["user_timezone"] = self._prompt_override("Timezone (override)", tz_default)
-        overrides["current_date"] = self._prompt_override("Current date (override)", date_default)
-        overrides["current_time"] = self._prompt_override("Current time (override)", time_default)
+        overrides["user_timezone"] = self._prompt_override(
+            "Timezone (override)", tz_default
+        )
+        overrides["current_date"] = self._prompt_override(
+            "Current date (override)", date_default
+        )
+        overrides["current_time"] = self._prompt_override(
+            "Current time (override)", time_default
+        )
 
         return overrides
 

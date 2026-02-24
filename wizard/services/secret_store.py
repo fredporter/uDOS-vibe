@@ -1,5 +1,4 @@
-"""
-Wizard Secret Store
+"""Wizard Secret Store
 ===================
 
 Encrypted secret storage for the Wizard server using a tomb-style blob.
@@ -15,16 +14,16 @@ sensitive routes disabled until the operator provides a valid key.
 from __future__ import annotations
 
 import base64
-import json
-import os
+import builtins
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 import hashlib
-from datetime import datetime, timezone
-from dataclasses import dataclass, asdict, field
+import json
 from pathlib import Path
-from typing import Dict, Optional, List, Any
+from typing import Any
 
-from wizard.services.logging_api import get_logger
 from core.services.unified_config_loader import get_dynamic_config
+from wizard.services.logging_api import get_logger
 
 logger = get_logger("secret-store")
 
@@ -51,8 +50,8 @@ class SecretEntry:
     value: str
     version: int = 1
     created_at: str = ""
-    rotated_at: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    rotated_at: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -61,7 +60,7 @@ class SecretStoreConfig:
 
     tomb_path: Path = Path(__file__).parent.parent / "secrets.tomb"
     key_env: str = "WIZARD_KEY"
-    secondary_key_env: Optional[str] = "WIZARD_KEY_PEER"
+    secondary_key_env: str | None = "WIZARD_KEY_PEER"
     key_file_path: Path = (
         Path(__file__).resolve().parents[2]
         / "memory"
@@ -74,10 +73,10 @@ class SecretStoreConfig:
 class SecretStore:
     """Encrypted secret store with in-memory cache."""
 
-    def __init__(self, config: Optional[SecretStoreConfig] = None):
+    def __init__(self, config: SecretStoreConfig | None = None):
         self.config = config or SecretStoreConfig()
-        self._fernet: Optional[Fernet] = None
-        self._cache: Dict[str, SecretEntry] = {}
+        self._fernet: Fernet | None = None
+        self._cache: dict[str, SecretEntry] = {}
         self._loaded = False
 
     def _derive_key(self, raw: str) -> bytes:
@@ -85,7 +84,7 @@ class SecretStore:
         digest = hashlib.sha256(raw.encode("utf-8")).digest()
         return base64.urlsafe_b64encode(digest)
 
-    def _get_fernet(self, key_material: Optional[str]) -> Fernet:
+    def _get_fernet(self, key_material: str | None) -> Fernet:
         if not CRYPTO_AVAILABLE:
             raise SecretStoreError(
                 "cryptography is required. Install with: pip install cryptography"
@@ -94,12 +93,14 @@ class SecretStore:
             raise SecretStoreError("No key material provided to unlock tomb")
         return Fernet(self._derive_key(key_material))
 
-    def unlock(self, key_material: Optional[str] = None):
+    def unlock(self, key_material: str | None = None):
         """Unlock the tomb and load secrets into memory."""
         if self._loaded:
             return
         env_key = key_material or get_dynamic_config(self.config.key_env)
-        fallback_key = get_dynamic_config(self.config.secondary_key_env) if not env_key else None
+        fallback_key = (
+            get_dynamic_config(self.config.secondary_key_env) if not env_key else None
+        )
         file_key = None
         if self.config.key_file_path.exists():
             try:
@@ -126,7 +127,7 @@ class SecretStore:
 
         data = tomb.read_bytes()
         decrypted = None
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         for candidate in (env_key, fallback_key, file_key):
             if not candidate:
                 continue
@@ -140,11 +141,13 @@ class SecretStore:
                 last_error = exc
 
         if decrypted is None:
-            raise SecretStoreError("Unable to decrypt tomb with provided key") from last_error
+            raise SecretStoreError(
+                "Unable to decrypt tomb with provided key"
+            ) from last_error
 
         payload = json.loads(decrypted.decode("utf-8"))
         secrets = payload.get("secrets", [])
-        cache: Dict[str, SecretEntry] = {}
+        cache: dict[str, SecretEntry] = {}
         for entry in secrets:
             se = SecretEntry(**entry)
             cache[se.key_id] = se
@@ -162,15 +165,15 @@ class SecretStore:
         with open(tomb, "wb") as fh:
             fh.write(encrypted)
 
-    def list(self) -> List[SecretEntry]:
+    def list(self) -> builtins.list[SecretEntry]:
         self._ensure_loaded()
         return list(self._cache.values())
 
-    def get_entry(self, key_id: str) -> Optional[SecretEntry]:
+    def get_entry(self, key_id: str) -> SecretEntry | None:
         self._ensure_loaded()
         return self._cache.get(key_id)
 
-    def get(self, key_id: str) -> Optional[SecretEntry]:
+    def get(self, key_id: str) -> SecretEntry | None:
         self._ensure_loaded()
         return self._cache.get(key_id)
 
@@ -178,7 +181,7 @@ class SecretStore:
         self,
         key_id: str,
         value: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         provider: str = "manual",
     ):
         self._ensure_loaded()
@@ -186,7 +189,7 @@ class SecretStore:
             key_id=key_id,
             provider=provider,
             value=value,
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             metadata=metadata or {},
         )
         self._cache[key_id] = entry
@@ -219,8 +222,8 @@ class SecretStore:
             raise SecretStoreError("Secret store is locked or not initialized")
 
 
-def get_secret_store(config: Optional[SecretStoreConfig] = None) -> SecretStore:
+def get_secret_store(config: SecretStoreConfig | None = None) -> SecretStore:
     """Singleton-ish accessor for the secret store."""
     if not hasattr(get_secret_store, "_instance"):
-        setattr(get_secret_store, "_instance", SecretStore(config))
-    return getattr(get_secret_store, "_instance")
+        get_secret_store._instance = SecretStore(config)
+    return get_secret_store._instance

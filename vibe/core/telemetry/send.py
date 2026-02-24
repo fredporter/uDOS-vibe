@@ -15,8 +15,10 @@ from vibe.core.utils import get_user_agent
 try:
     from core.services.unified_config_loader import get_dynamic_config
 except Exception:
+
     def get_dynamic_config(key_name: str | None, default: str = "") -> str:
         return os.getenv(key_name, default) if key_name else default
+
 
 if TYPE_CHECKING:
     from vibe.core.agent_loop import ToolDecision

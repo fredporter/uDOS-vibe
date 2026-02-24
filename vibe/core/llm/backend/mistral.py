@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 try:
     from core.services.unified_config_loader import get_dynamic_config
 except Exception:
+
     def get_dynamic_config(key_name: str | None, default: str = "") -> str:
         return os.getenv(key_name, default) if key_name else default
 
