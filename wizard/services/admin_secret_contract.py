@@ -11,6 +11,7 @@ from typing import Any
 from wizard.services.path_utils import get_repo_root
 from wizard.services.secret_store import SecretEntry, SecretStoreError, get_secret_store
 from wizard.services.wizard_config import load_wizard_config_data, save_wizard_config_data
+from core.services.unified_config_loader import get_config
 
 DEFAULT_ADMIN_KEY_ID = "wizard-admin-token"
 
@@ -106,8 +107,8 @@ def collect_admin_secret_contract(repo_root: Path | None = None) -> dict[str, An
     config_path = root / "wizard" / "config" / "wizard.json"
 
     env_values = _read_env_vars(env_path)
-    wizard_key = env_values.get("WIZARD_KEY") or os.getenv("WIZARD_KEY", "").strip()
-    admin_token = env_values.get("WIZARD_ADMIN_TOKEN") or os.getenv(
+    wizard_key = env_values.get("WIZARD_KEY") or get_config("WIZARD_KEY", "").strip()
+    admin_token = env_values.get("WIZARD_ADMIN_TOKEN") or get_config(
         "WIZARD_ADMIN_TOKEN", ""
     ).strip()
 
@@ -187,7 +188,7 @@ def repair_admin_secret_contract(repo_root: Path | None = None) -> dict[str, Any
     env_values = _read_env_vars(env_path)
     config = load_wizard_config_data(path=config_path)
 
-    wizard_key = env_values.get("WIZARD_KEY") or os.getenv("WIZARD_KEY", "").strip()
+    wizard_key = env_values.get("WIZARD_KEY") or get_config("WIZARD_KEY", "").strip()
     if not wizard_key:
         wizard_key = secrets.token_urlsafe(48)
 
@@ -197,7 +198,7 @@ def repair_admin_secret_contract(repo_root: Path | None = None) -> dict[str, Any
 
     existing_token = (
         env_values.get("WIZARD_ADMIN_TOKEN")
-        or os.getenv("WIZARD_ADMIN_TOKEN", "").strip()
+        or get_config("WIZARD_ADMIN_TOKEN", "").strip()
     )
 
     secret_value = ""

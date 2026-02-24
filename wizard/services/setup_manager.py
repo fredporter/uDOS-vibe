@@ -16,6 +16,7 @@ from core.locations import LocationService
 from wizard.services.setup_state import setup_state
 from wizard.services.setup_profiles import load_user_profile, load_install_profile
 from core.services.integration_registry import get_wizard_required_variables
+from core.services.unified_config_loader import get_config
 
 
 def validate_database_paths() -> Dict[str, Any]:
@@ -41,7 +42,7 @@ def get_required_variables() -> Dict[str, Dict[str, Any]]:
     variables = get_wizard_required_variables()
     for key, data in variables.items():
         env_var = data.get("env_var")
-        data["status"] = "configured" if env_var and os.getenv(env_var) else "optional"
+        data["status"] = "configured" if env_var and get_config(env_var) else "optional"
     return variables
 
 
@@ -67,12 +68,12 @@ def get_full_config_status() -> Dict[str, Any]:
         },
         "services": {
             "github": {
-                "configured": bool(os.getenv("GITHUB_TOKEN")),
-                "status": "ready" if os.getenv("GITHUB_TOKEN") else "not-configured",
+                "configured": bool(get_config("GITHUB_TOKEN")),
+                "status": "ready" if get_config("GITHUB_TOKEN") else "not-configured",
             },
             "ai": {
-                "configured": bool(os.getenv("MISTRAL_API_KEY")),
-                "status": "ready" if os.getenv("MISTRAL_API_KEY") else "not-configured",
+                "configured": bool(get_config("MISTRAL_API_KEY")),
+                "status": "ready" if get_config("MISTRAL_API_KEY") else "not-configured",
             },
         },
         "databases": validate_database_paths(),

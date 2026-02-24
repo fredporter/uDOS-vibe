@@ -262,7 +262,7 @@ class DatePicker:
             active = field_labels[self.current_field]
             width = 38
             try:
-                cols = int(os.getenv("UDOS_VIEWPORT_COLS", "") or 0)
+                cols = get_int_config("UDOS_VIEWPORT_COLS", 0)
                 if cols:
                     width = max(32, min(60, cols - 4))
             except Exception:
@@ -296,11 +296,7 @@ class DatePicker:
 
             date_line = f"{year:04d}-{month:02d}-{day:02d}"
             title_text = f"{ANSI_LABEL}DATE{ANSI_RESET} {self.label} (YYYY-MM-DD)"
-            if os.getenv("UDOS_TUI_INVERT_HEADERS", "1").strip().lower() not in {
-                "0",
-                "false",
-                "no",
-            }:
+            if get_bool_config("UDOS_TUI_INVERT_HEADERS", True):
                 title_text = f"{ANSI_INVERT}{title_text}{ANSI_RESET}"
             lines = [
                 border("┌", "─", "┐"),
@@ -545,7 +541,7 @@ class DateTimeApproval:
         )
         self.active_section = 0  # 0=date, 1=time, 2=timezone
         try:
-            cols = int(os.getenv("UDOS_VIEWPORT_COLS", "") or 0)
+            cols = get_int_config("UDOS_VIEWPORT_COLS", 0)
             if cols:
                 self._box_width = max(40, min(70, cols - 4))
         except Exception:
@@ -645,11 +641,7 @@ class DateTimeApproval:
                 return line(text)
 
         title_text = f"{ANSI_LABEL}TIME{ANSI_RESET} {self.label}"
-        if os.getenv("UDOS_TUI_INVERT_HEADERS", "1").strip().lower() not in {
-            "0",
-            "false",
-            "no",
-        }:
+        if get_bool_config("UDOS_TUI_INVERT_HEADERS", True):
             title_text = f"{ANSI_INVERT}{title_text}{ANSI_RESET}"
 
         def focus_line(label: str, value: str, idx: int) -> str:
@@ -806,7 +798,7 @@ class BarSelector:
         # Focused view - show all options in a box
         width = 60
         try:
-            cols = int(os.getenv("UDOS_VIEWPORT_COLS", "") or 0)
+            cols = get_int_config("UDOS_VIEWPORT_COLS", 0)
             if cols:
                 width = max(50, min(70, cols - 4))
         except Exception:
@@ -965,7 +957,7 @@ class LocationSelector:
         # Use boxed ANSI styling
         width = 60
         try:
-            cols = int(os.getenv("UDOS_VIEWPORT_COLS", "") or 0)
+            cols = get_int_config("UDOS_VIEWPORT_COLS", 0)
             if cols:
                 width = max(50, min(70, cols - 4))
         except Exception:
@@ -1118,7 +1110,7 @@ class TUIFormRenderer:
             return ViewportService().get_cols()
         except Exception:
             try:
-                return int(os.getenv("UDOS_VIEWPORT_COLS", "") or 80)
+                return get_int_config("UDOS_VIEWPORT_COLS", 80)
             except Exception:
                 return 80
 
@@ -1304,11 +1296,7 @@ class TUIFormRenderer:
         current = self.current_field_index + 1
         total = max(1, len(self.fields))
         title_text = f"{ANSI_LABEL}{self.title}{ANSI_RESET}"
-        if os.getenv("UDOS_TUI_INVERT_HEADERS", "1").strip().lower() not in {
-            "0",
-            "false",
-            "no",
-        }:
+        if get_bool_config("UDOS_TUI_INVERT_HEADERS", True):
             title_text = f"{ANSI_INVERT}{title_text}{ANSI_RESET}"
 
         lines.append(border("┌", "─", "┐"))
@@ -1462,7 +1450,7 @@ class TUIFormRenderer:
         repo_root = get_repo_root()
         memory_root = get_memory_root()
         system_root = memory_root / "system"
-        env_vault = os.getenv("VAULT_ROOT")
+        env_vault = get_config("VAULT_ROOT")
         vault_md_root = (
             Path(env_vault).expanduser() if env_vault else repo_root / "vault-md"
         )

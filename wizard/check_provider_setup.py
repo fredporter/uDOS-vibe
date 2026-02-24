@@ -21,6 +21,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
 
+from core.services.unified_config_loader import get_config
+
 # Colors
 GREEN = "\033[0;32m"
 YELLOW = "\033[1;33m"
@@ -227,7 +229,7 @@ def _populate_github_keys(token: str) -> bool:
 def _validate_ollama() -> bool:
     """Validate that Ollama is running locally."""
     try:
-        host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+        host = get_config("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
         if shutil.which("curl"):
             return _run_check(f"curl -s {host}/api/tags")
         try:
@@ -250,7 +252,7 @@ def _validate_ollama() -> bool:
 
 
 def _ollama_api_request(path: str, payload: Optional[Dict] = None) -> Optional[Dict]:
-    host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    host = get_config("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
     url = f"{host}{path}"
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = urllib.request.Request(
@@ -265,7 +267,7 @@ def _ollama_api_request(path: str, payload: Optional[Dict] = None) -> Optional[D
 
 
 def _ollama_api_stream_pull(model: str) -> bool:
-    host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    host = get_config("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
     url = f"{host}/api/pull"
     data = json.dumps({"name": model}).encode("utf-8")
     req = urllib.request.Request(
@@ -489,7 +491,7 @@ def run_provider_setup(provider_id: str, auto_yes: bool = False) -> bool:
         # Check if Ollama is installed
         if not shutil.which("ollama"):
             if _validate_ollama():
-                host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+                host = get_config("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
                 print(f"{GREEN}✓{NC} Ollama API reachable at {host}\n")
                 _show_ollama_model_library(auto_yes)
                 return True
@@ -509,14 +511,14 @@ def run_provider_setup(provider_id: str, auto_yes: bool = False) -> bool:
                 print("  macOS: uses Homebrew if available")
                 print("  Windows: opens download guidance")
                 if _install_ollama_local():
-                    host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+                    host = get_config("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
                     print(f"{GREEN}✓{NC} Ollama API reachable at {host}\n")
                     _show_ollama_model_library(auto_yes)
                     return True
                 recheck = input("\nRe-check now after install/start? (y/N): ").strip().lower()
                 if recheck == "y":
                     if _validate_ollama():
-                        host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+                        host = get_config("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
                         print(f"{GREEN}✓{NC} Ollama API reachable at {host}\n")
                         _show_ollama_model_library(auto_yes)
                         return True

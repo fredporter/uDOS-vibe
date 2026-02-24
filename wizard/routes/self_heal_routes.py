@@ -32,6 +32,7 @@ from wizard.providers.nounproject_client import (
 )
 from wizard.services.path_utils import get_repo_root
 from wizard.services.port_manager import get_port_manager, OperationStatus
+from core.services.unified_config_loader import get_config, get_int_config
 
 
 DEFAULT_CATEGORIES = {
@@ -110,10 +111,10 @@ def _normalize_model_name(name: str) -> str:
 
 
 def _required_ollama_models() -> List[str]:
-    recommended = os.getenv("VIBE_OLLAMA_RECOMMENDED_MODELS", "").strip()
+    recommended = get_config("VIBE_OLLAMA_RECOMMENDED_MODELS", "").strip()
     if recommended:
         return [item.strip() for item in recommended.split(",") if item.strip()]
-    tier = os.getenv("VIBE_INSTALL_TIER", "").strip().lower()
+    tier = get_config("VIBE_INSTALL_TIER", "").strip().lower()
     if tier == "tier3":
         return [
             "mistral",
@@ -130,8 +131,8 @@ def _required_ollama_models() -> List[str]:
 
 def _configured_ollama_default_model() -> str:
     return (
-        os.getenv("OLLAMA_DEFAULT_MODEL", "").strip()
-        or os.getenv("VIBE_ASK_MODEL", "").strip()
+        get_config("OLLAMA_DEFAULT_MODEL", "").strip()
+        or get_config("VIBE_ASK_MODEL", "").strip()
         or "devstral-small-2"
     )
 
@@ -269,9 +270,9 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
 
     @router.get("/status")
     async def status():
-        env_admin_token = os.getenv("WIZARD_ADMIN_TOKEN", "").strip()
-        noun_key = os.getenv("NOUNPROJECT_API_KEY", "").strip()
-        noun_secret = os.getenv("NOUNPROJECT_API_SECRET", "").strip()
+        env_admin_token = get_config("WIZARD_ADMIN_TOKEN", "").strip()
+        noun_key = get_config("NOUNPROJECT_API_KEY", "").strip()
+        noun_secret = get_config("NOUNPROJECT_API_SECRET", "").strip()
         noun_configured = bool(noun_key and noun_secret)
 
         noun_auth_ok = None

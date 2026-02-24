@@ -5,6 +5,7 @@ from typing import Any
 from core.services.path_service import find_repo_root as _find_repo_root
 from core.services.path_service import get_repo_root as _get_repo_root
 from wizard.services.wizard_config import load_wizard_config_data
+from core.services.unified_config_loader import get_config
 
 
 def find_repo_root(start_path: Path | None = None) -> Path:
@@ -23,7 +24,7 @@ def get_memory_dir() -> Path:
 
 def get_vault_dir() -> Path:
     """Get vault directory path (creates if doesn't exist)."""
-    env_root = os.getenv("VAULT_ROOT")
+    env_root = get_config("VAULT_ROOT")
     if env_root:
         vault_dir = Path(env_root).expanduser()
         if not vault_dir.is_absolute():
@@ -53,7 +54,7 @@ def get_artifacts_dir() -> Path:
     config = _load_wizard_config()
     locations = config.get("file_locations", {}) if isinstance(config, dict) else {}
     configured = (
-        os.getenv("UDOS_ARTIFACTS_ROOT")
+        get_config("UDOS_ARTIFACTS_ROOT")
         or locations.get("artifacts_root")
         or ".artifacts"
     )
@@ -67,7 +68,7 @@ def get_test_runs_dir() -> Path:
     config = _load_wizard_config()
     locations = config.get("file_locations", {}) if isinstance(config, dict) else {}
     configured = (
-        os.getenv("UDOS_TEST_RUNS_ROOT")
+        get_config("UDOS_TEST_RUNS_ROOT")
         or locations.get("test_runs_root")
         or str(Path(".artifacts") / "test-runs")
     )
@@ -96,7 +97,7 @@ def get_wizard_venv_dir() -> Path:
     1. WIZARD_VENV_PATH env (absolute or repo-relative)
     2. Default repo path: venv
     """
-    env_venv = os.getenv("WIZARD_VENV_PATH", "").strip()
+    env_venv = get_config("WIZARD_VENV_PATH", "").strip()
     if env_venv:
         return _resolve_venv_path(env_venv)
 
