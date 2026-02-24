@@ -123,6 +123,40 @@ def create_provider_routes(auth_guard=None):
 
     def check_provider_status(provider_id: str) -> dict[str, object]:
         """Check if a provider is configured and working."""
+        from core.services.ai_provider_handler import get_ai_provider_handler
+
+        # Use centralized AI provider handler for Ollama and Mistral
+        if provider_id == "ollama":
+            handler = get_ai_provider_handler()
+            ai_status = handler.check_local_provider()
+            return {
+                "provider_id": "ollama",
+                "name": "Ollama",
+                "configured": ai_status.is_configured,
+                "available": ai_status.is_available,
+                "cli_installed": ai_status.is_configured,
+                "needs_restart": False,
+                "enabled": "ollama" in _get_enabled_providers(),
+                "loaded_models": ai_status.loaded_models,
+                "default_model": ai_status.default_model,
+                "issue": ai_status.issue,
+            }
+
+        if provider_id == "mistral":
+            handler = get_ai_provider_handler()
+            ai_status = handler.check_cloud_provider()
+            return {
+                "provider_id": "mistral",
+                "name": "Mistral",
+                "configured": ai_status.is_configured,
+                "available": ai_status.is_available,
+                "cli_installed": None,
+                "needs_restart": False,
+                "enabled": "mistral" in _get_enabled_providers(),
+                "issue": ai_status.issue,
+            }
+
+        # Fall back to original check_provider_status logic for other providers
         provider = PROVIDERS.get(provider_id)
         if not provider:
             return {
