@@ -85,6 +85,7 @@ from core.services.network_gate_policy import (
     close_bootstrap_gate,
     gate_status,
 )
+from core.services.permission_handler import Permission, get_permission_handler
 from core.services.prompt_parser_service import get_prompt_parser_service
 from core.services.self_healer import collect_self_heal_summary
 from core.services.stdlib_http import HTTPError, http_get, http_post
@@ -97,10 +98,6 @@ from core.services.todo_service import (
     get_service as get_todo_manager,
 )
 from core.services.viewport_service import ViewportService
-from core.services.permission_handler import (
-    Permission,
-    get_permission_handler,
-)
 from core.tui.advanced_form_handler import AdvancedFormField
 from core.tui.dispatcher import CommandDispatcher
 from core.tui.fkey_handler import FKeyHandler
@@ -740,7 +737,7 @@ class UCODE:
             perm_result = self._check_command_permission(command, args)
             if not perm_result["allowed"]:
                 return (False, "", perm_result["error"])
-            
+
             if command in self.commands:
                 # Route to existing command handler
                 self.commands[command](args)
@@ -752,18 +749,18 @@ class UCODE:
 
     def _check_command_permission(self, command: str, args: str) -> dict[str, Any]:
         """Check if user has permission to execute command.
-        
+
         Args:
             command: Command name
             args: Command arguments
-            
+
         Returns:
             Dict with 'allowed' (bool) and 'error' (str) keys
         """
         try:
             handler = get_permission_handler()
             command_upper = command.upper()
-            
+
             # Define dangerous commands requiring specific permissions
             dangerous_commands = {
                 "DESTROY": Permission.DESTROY,
@@ -773,34 +770,33 @@ class UCODE:
                 "RESTORE": Permission.REPAIR,
                 "RESET": Permission.DESTROY,
             }
-            
+
             # Check if command requires special permission
             if command_upper in dangerous_commands:
                 required_perm = dangerous_commands[command_upper]
-                
+
                 # Check permission (testing mode returns True with warning)
                 if handler.has_permission(required_perm):
                     # Log successful permission check
                     handler.log_check(
                         required_perm,
                         granted=True,
-                        context={"command": command_upper, "args": args}
+                        context={"command": command_upper, "args": args},
                     )
                     return {"allowed": True}
                 else:
                     # Permission denied
                     handler.log_denied(
-                        required_perm,
-                        context={"command": command_upper, "args": args}
+                        required_perm, context={"command": command_upper, "args": args}
                     )
                     return {
                         "allowed": False,
-                        "error": f"Permission denied: {command_upper} requires {required_perm.value} permission"
+                        "error": f"Permission denied: {command_upper} requires {required_perm.value} permission",
                     }
-            
+
             # Non-dangerous commands always allowed
             return {"allowed": True}
-            
+
         except Exception as exc:
             # Log error but don't block execution (v1.4.x testing mode)
             self.logger.warning(f"Permission check error: {exc}")
@@ -1882,24 +1878,22 @@ class UCODE:
 
     def _get_ok_local_status(self) -> dict[str, Any]:
         """Return local provider status for OK Local / Vibe checks.
-        
+
         Uses centralized AIProviderHandler for unified provider status.
         Eliminates duplicate status checking code.
         """
         from core.services.ai_provider_handler import get_ai_provider_handler
-        
+
         try:
             handler = get_ai_provider_handler()
             status = handler.check_local_provider()
-            
+
             # Apply loopback-only policy to endpoint (security boundary)
-            raw_endpoint = status.details.get(
-                "endpoint", "http://127.0.0.1:11434"
-            )
+            raw_endpoint = status.details.get("endpoint", "http://127.0.0.1:11434")
             endpoint = self._resolve_loopback_url(
                 raw_endpoint, fallback="http://127.0.0.1:11434", context="OLLAMA_HOST"
             )
-            
+
             # Adapt ProviderStatus to expected dict format for backwards compatibility
             return {
                 "ready": status.is_available,

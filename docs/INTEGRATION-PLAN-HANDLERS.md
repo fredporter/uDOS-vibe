@@ -1,8 +1,8 @@
 # Central Handler Integration Plan - v1.4.6
 
-**Date:** 2026-02-24  
-**Milestone:** v1.4.6 Architecture Stabilisation  
-**Phase:** Integration of PermissionHandler, AIProviderHandler, UnifiedConfigLoader  
+**Date:** 2026-02-24
+**Milestone:** v1.4.6 Architecture Stabilisation
+**Phase:** Integration of PermissionHandler, AIProviderHandler, UnifiedConfigLoader
 
 ---
 
@@ -26,8 +26,8 @@ Add role-based permission checks to command handlers and sensitive operations.
 ### Integration Points
 
 #### 1. Core Command Execution (`core/tui/ucode.py`)
-**Location:** `execute_ucode()` method  
-**Current:** No permission checks  
+**Location:** `execute_ucode()` method
+**Current:** No permission checks
 **Integration:** Check permission before executing any command
 
 ```python
@@ -35,7 +35,7 @@ from core.services.permission_handler import get_permission_handler, Permission
 
 def execute_ucode(command: str, user_role: str = None) -> str:
     handler = get_permission_handler()
-    
+
     # Dangerous operations require specific permissions
     if command in ('destroy', 'delete-vault', 'repair'):
         if not handler.has_permission(Permission.DESTROY, user_role):
@@ -44,20 +44,20 @@ def execute_ucode(command: str, user_role: str = None) -> str:
                 'user_role': user_role
             })
             return "Error: Permission denied (DESTROY)"
-    
+
     # Wizard operations require WIZARD permission
     if 'wizard' in command.lower():
         if not handler.has_permission(Permission.WIZARD, user_role):
             handler.log_denied(Permission.WIZARD, context={'command': command})
             return "Error: Permission denied (WIZARD)"
-    
+
     # Execute command with permission logging
     result = handler.require(command, action=f'execute:{command}')
     if not result:
         # In v1.4.x (testing mode), logs warning but continues
         # In v1.5+, would raise exception
         pass
-    
+
     # ... existing execution logic ...
 ```
 
@@ -70,14 +70,14 @@ def execute_ucode(command: str, user_role: str = None) -> str:
 **Effort:** 2-3 hours
 
 #### 2. Sensitive Vault Operations (`core/services/vault.py`)
-**Location:** `delete_vault()`, `repair_vault()` methods  
-**Current:** No permission checks  
+**Location:** `delete_vault()`, `repair_vault()` methods
+**Current:** No permission checks
 **Integration:** Check DESTROY permission before vault modifications
 
 ```python
 def delete_vault(vault_name: str) -> bool:
     from core.services.permission_handler import get_permission_handler, Permission
-    
+
     handler = get_permission_handler()
     if not handler.has_permission(Permission.DESTROY):
         handler.log_denied(Permission.DESTROY, context={
@@ -85,7 +85,7 @@ def delete_vault(vault_name: str) -> bool:
             'target': vault_name
         })
         raise PermissionError(f"Cannot delete vault {vault_name}")
-    
+
     # ... existing deletion logic ...
 ```
 
@@ -97,14 +97,14 @@ def delete_vault(vault_name: str) -> bool:
 **Effort:** 1-2 hours
 
 #### 3. Configuration Modification (`core/services/config/*.py`)
-**Location:** All config write operations  
-**Current:** No permission checks  
+**Location:** All config write operations
+**Current:** No permission checks
 **Integration:** Check CONFIG_WRITE permission before modifications
 
 ```python
 def write_config(section: str, key: str, value: Any) -> bool:
     from core.services.permission_handler import get_permission_handler, Permission
-    
+
     handler = get_permission_handler()
     if not handler.has_permission(Permission.CONFIG_WRITE):
         handler.log_denied(Permission.CONFIG_WRITE, context={
@@ -112,7 +112,7 @@ def write_config(section: str, key: str, value: Any) -> bool:
             'key': key
         })
         return False
-    
+
     # ... existing write logic ...
 ```
 
@@ -124,8 +124,8 @@ def write_config(section: str, key: str, value: Any) -> bool:
 **Effort:** 1-2 hours
 
 #### 4. Wizard Routes (`wizard/routes/*.py`)
-**Location:** All route handlers for sensitive operations  
-**Current:** Some permission checks (inconsistent)  
+**Location:** All route handlers for sensitive operations
+**Current:** Some permission checks (inconsistent)
 **Integration:** Use PermissionHandler consistently
 
 ```python
@@ -134,10 +134,10 @@ from core.services.permission_handler import get_permission_handler, Permission
 @app.post("/wizard/destroy")
 def destroy_handler():
     handler = get_permission_handler()
-    
+
     if not handler.has_permission(Permission.DESTROY):
         return {"error": "Permission denied"}, 403
-    
+
     # ... existing handler logic ...
 ```
 
@@ -149,10 +149,10 @@ def destroy_handler():
 **Effort:** 2-3 hours
 
 ### Success Criteria
-✅ All dangerous operations require explicit permission  
-✅ All permission checks logged  
-✅ Test suite still 100% passing (can be >550 tests)  
-✅ Permission logic consistent across TUI and Wizard  
+✅ All dangerous operations require explicit permission
+✅ All permission checks logged
+✅ Test suite still 100% passing (can be >550 tests)
+✅ Permission logic consistent across TUI and Wizard
 
 ---
 
@@ -164,8 +164,8 @@ Replace scattered provider status checks with unified handler.
 ### Integration Points
 
 #### 1. TUI Provider Selection (`core/tui/providers.py` or similar)
-**Location:** Where TUI shows available providers  
-**Current:** Separate Ollama and Mistral status checks  
+**Location:** Where TUI shows available providers
+**Current:** Separate Ollama and Mistral status checks
 **Integration:** Use AIProviderHandler
 
 ```python
@@ -173,17 +173,17 @@ from core.services.ai_provider_handler import get_ai_provider_handler
 
 def display_provider_status():
     handler = get_ai_provider_handler()
-    
+
     # Check all providers in one call
     results = handler.check_all_providers()
-    
+
     for provider_id, status in results.items():
         if status.is_available:
             models = ", ".join(status.loaded_models[:3])
             print(f"✅ {provider_id.upper()}: {models}")
         else:
             print(f"⚠️ {provider_id.upper()}: {status.issue}")
-    
+
     # Get preferred provider for fallback
     preferred = handler.preferred_provider()
     print(f"Using: {preferred}")
@@ -198,18 +198,18 @@ def display_provider_status():
 **Effort:** 1-2 hours
 
 #### 2. Wizard Provider Routes (`wizard/routes/provider_routes.py`)
-**Location:** `/api/providers` endpoints  
-**Current:** check_provider_status() method  
+**Location:** `/api/providers` endpoints
+**Current:** check_provider_status() method
 **Integration:** Use AIProviderHandler for consistency
 
 ```python
 @app.get("/api/providers/status")
 def provider_status():
     handler = get_ai_provider_handler()
-    
+
     ollama = handler.check_local_provider()
     mistral = handler.check_cloud_provider()
-    
+
     return {
         "ollama": {
             "available": ollama.is_available,
@@ -232,22 +232,22 @@ def provider_status():
 **Effort:** 1-2 hours
 
 #### 3. Provider Selection Logic (`core/tui/ucode.py`)
-**Location:** Provider routing in command execution  
-**Current:** Ad-hoc provider selection  
+**Location:** Provider routing in command execution
+**Current:** Ad-hoc provider selection
 **Integration:** Use handler to determine available providers
 
 ```python
 def select_provider_for_command(command: str):
     handler = get_ai_provider_handler()
-    
+
     if user_preferences.prefer_local:
         if handler.is_ollama_available():
             return OllamaProvider()
-    
+
     # Fallback to Mistral if Ollama unavailable
     if handler.is_mistral_available():
         return MistralProvider()
-    
+
     raise NoProviderAvailableError()
 ```
 
@@ -260,10 +260,10 @@ def select_provider_for_command(command: str):
 **Effort:** 1-2 hours
 
 ### Success Criteria
-✅ Single source of truth for provider status  
-✅ Consistent status reporting between TUI and Wizard  
-✅ Proper fallback when provider unavailable  
-✅ No duplicate provider checks  
+✅ Single source of truth for provider status
+✅ Consistent status reporting between TUI and Wizard
+✅ Proper fallback when provider unavailable
+✅ No duplicate provider checks
 
 ---
 
@@ -280,7 +280,7 @@ Complete migration from os.getenv() to UnifiedConfigLoader.
 ### High Priority Migration Points
 
 #### 1. Critical TUI Configuration (`core/tui/ucode.py`)
-**Current:** ~18 os.getenv() calls  
+**Current:** ~18 os.getenv() calls
 **Integration:** Replace with type-safe accessors
 
 ```python
@@ -307,7 +307,7 @@ enable_streaming = config.get_bool('OLLAMA_STREAMING', default=True)
 **Effort:** 1-2 hours
 
 #### 2. Wizard Provider Routes (`wizard/routes/provider_routes.py`)
-**Current:** ~50 os.getenv() calls  
+**Current:** ~50 os.getenv() calls
 **Integration:** Replace with config loader
 
 ```python
@@ -327,7 +327,7 @@ enable_streaming = config.get_bool('OLLAMA_STREAMING', default=True)
 **Effort:** 2-3 hours
 
 #### 3. Core Services Configuration (`core/services/*.py`)
-**Current:** ~50 os.getenv() calls scattered  
+**Current:** ~50 os.getenv() calls scattered
 **Integration:** Centralize config access
 
 **Key Files to Update:**
@@ -365,10 +365,10 @@ config = get_config_loader()
 ```
 
 ### Success Criteria
-✅ 100% of os.getenv() calls replaced  
-✅ Type safety enforced  
-✅ Config priority working (env > TOML > JSON > defaults)  
-✅ Test suite 100% passing  
+✅ 100% of os.getenv() calls replaced
+✅ Type safety enforced
+✅ Config priority working (env > TOML > JSON > defaults)
+✅ Test suite 100% passing
 
 ---
 
@@ -422,11 +422,11 @@ uv run pytest core/tests --tb=short -q
 ```
 
 ### Success Criteria
-✅ All handler tests passing  
-✅ Full core test suite 100% passing  
-✅ No permission bypasses  
-✅ Provider selection deterministic  
-✅ All config accessible via loader  
+✅ All handler tests passing
+✅ Full core test suite 100% passing
+✅ No permission bypasses
+✅ Provider selection deterministic
+✅ All config accessible via loader
 
 ---
 
@@ -440,9 +440,9 @@ uv run pytest core/tests --tb=short -q
 - [ ] Update architecture docs with handler patterns
 
 ### Success Criteria
-✅ All integration work documented  
-✅ Examples provided for future similar patterns  
-✅ Team can maintain and extend handlers  
+✅ All integration work documented
+✅ Examples provided for future similar patterns
+✅ Team can maintain and extend handlers
 
 ---
 

@@ -30,7 +30,7 @@ Successfully completed **Phase 1 (PermissionHandler)** and **Phase 2 (AIProvider
   - Logs permission checks for audit trail
   - Returns dict: `{"allowed": bool, "error": str}`
   - Graceful error handling for test mode (v1.4.x logs warnings, allows execution)
-  
+
 - Modified method: `_execute_command_impl()`
   - First step: check `_check_command_permission()`
   - Returns error tuple if permission denied
@@ -151,7 +151,7 @@ count = get_int_config("KEY", 10)
 
 ```
 ✅ PermissionHandler: 35/35 tests passing
-✅ UnifiedConfigLoader: 44/44 tests passing  
+✅ UnifiedConfigLoader: 44/44 tests passing
 ⚠️  AIProviderHandler: 25/38 tests passing (11 blocked by admin_secret_contract)
 ✅ Full core suite: 651/663 passing (98.3%)
 ```
@@ -181,7 +181,7 @@ All three phases maintain 100% backwards compatibility:
 
 1. **Complete Phase 3A (Priority 1 files)**
    - Finish core/tui/form_fields.py (8 remaining os.getenv calls)
-   - Migrate wizard/routes/self_heal_routes.py (7 calls) 
+   - Migrate wizard/routes/self_heal_routes.py (7 calls)
    - Migrate wizard/check_provider_setup.py (6 calls)
    - Migrate wizard/services/setup_manager.py (5 calls)
    - Total: ~1.5 hours

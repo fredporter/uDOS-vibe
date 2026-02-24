@@ -46,10 +46,11 @@ def test_wizard_base_url_falls_back_to_loopback(monkeypatch) -> None:
 def test_get_ok_local_status_sanitizes_ollama_endpoint(monkeypatch) -> None:
     """Test that non-loopback endpoints are sanitized to localhost."""
     from unittest.mock import Mock
+
     from core.services.ai_provider_handler import ProviderStatus
-    
+
     ucode = _ucode_stub()
-    
+
     # Mock AIProviderHandler to return a status with non-loopback endpoint
     mock_status = ProviderStatus(
         provider_id="ollama",
@@ -61,17 +62,16 @@ def test_get_ok_local_status_sanitizes_ollama_endpoint(monkeypatch) -> None:
         issue=None,
         details={"endpoint": "http://ollama"},  # Non-loopback hostname
     )
-    
+
     mock_handler = Mock()
     mock_handler.check_local_provider.return_value = mock_status
-    
+
     from core.services import ai_provider_handler
+
     monkeypatch.setattr(
-        ai_provider_handler,
-        "get_ai_provider_handler",
-        lambda: mock_handler
+        ai_provider_handler, "get_ai_provider_handler", lambda: mock_handler
     )
-    
+
     status = ucode._get_ok_local_status()
     assert status["ready"] is True
     # Non-loopback endpoint should be sanitized to localhost

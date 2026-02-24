@@ -96,7 +96,7 @@ role = get_config("UDOS_USER_ROLE") or get_config("USER_ROLE") or "guest"
 ### Priority 3: Low-Impact Files (1-3 calls each)
 
 - wizard/tools/check_secrets_tomb.py (1)
-- wizard/services/wizard_auth.py (1)  
+- wizard/services/wizard_auth.py (1)
 - wizard/services/wiki_provisioning_service.py (1)
 - wizard/services/path_utils.py (1)
 
