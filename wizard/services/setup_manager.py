@@ -1,5 +1,4 @@
-"""
-Wizard Setup Manager
+"""Wizard Setup Manager
 ====================
 
 Provides setup status, required variables, and path validation for Wizard.
@@ -8,18 +7,18 @@ Provides setup status, required variables, and path validation for Wizard.
 from __future__ import annotations
 
 import os
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-from wizard.services.path_utils import get_repo_root, get_memory_dir
-from wizard.services.wizard_config import load_wizard_config_data
 from core.locations import LocationService
-from wizard.services.setup_state import setup_state
-from wizard.services.setup_profiles import load_user_profile, load_install_profile
 from core.services.integration_registry import get_wizard_required_variables
 from core.services.unified_config_loader import get_config
+from wizard.services.path_utils import get_memory_dir, get_repo_root
+from wizard.services.setup_profiles import load_install_profile, load_user_profile
+from wizard.services.setup_state import setup_state
+from wizard.services.wizard_config import load_wizard_config_data
 
 
-def validate_database_paths() -> Dict[str, Any]:
+def validate_database_paths() -> dict[str, Any]:
     memory_root = get_memory_dir()
     paths = {
         "memory_root": memory_root,
@@ -37,7 +36,7 @@ def validate_database_paths() -> Dict[str, Any]:
     return results
 
 
-def get_required_variables() -> Dict[str, Dict[str, Any]]:
+def get_required_variables() -> dict[str, dict[str, Any]]:
     config = _load_wizard_config()
     variables = get_wizard_required_variables()
     for key, data in variables.items():
@@ -46,19 +45,18 @@ def get_required_variables() -> Dict[str, Dict[str, Any]]:
     return variables
 
 
-def _is_ghost_mode(username: Optional[str], role: Optional[str]) -> bool:
+def _is_ghost_mode(username: str | None, role: str | None) -> bool:
     username_norm = (username or "").strip().lower()
     role_norm = (role or "").strip().lower()
     return username_norm == "ghost" or role_norm == "ghost"
 
 
-def get_full_config_status() -> Dict[str, Any]:
+def get_full_config_status() -> dict[str, Any]:
     config = _load_wizard_config()
     user_result = load_user_profile()
     install_result = load_install_profile()
     ghost_mode = _is_ghost_mode(
-        (user_result.data or {}).get("username"),
-        (user_result.data or {}).get("role"),
+        (user_result.data or {}).get("username"), (user_result.data or {}).get("role")
     )
     return {
         "server": {
@@ -73,14 +71,13 @@ def get_full_config_status() -> Dict[str, Any]:
             },
             "ai": {
                 "configured": bool(get_config("MISTRAL_API_KEY")),
-                "status": "ready" if get_config("MISTRAL_API_KEY") else "not-configured",
+                "status": "ready"
+                if get_config("MISTRAL_API_KEY")
+                else "not-configured",
             },
         },
         "databases": validate_database_paths(),
-        "setup": {
-            **setup_state.get_status(),
-            "ghost_mode": ghost_mode,
-        },
+        "setup": {**setup_state.get_status(), "ghost_mode": ghost_mode},
         "profiles": {
             "user": user_result.data,
             "install": install_result.data,
@@ -91,13 +88,11 @@ def get_full_config_status() -> Dict[str, Any]:
             "github_push_enabled": config.get("github_push_enabled", False),
             "web_proxy_enabled": config.get("web_proxy_enabled", False),
         },
-        "logging": {
-            "directory": str(get_memory_dir() / "logs"),
-        },
+        "logging": {"directory": str(get_memory_dir() / "logs")},
     }
 
 
-def get_paths() -> Dict[str, Any]:
+def get_paths() -> dict[str, Any]:
     root = get_repo_root()
     return {
         "root": str(root),
@@ -120,7 +115,7 @@ def get_paths() -> Dict[str, Any]:
     }
 
 
-def _load_wizard_config() -> Dict[str, Any]:
+def _load_wizard_config() -> dict[str, Any]:
     defaults = {
         "ok_gateway_enabled": False,
         "github_push_enabled": False,
@@ -139,7 +134,9 @@ def _get_location_service() -> LocationService:
     return _location_service
 
 
-def search_locations(query: str, timezone_hint: str | None = None, limit: int = 10) -> List[Dict[str, Any]]:
+def search_locations(
+    query: str, timezone_hint: str | None = None, limit: int = 10
+) -> list[dict[str, Any]]:
     service = _get_location_service()
     query_norm = (query or "").strip().lower()
     matches = []
@@ -150,25 +147,28 @@ def search_locations(query: str, timezone_hint: str | None = None, limit: int = 
         score = 0
         if query_norm and name.lower().startswith(query_norm):
             score += 2
-        if timezone_hint and str(loc.get("timezone", "")).lower() == timezone_hint.lower():
+        if (
+            timezone_hint
+            and str(loc.get("timezone", "")).lower() == timezone_hint.lower()
+        ):
             score += 1
-        matches.append(
-            {
-                "id": loc.get("id"),
-                "name": name,
-                "timezone": loc.get("timezone"),
-                "region": loc.get("region"),
-                "type": loc.get("type"),
-                "layer": loc.get("layer"),
-                "cell": loc.get("cell"),
-                "score": score,
-            }
-        )
+        matches.append({
+            "id": loc.get("id"),
+            "name": name,
+            "timezone": loc.get("timezone"),
+            "region": loc.get("region"),
+            "type": loc.get("type"),
+            "layer": loc.get("layer"),
+            "cell": loc.get("cell"),
+            "score": score,
+        })
     matches.sort(key=lambda m: (-m["score"], m["name"]))
     return matches[: max(1, limit)]
 
 
-def get_default_location_for_timezone(timezone_hint: str | None) -> Optional[Dict[str, Any]]:
+def get_default_location_for_timezone(
+    timezone_hint: str | None,
+) -> dict[str, Any] | None:
     if not timezone_hint:
         return None
     matches = search_locations("", timezone_hint=timezone_hint, limit=1)

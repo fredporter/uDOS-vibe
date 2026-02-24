@@ -20,6 +20,7 @@ import os
 
 from wizard.services.logging_api import get_logger
 from wizard.services.path_utils import get_repo_root
+from core.services.unified_config_loader import get_config
 
 logger = get_logger("plugin-discovery")
 
@@ -125,7 +126,7 @@ class EnhancedPluginDiscovery:
 
     def _get_udos_root(self) -> Path:
         """Get UDOS_ROOT from env or use repo_root."""
-        udos_root_env = os.getenv("UDOS_ROOT")
+        udos_root_env = get_config("UDOS_ROOT", "")
         if udos_root_env:
             return Path(udos_root_env).expanduser()
         return self.repo_root

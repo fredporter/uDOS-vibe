@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from core.services.workspace_ref import split_workspace_root
+from core.services.unified_config_loader import get_config
 from wizard.services.path_utils import get_memory_dir, get_repo_root, get_vault_dir
 
 from core.services.story_service import parse_story_document
@@ -29,7 +30,7 @@ class MkdirRequest(BaseModel):
 
 
 def _resolve_workspace_root() -> Dict[str, Path]:
-    env_root = os.getenv("UDOS_ROOT")
+    env_root = get_config("UDOS_ROOT", "")
     base_root = Path(env_root).expanduser() if env_root else get_repo_root()
     root_map: Dict[str, Path] = {"memory": get_memory_dir().resolve()}
 

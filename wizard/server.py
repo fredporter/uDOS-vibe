@@ -29,6 +29,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
+from core.services.unified_config_loader import get_config, get_bool_config
+
 from wizard.services.ok_gateway import OKRequest, OKGateway
 from wizard.services.logging_api import get_log_stats
 from wizard.services.logging_api import get_logger
@@ -304,7 +306,7 @@ class WizardServer:
 
         from wizard.routes.beacon_routes import create_beacon_routes
 
-        beacon_public = os.getenv("WIZARD_BEACON_PUBLIC", "1").strip().lower()
+        beacon_public = get_config("WIZARD_BEACON_PUBLIC", "1").strip().lower()
         beacon_auth_guard = None
         if beacon_public in {"0", "false", "no"}:
             beacon_auth_guard = self._authenticate_admin
@@ -313,7 +315,7 @@ class WizardServer:
 
         from wizard.routes.renderer_routes import create_renderer_routes
 
-        renderer_public = os.getenv("WIZARD_RENDERER_PUBLIC", "1").strip().lower()
+        renderer_public = get_config("WIZARD_RENDERER_PUBLIC", "1").strip().lower()
         renderer_auth_guard = None
         if renderer_public in {"0", "false", "no"}:
             renderer_auth_guard = self._authenticate_admin
@@ -1086,7 +1088,7 @@ class WizardServer:
             if host:
                 return host
             cfg_host = self.config.host
-            local_only = os.getenv("WIZARD_LOCAL_ONLY", "1").strip().lower() in {"1", "true", "yes"}
+            local_only = get_bool_config("WIZARD_LOCAL_ONLY", True)
             if local_only and cfg_host == "0.0.0.0":
                 return "127.0.0.1"
             return cfg_host

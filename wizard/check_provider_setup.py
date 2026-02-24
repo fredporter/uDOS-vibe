@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-"""
-Provider Setup Checker
+"""Provider Setup Checker
 ======================
 
 Checks for flagged providers on startup and runs setup automations.
 Called by Wizard Server startup or manually via TUI.
 """
 
+from __future__ import annotations
+
+from datetime import datetime
 import json
-import os
+from pathlib import Path
+import platform
+import shutil
 import subprocess
 import sys
-import shutil
-import urllib.request
-import urllib.error
 import threading
 import time
-import platform
-from pathlib import Path
-from datetime import datetime
-from typing import List, Dict, Optional
+import urllib.request
 
 from core.services.unified_config_loader import get_config
 
@@ -33,7 +31,7 @@ CONFIG_PATH = Path(__file__).parent / "config"
 SETUP_FLAGS_FILE = CONFIG_PATH / "provider_setup_flags.json"
 
 
-def _read_env_os_type() -> Optional[str]:
+def _read_env_os_type() -> str | None:
     env_path = Path(__file__).parent.parent / ".env"
     if not env_path.exists():
         return None
@@ -49,16 +47,16 @@ def _read_env_os_type() -> Optional[str]:
     return None
 
 
-def load_flagged_providers() -> List[str]:
+def load_flagged_providers() -> list[str]:
     """Load list of providers flagged for setup."""
     if SETUP_FLAGS_FILE.exists():
-        with open(SETUP_FLAGS_FILE, "r") as f:
+        with open(SETUP_FLAGS_FILE) as f:
             data = json.load(f)
             return data.get("flagged", [])
     return []
 
 
-def _load_config_file(file_name: str) -> Optional[Dict]:
+def _load_config_file(file_name: str) -> dict | None:
     path = CONFIG_PATH / file_name
     if not path.exists():
         return None
@@ -68,7 +66,7 @@ def _load_config_file(file_name: str) -> Optional[Dict]:
         return None
 
 
-def _get_nested(data: Dict, path: List[str]) -> Optional[str]:
+def _get_nested(data: dict, path: list[str]) -> str | None:
     current = data
     for part in path:
         if not isinstance(current, dict) or part not in current:
@@ -79,12 +77,7 @@ def _get_nested(data: Dict, path: List[str]) -> Optional[str]:
 
 def _run_check(cmd: str) -> bool:
     try:
-        result = subprocess.run(
-            cmd,
-            shell=True,
-            capture_output=True,
-            timeout=5,
-        )
+        result = subprocess.run(cmd, shell=True, capture_output=True, timeout=5)
         return result.returncode == 0
     except Exception:
         return False
@@ -121,7 +114,6 @@ def _provider_is_configured(provider_id: str) -> bool:
             or _get_nested(config, ["webhooks", "secret_key_id"])
         )
 
-
     if provider_id == "ollama":
         if _validate_ollama():
             return True
@@ -144,14 +136,11 @@ def _scrub_provider(provider_id: str) -> None:
             pass
 
 
-def _extract_github_token() -> Optional[str]:
+def _extract_github_token() -> str | None:
     """Extract GitHub token from gh CLI and save to github_keys.json."""
     try:
         result = subprocess.run(
-            ["gh", "auth", "token"],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            ["gh", "auth", "token"], capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0:
             token = result.stdout.strip()
@@ -163,8 +152,7 @@ def _extract_github_token() -> Optional[str]:
 
 
 def _populate_github_keys(token: str) -> bool:
-    """
-    Populate github_keys.json with token and metadata from gh CLI.
+    """Populate github_keys.json with token and metadata from gh CLI.
 
     Args:
         token: GitHub personal access token
@@ -175,10 +163,7 @@ def _populate_github_keys(token: str) -> bool:
     try:
         # Get authenticated user info from gh CLI
         user_result = subprocess.run(
-            ["gh", "api", "user"],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            ["gh", "api", "user"], capture_output=True, text=True, timeout=5
         )
 
         user_data = {}
@@ -200,15 +185,13 @@ def _populate_github_keys(token: str) -> bool:
                     "authenticated_user": user_data.get("login", "unknown"),
                 }
             },
-            "webhooks": {
-                "secret_key_id": "github-webhook-secret"
-            },
+            "webhooks": {"secret_key_id": "github-webhook-secret"},
             "metadata": {
                 "setup_date": datetime.now().isoformat(),
                 "source": "gh-cli",
                 "authenticated_user": user_data.get("login"),
                 "user_id": user_data.get("id"),
-            }
+            },
         }
 
         # Save to config
@@ -240,10 +223,7 @@ def _validate_ollama() -> bool:
             pass
         if shutil.which("ollama"):
             result = subprocess.run(
-                ["ollama", "list"],
-                capture_output=True,
-                text=True,
-                timeout=5,
+                ["ollama", "list"], capture_output=True, text=True, timeout=5
             )
             return result.returncode == 0
     except Exception:
@@ -251,7 +231,7 @@ def _validate_ollama() -> bool:
     return False
 
 
-def _ollama_api_request(path: str, payload: Optional[Dict] = None) -> Optional[Dict]:
+def _ollama_api_request(path: str, payload: dict | None = None) -> dict | None:
     host = get_config("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
     url = f"{host}{path}"
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
@@ -271,10 +251,7 @@ def _ollama_api_stream_pull(model: str) -> bool:
     url = f"{host}/api/pull"
     data = json.dumps({"name": model}).encode("utf-8")
     req = urllib.request.Request(
-        url,
-        method="POST",
-        data=data,
-        headers={"Content-Type": "application/json"},
+        url, method="POST", data=data, headers={"Content-Type": "application/json"}
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -309,14 +286,32 @@ def _show_ollama_model_library(auto_yes: bool = False) -> bool:
 
     # Popular models with recommendations
     models = [
-        ("devstral-small-2", "10.7B", "Coding", "🟢 Mistral's lightweight coding assistant (8GB RAM)", True),
+        (
+            "devstral-small-2",
+            "10.7B",
+            "Coding",
+            "🟢 Mistral's lightweight coding assistant (8GB RAM)",
+            True,
+        ),
         ("mistral", "7.3B", "General", "⭐ Fast general purpose model (4GB RAM)", True),
-        ("neural-chat", "13B", "Chat", "💬 Intel Neural Chat optimized (8GB RAM)", False),
+        (
+            "neural-chat",
+            "13B",
+            "Chat",
+            "💬 Intel Neural Chat optimized (8GB RAM)",
+            False,
+        ),
         ("llama2", "7B", "General", "Meta's open foundation model (4GB RAM)", False),
         ("openchat", "7B", "Chat", "Lightweight conversation (4GB RAM)", False),
         ("zephyr", "7B", "General", "Fine-tuned Mistral (4GB RAM)", False),
         ("orca-mini", "3B", "General", "Tiny but capable (2GB RAM)", False),
-        ("dolphin-mixtral", "46.7B", "Advanced", "Mixture of experts (24GB+ RAM)", False),
+        (
+            "dolphin-mixtral",
+            "46.7B",
+            "Advanced",
+            "Mixture of experts (24GB+ RAM)",
+            False,
+        ),
     ]
 
     print("POPULAR MODELS:\n")
@@ -326,7 +321,9 @@ def _show_ollama_model_library(auto_yes: bool = False) -> bool:
         print(f"      {desc}\n")
 
     print("COMMANDS:")
-    print("  • OLLAMA PULL <model>   - Download a model by name (e.g., 'ollama pull mistral')")
+    print(
+        "  • OLLAMA PULL <model>   - Download a model by name (e.g., 'ollama pull mistral')"
+    )
     print("  • OLLAMA LIST           - Show installed models")
     print("  • OLLAMA RUN <model>    - Start an interactive session\n")
 
@@ -334,10 +331,7 @@ def _show_ollama_model_library(auto_yes: bool = False) -> bool:
     try:
         if shutil.which("ollama"):
             result = subprocess.run(
-                ["ollama", "list"],
-                capture_output=True,
-                text=True,
-                timeout=5,
+                ["ollama", "list"], capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0:
                 installed = result.stdout.strip().split("\n")[1:]
@@ -362,7 +356,7 @@ def _show_ollama_model_library(auto_yes: bool = False) -> bool:
 
     # Offer to pull a model
     if not auto_yes:
-        print(f"Want to download a model now?")
+        print("Want to download a model now?")
         choice = input("Enter model name or 'skip' (e.g., mistral): ").strip().lower()
 
         if choice and choice != "skip":
@@ -370,17 +364,13 @@ def _show_ollama_model_library(auto_yes: bool = False) -> bool:
                 print(f"\nPulling {choice}...\n")
                 try:
                     if shutil.which("ollama"):
-                        result = subprocess.run(
-                            ["ollama", "pull", choice],
-                            check=False,
-                        )
+                        result = subprocess.run(["ollama", "pull", choice], check=False)
                         if result.returncode == 0:
                             print(f"\n{GREEN}✓{NC} {choice} installed successfully!")
                             return True
-                    else:
-                        if _ollama_api_stream_pull(choice):
-                            print(f"\n{GREEN}✓{NC} {choice} pull started via API.")
-                            return True
+                    elif _ollama_api_stream_pull(choice):
+                        print(f"\n{GREEN}✓{NC} {choice} pull started via API.")
+                        return True
                 except Exception as e:
                     print(f"{YELLOW}⚠{NC} Failed to pull {choice}: {e}")
                     return False
@@ -391,8 +381,9 @@ def _show_ollama_model_library(auto_yes: bool = False) -> bool:
     return True
 
 
-
-def _run_with_spinner(cmd: str, label: str, timeout: int = 600) -> subprocess.CompletedProcess:
+def _run_with_spinner(
+    cmd: str, label: str, timeout: int = 600
+) -> subprocess.CompletedProcess:
     spinner_running = True
 
     def _spinner_loop() -> None:
@@ -411,11 +402,7 @@ def _run_with_spinner(cmd: str, label: str, timeout: int = 600) -> subprocess.Co
     spin_thread.start()
     try:
         result = subprocess.run(
-            cmd,
-            shell=True,
-            timeout=timeout,
-            capture_output=True,
-            text=True,
+            cmd, shell=True, timeout=timeout, capture_output=True, text=True
         )
     finally:
         spinner_running = False
@@ -437,7 +424,9 @@ def _install_ollama_local() -> bool:
             timeout=900,
         )
         if result.returncode != 0:
-            print(f"{YELLOW}⚠{NC}  Install failed: {result.stderr.strip() or result.stdout.strip()}")
+            print(
+                f"{YELLOW}⚠{NC}  Install failed: {result.stderr.strip() or result.stdout.strip()}"
+            )
             return False
         if shutil.which("systemctl"):
             subprocess.run(
@@ -455,12 +444,12 @@ def _install_ollama_local() -> bool:
                 return False
             print(f"\n{BLUE}Installing Ollama via Homebrew...{NC}")
             result = _run_with_spinner(
-                "brew install ollama",
-                "Installing Ollama...",
-                timeout=900,
+                "brew install ollama", "Installing Ollama...", timeout=900
             )
             if result.returncode != 0:
-                print(f"{YELLOW}⚠{NC}  Install failed: {result.stderr.strip() or result.stdout.strip()}")
+                print(
+                    f"{YELLOW}⚠{NC}  Install failed: {result.stderr.strip() or result.stdout.strip()}"
+                )
                 return False
             try:
                 subprocess.Popen(
@@ -472,11 +461,15 @@ def _install_ollama_local() -> bool:
                 pass
             time.sleep(1.0)
             return _validate_ollama()
-        print(f"{YELLOW}⚠{NC}  Homebrew not found. Download Ollama for macOS from ollama.com/download")
+        print(
+            f"{YELLOW}⚠{NC}  Homebrew not found. Download Ollama for macOS from ollama.com/download"
+        )
         return False
 
     if system in ("windows", "win32"):
-        print(f"{YELLOW}⚠{NC}  Windows install requires the official installer. Download from ollama.com/download")
+        print(
+            f"{YELLOW}⚠{NC}  Windows install requires the official installer. Download from ollama.com/download"
+        )
         return False
 
     print(f"{YELLOW}⚠{NC}  Unsupported OS for auto-install: {system}")
@@ -511,18 +504,26 @@ def run_provider_setup(provider_id: str, auto_yes: bool = False) -> bool:
                 print("  macOS: uses Homebrew if available")
                 print("  Windows: opens download guidance")
                 if _install_ollama_local():
-                    host = get_config("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+                    host = get_config("OLLAMA_HOST", "http://localhost:11434").rstrip(
+                        "/"
+                    )
                     print(f"{GREEN}✓{NC} Ollama API reachable at {host}\n")
                     _show_ollama_model_library(auto_yes)
                     return True
-                recheck = input("\nRe-check now after install/start? (y/N): ").strip().lower()
+                recheck = (
+                    input("\nRe-check now after install/start? (y/N): ").strip().lower()
+                )
                 if recheck == "y":
                     if _validate_ollama():
-                        host = get_config("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+                        host = get_config(
+                            "OLLAMA_HOST", "http://localhost:11434"
+                        ).rstrip("/")
                         print(f"{GREEN}✓{NC} Ollama API reachable at {host}\n")
                         _show_ollama_model_library(auto_yes)
                         return True
-                    print(f"{YELLOW}⚠{NC} Ollama still not reachable. Try again after it is running.")
+                    print(
+                        f"{YELLOW}⚠{NC} Ollama still not reachable. Try again after it is running."
+                    )
                 return False
             if choice == "2":
                 print("\nRemote setup steps:")
@@ -543,7 +544,7 @@ def run_provider_setup(provider_id: str, auto_yes: bool = False) -> bool:
                     ["ollama", "serve"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    start_new_session=True  # Detach from parent
+                    start_new_session=True,  # Detach from parent
                 )
                 print(f"{BLUE}→{NC} Waiting for ollama to start...")
 
@@ -580,7 +581,7 @@ def run_provider_setup(provider_id: str, auto_yes: bool = False) -> bool:
     cmd = setup_commands.get(provider_id)
     if cmd is None:
         print(f"{YELLOW}⚠{NC} {provider_id} requires manual setup via dashboard")
-        print(f"   Visit: http://localhost:8765/#config")
+        print("   Visit: http://localhost:8765/#config")
         return False
 
     if _provider_is_configured(provider_id):
@@ -646,7 +647,7 @@ def run_provider_setup(provider_id: str, auto_yes: bool = False) -> bool:
                     print(f"\n{GREEN}✓{NC} {provider_id} setup complete")
                 else:
                     print(f"{YELLOW}⚠{NC} Could not extract token from gh CLI")
-                    print(f"   You may need to run: gh auth refresh")
+                    print("   You may need to run: gh auth refresh")
             else:
                 print(f"{GREEN}✓{NC} {provider_id} setup complete")
 
@@ -667,7 +668,7 @@ def run_provider_setup(provider_id: str, auto_yes: bool = False) -> bool:
 def mark_provider_completed(provider_id: str):
     """Mark provider as completed in flags file."""
     if SETUP_FLAGS_FILE.exists():
-        with open(SETUP_FLAGS_FILE, "r") as f:
+        with open(SETUP_FLAGS_FILE) as f:
             data = json.load(f)
     else:
         data = {"flagged": [], "completed": []}
@@ -681,7 +682,7 @@ def mark_provider_completed(provider_id: str):
         json.dump(data, f, indent=2)
 
 
-def _parse_provider_arg(argv: List[str]) -> Optional[str]:
+def _parse_provider_arg(argv: list[str]) -> str | None:
     if "--provider" in argv:
         idx = argv.index("--provider")
         if idx + 1 < len(argv):

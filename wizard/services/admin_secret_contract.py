@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import os
-import secrets
-from datetime import datetime, timezone
 from pathlib import Path
+import secrets
 from typing import Any
 
+from core.services.unified_config_loader import get_config
 from wizard.services.path_utils import get_repo_root
 from wizard.services.secret_store import SecretEntry, SecretStoreError, get_secret_store
-from wizard.services.wizard_config import load_wizard_config_data, save_wizard_config_data
-from core.services.unified_config_loader import get_config
+from wizard.services.wizard_config import (
+    load_wizard_config_data,
+    save_wizard_config_data,
+)
 
 DEFAULT_ADMIN_KEY_ID = "wizard-admin-token"
 
@@ -31,7 +34,9 @@ def _read_env_vars(env_path: Path) -> dict[str, str]:
 
 def _write_env_var(env_path: Path, key: str, value: str) -> None:
     env_path.parent.mkdir(parents=True, exist_ok=True)
-    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    lines = (
+        env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    )
     out: list[str] = []
     updated = False
     for line in lines:
@@ -54,12 +59,7 @@ def _unique(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
 
 
-def _seed_admin_secret(
-    *,
-    admin_key_id: str,
-    wizard_key: str,
-    admin_token: str,
-) -> None:
+def _seed_admin_secret(*, admin_key_id: str, wizard_key: str, admin_token: str) -> None:
     store = get_secret_store()
     store.unlock(wizard_key)
     store.set(
@@ -67,7 +67,7 @@ def _seed_admin_secret(
             key_id=admin_key_id,
             provider="wizard-admin",
             value=admin_token,
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             metadata={"source": "admin-secret-contract-repair"},
         )
     )
@@ -94,9 +94,7 @@ def _hard_reset_locked_secret_store(root: Path, admin_key_id: str) -> tuple[str,
         delattr(get_secret_store, "_instance")
 
     _seed_admin_secret(
-        admin_key_id=admin_key_id,
-        wizard_key=wizard_key,
-        admin_token=admin_token,
+        admin_key_id=admin_key_id, wizard_key=wizard_key, admin_token=admin_token
     )
     return wizard_key, admin_token
 
@@ -108,9 +106,10 @@ def collect_admin_secret_contract(repo_root: Path | None = None) -> dict[str, An
 
     env_values = _read_env_vars(env_path)
     wizard_key = env_values.get("WIZARD_KEY") or get_config("WIZARD_KEY", "").strip()
-    admin_token = env_values.get("WIZARD_ADMIN_TOKEN") or get_config(
-        "WIZARD_ADMIN_TOKEN", ""
-    ).strip()
+    admin_token = (
+        env_values.get("WIZARD_ADMIN_TOKEN")
+        or get_config("WIZARD_ADMIN_TOKEN", "").strip()
+    )
 
     config = load_wizard_config_data(path=config_path)
     admin_key_id = str(config.get("admin_api_key_id") or "").strip()
@@ -192,7 +191,9 @@ def repair_admin_secret_contract(repo_root: Path | None = None) -> dict[str, Any
     if not wizard_key:
         wizard_key = secrets.token_urlsafe(48)
 
-    admin_key_id = str(config.get("admin_api_key_id") or "").strip() or DEFAULT_ADMIN_KEY_ID
+    admin_key_id = (
+        str(config.get("admin_api_key_id") or "").strip() or DEFAULT_ADMIN_KEY_ID
+    )
     config["admin_api_key_id"] = admin_key_id
     save_wizard_config_data(config, path=config_path)
 
@@ -231,9 +232,7 @@ def repair_admin_secret_contract(repo_root: Path | None = None) -> dict[str, Any
     os.environ["WIZARD_ADMIN_TOKEN"] = admin_token
 
     _seed_admin_secret(
-        admin_key_id=admin_key_id,
-        wizard_key=wizard_key,
-        admin_token=admin_token,
+        admin_key_id=admin_key_id, wizard_key=wizard_key, admin_token=admin_token
     )
 
     status_after = collect_admin_secret_contract(repo_root=root)

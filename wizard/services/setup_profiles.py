@@ -23,6 +23,7 @@ from wizard.services.secret_store import (
     SecretStoreError,
 )
 from wizard.services.logging_api import get_logger
+from core.services.unified_config_loader import get_config
 
 logger = get_logger("setup-profiles")
 
@@ -60,7 +61,7 @@ def _write_env_var(env_path: Path, key: str, value: str) -> None:
 
 
 def _ensure_wizard_key() -> str:
-    existing = os.getenv("WIZARD_KEY")
+    existing = get_config("WIZARD_KEY", "")
     if existing:
         return existing
     key = secrets.token_urlsafe(32)

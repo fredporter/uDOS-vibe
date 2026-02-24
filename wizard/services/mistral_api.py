@@ -14,13 +14,14 @@ import requests
 
 from wizard.services.logging_api import get_logger
 from wizard.services.ai_context_store import write_context_bundle
+from core.services.unified_config_loader import get_config
 
 logger = get_logger("wizard.mistral-api")
 
 
 class MistralAPI:
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("MISTRAL_API_KEY", "")
+        self.api_key = api_key or get_config("MISTRAL_API_KEY", "")
         self.endpoint = "https://api.mistral.ai/v1/chat/completions"
 
     def available(self) -> bool:

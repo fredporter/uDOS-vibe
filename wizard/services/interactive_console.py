@@ -47,6 +47,7 @@ from typing import Optional, Dict, Any, Callable
 from datetime import datetime
 from pathlib import Path
 import os
+from core.services.unified_config_loader import get_config
 from wizard.services.dev_mode_service import get_dev_mode_service
 from wizard.services.vibe_service import VibeService
 from wizard.services.mistral_api import MistralAPI
@@ -188,7 +189,7 @@ class WizardConsole:
         return entry is not None and bool(entry.value)
 
     def _ollama_host(self) -> str:
-        host = (os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434").strip()
+        host = (get_config("OLLAMA_HOST", "http://127.0.0.1:11434")).strip()
         return host.rstrip("/")
 
     def _check_ollama_status(self) -> Dict[str, Any]:
@@ -465,7 +466,7 @@ class WizardConsole:
         print("\n🧙 SETUP PROFILE:")
 
         # Quick diagnostic
-        wizard_key = os.getenv("WIZARD_KEY")
+        wizard_key = get_config("WIZARD_KEY", "")
         if not wizard_key:
             print("  ⚠️  WIZARD_KEY environment variable not set!")
             print()

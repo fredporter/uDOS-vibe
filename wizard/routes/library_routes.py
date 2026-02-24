@@ -29,6 +29,8 @@ from wizard.services.plugin_factory import APKBuilder
 import shutil
 import os
 
+from core.services.unified_config_loader import get_bool_config
+
 
 AuthGuard = Optional[Callable[[Request], Awaitable[None]]]
 
@@ -102,8 +104,7 @@ def _resolve_sonic_integration_name(manager) -> str:
 
 
 def _library_sonic_alias_enabled() -> bool:
-    raw = os.getenv("UDOS_SONIC_ENABLE_LIBRARY_ALIAS", "1").strip().lower()
-    return raw not in {"0", "false", "no", "off"}
+    return get_bool_config("UDOS_SONIC_ENABLE_LIBRARY_ALIAS", True)
 
 
 def _resolve_requested_integration_name(manager, requested_name: str) -> str:

@@ -14,13 +14,14 @@ from wizard.services.wiki_provisioning_service import get_wiki_service
 import os
 from pathlib import Path
 from wizard.services.path_utils import get_repo_root
+from core.services.unified_config_loader import get_config
 
 
 def create_wiki_routes(auth_guard: Optional[Callable] = None) -> APIRouter:
     """Create wiki routes."""
     router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 
-    env_root = os.getenv("UDOS_ROOT")
+    env_root = get_config("UDOS_ROOT", "")
     base_root = Path(env_root).expanduser() if env_root else get_repo_root()
     wiki_root = base_root / "wiki"
     wiki_service = get_wiki_service(wiki_root)

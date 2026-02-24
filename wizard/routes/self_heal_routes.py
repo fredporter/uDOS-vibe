@@ -1,5 +1,4 @@
-"""
-Self-Heal Routes
+"""Self-Heal Routes
 ================
 
 Expose diagnostics and guided repair actions for Wizard setup.
@@ -9,31 +8,28 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import time
 import traceback
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from core.services.unified_config_loader import get_config
 from wizard.providers.nounproject_client import (
+    AuthenticationError,
     NounProjectClient,
     NounProjectConfig,
     ProviderError,
-    AuthenticationError,
-    RateLimitError,
     QuotaExceededError,
+    RateLimitError,
 )
 from wizard.services.path_utils import get_repo_root
-from wizard.services.port_manager import get_port_manager, OperationStatus
-from core.services.unified_config_loader import get_config, get_int_config
-
+from wizard.services.port_manager import OperationStatus, get_port_manager
 
 DEFAULT_CATEGORIES = {
     "ui": ["check", "close", "menu", "plus", "minus"],
@@ -44,7 +40,7 @@ DEFAULT_CATEGORIES = {
 
 
 class SeedRequest(BaseModel):
-    categories: Optional[Dict[str, List[str]]] = None
+    categories: dict[str, list[str]] | None = None
     per_term: int = 2
 
 
@@ -82,7 +78,7 @@ def _slugify(text: str) -> str:
     return text.strip("-") or "icon"
 
 
-def _ollama_get(path: str) -> Optional[dict]:
+def _ollama_get(path: str) -> dict | None:
     import urllib.request
 
     url = f"http://127.0.0.1:11434{path}"
@@ -94,7 +90,7 @@ def _ollama_get(path: str) -> Optional[dict]:
         return None
 
 
-def _ollama_models() -> List[str]:
+def _ollama_models() -> list[str]:
     data = _ollama_get("/api/tags")
     if not data:
         return []
@@ -110,7 +106,7 @@ def _normalize_model_name(name: str) -> str:
     return name.split(":")[0]
 
 
-def _required_ollama_models() -> List[str]:
+def _required_ollama_models() -> list[str]:
     recommended = get_config("VIBE_OLLAMA_RECOMMENDED_MODELS", "").strip()
     if recommended:
         return [item.strip() for item in recommended.split(",") if item.strip()]
@@ -137,7 +133,7 @@ def _configured_ollama_default_model() -> str:
     )
 
 
-def _ensure_ollama_running() -> Dict[str, Optional[str]]:
+def _ensure_ollama_running() -> dict[str, str | None]:
     """Ensure Ollama daemon is running; attempt to start if needed."""
     if _ollama_get("/api/version"):
         return {"started": False, "method": "already-running"}
@@ -216,7 +212,9 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
     async def recover(payload: RecoverRequest):
         strategy = strategies.get(payload.strategy)
         if not strategy:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy: {payload.strategy}")
+            raise HTTPException(
+                status_code=404, detail=f"Unknown strategy: {payload.strategy}"
+            )
 
         pm = get_port_manager()
         actions = []
@@ -233,18 +231,18 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
             models = _ollama_models()
             normalized = {_normalize_model_name(m) for m in models}
             required = _required_ollama_models()
-            configured_default = _normalize_model_name(_configured_ollama_default_model())
+            configured_default = _normalize_model_name(
+                _configured_ollama_default_model()
+            )
             if configured_default and configured_default not in required:
                 required.append(configured_default)
             missing = [m for m in required if m not in normalized]
-            actions.append(
-                {
-                    "step": "check_models",
-                    "required": required,
-                    "available": sorted(list(normalized)),
-                    "missing": missing,
-                }
-            )
+            actions.append({
+                "step": "check_models",
+                "required": required,
+                "available": sorted(list(normalized)),
+                "missing": missing,
+            })
 
         if "check_port_conflicts" in strategy["steps"]:
             pm.check_all_services()
@@ -254,15 +252,13 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                     continue
                 occupant = pm.get_port_occupant(service.port)
                 if occupant and occupant.get("process") != service.process_name:
-                    conflicts.append(
-                        {
-                            "service": name,
-                            "port": service.port,
-                            "expected_process": service.process_name,
-                            "actual_process": occupant.get("process"),
-                            "pid": occupant.get("pid"),
-                        }
-                    )
+                    conflicts.append({
+                        "service": name,
+                        "port": service.port,
+                        "expected_process": service.process_name,
+                        "actual_process": occupant.get("process"),
+                        "pid": occupant.get("pid"),
+                    })
             actions.append({"step": "check_port_conflicts", "conflicts": conflicts})
             summary["conflict_count"] = len(conflicts)
 
@@ -301,7 +297,9 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
 
         next_steps = []
         if not env_admin_token:
-            next_steps.append("Set WIZARD_ADMIN_TOKEN in the Wizard server environment.")
+            next_steps.append(
+                "Set WIZARD_ADMIN_TOKEN in the Wizard server environment."
+            )
         if not ollama_running:
             next_steps.append("Run `ollama serve` or open the Ollama app.")
         if missing:
@@ -336,10 +334,12 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
     @router.post("/ollama/pull")
     async def pull_model(payload: PullRequest):
         """Pull Ollama model with progress streaming."""
-        from fastapi.responses import StreamingResponse
         import asyncio
 
+        from fastapi.responses import StreamingResponse
+
         try:
+
             async def generate_progress():
                 pm = get_port_manager()
 
@@ -352,19 +352,28 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                 try:
                     startup = _ensure_ollama_running()
                     # Use json.dumps for proper escaping
-                    msg = json.dumps({'progress': 0, 'status': 'starting', 'message': f'Starting Ollama pull for {payload.model}...'})
+                    msg = json.dumps({
+                        "progress": 0,
+                        "status": "starting",
+                        "message": f"Starting Ollama pull for {payload.model}...",
+                    })
                     yield f"data: {msg}\n\n"
 
                     if not shutil.which("ollama"):
                         pm.complete_operation(op_id, error="ollama not installed")
-                        msg = json.dumps({'error': 'ollama not installed', 'status': 'failed'})
+                        msg = json.dumps({
+                            "error": "ollama not installed",
+                            "status": "failed",
+                        })
                         yield f"data: {msg}\n\n"
                         return
 
                     proc = await asyncio.create_subprocess_exec(
-                        "ollama", "pull", payload.model,
+                        "ollama",
+                        "pull",
+                        payload.model,
                         stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
+                        stderr=asyncio.subprocess.PIPE,
                     )
 
                     progress = 10
@@ -379,32 +388,42 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                                 status=OperationStatus.IN_PROGRESS,
                             )
                             # Use json.dumps for proper escaping
-                            msg = json.dumps({'progress': progress, 'status': 'pulling', 'message': line_text[:100]})
+                            msg = json.dumps({
+                                "progress": progress,
+                                "status": "pulling",
+                                "message": line_text[:100],
+                            })
                             yield f"data: {msg}\n\n"
 
                     await proc.wait()
 
                     if proc.returncode == 0:
                         pm.complete_operation(op_id)
-                        msg = json.dumps({'progress': 100, 'status': 'complete', 'message': f'✅ Pulled {payload.model} successfully'})
+                        msg = json.dumps({
+                            "progress": 100,
+                            "status": "complete",
+                            "message": f"✅ Pulled {payload.model} successfully",
+                        })
                         yield f"data: {msg}\n\n"
                     else:
                         stderr = await proc.stderr.read()
                         error_msg = stderr.decode().strip() or "Pull failed"
                         pm.complete_operation(op_id, error=error_msg)
-                        msg = json.dumps({'error': error_msg, 'status': 'failed'})
+                        msg = json.dumps({"error": error_msg, "status": "failed"})
                         yield f"data: {msg}\n\n"
                 except Exception as exc:
-                    error_detail = f"{exc.__class__.__name__}: {str(exc)}"
+                    error_detail = f"{exc.__class__.__name__}: {exc!s}"
                     print(f"[ERROR] ollama/pull error: {error_detail}", file=sys.stderr)
                     traceback.print_exc(file=sys.stderr)
                     pm.complete_operation(op_id, error=error_detail)
-                    msg = json.dumps({'error': error_detail, 'status': 'failed'})
+                    msg = json.dumps({"error": error_detail, "status": "failed"})
                     yield f"data: {msg}\n\n"
 
-            return StreamingResponse(generate_progress(), media_type="text/event-stream")
+            return StreamingResponse(
+                generate_progress(), media_type="text/event-stream"
+            )
         except Exception as exc:
-            error_detail = f"{exc.__class__.__name__}: {str(exc)}"
+            error_detail = f"{exc.__class__.__name__}: {exc!s}"
             print(f"[ERROR] ollama/pull handler error: {error_detail}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
             raise HTTPException(status_code=500, detail=error_detail)
@@ -476,7 +495,9 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
         service = pm.services.get(service_name)
 
         if not service:
-            raise HTTPException(status_code=404, detail=f"Unknown service: {service_name}")
+            raise HTTPException(
+                status_code=404, detail=f"Unknown service: {service_name}"
+            )
 
         # Kill existing process on port
         if service.port:
@@ -498,8 +519,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
             }
         else:
             raise HTTPException(
-                status_code=500,
-                detail=result.get("error", "Failed to restart service"),
+                status_code=500, detail=result.get("error", "Failed to restart service")
             )
 
     @router.post("/ok-setup")
@@ -508,50 +528,68 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
         from fastapi.responses import StreamingResponse
 
         try:
+
             async def generate_progress():
                 pm = get_port_manager()
 
                 # Register operation start
                 op_id = pm.start_operation(
-                    operation_type="ok_setup",
-                    description="Running OK Gateway setup",
+                    operation_type="ok_setup", description="Running OK Gateway setup"
                 )
 
                 try:
                     # Use json.dumps for proper escaping
-                    msg = json.dumps({'progress': 0, 'status': 'starting', 'message': 'Initializing OK Setup...'})
+                    msg = json.dumps({
+                        "progress": 0,
+                        "status": "starting",
+                        "message": "Initializing OK Setup...",
+                    })
                     yield f"data: {msg}\n\n"
 
                     try:
                         from core.services.ok_setup import run_ok_setup
                     except Exception as exc:
-                        pm.complete_operation(op_id, error=f"Import failed: {str(exc)}")
-                        msg = json.dumps({'error': f'Import failed: {str(exc)}', 'status': 'failed'})
+                        pm.complete_operation(op_id, error=f"Import failed: {exc!s}")
+                        msg = json.dumps({
+                            "error": f"Import failed: {exc!s}",
+                            "status": "failed",
+                        })
                         yield f"data: {msg}\n\n"
                         return
 
-                    msg = json.dumps({'progress': 10, 'status': 'running', 'message': 'Checking Ollama installation...'})
+                    msg = json.dumps({
+                        "progress": 10,
+                        "status": "running",
+                        "message": "Checking Ollama installation...",
+                    })
                     yield f"data: {msg}\n\n"
 
                     try:
                         result = run_ok_setup(get_repo_root())
                     except Exception as exc:
-                        error_detail = f"{exc.__class__.__name__}: {str(exc)}"
-                        print(f"[ERROR] ok_setup error: {error_detail}", file=sys.stderr)
+                        error_detail = f"{exc.__class__.__name__}: {exc!s}"
+                        print(
+                            f"[ERROR] ok_setup error: {error_detail}", file=sys.stderr
+                        )
                         traceback.print_exc(file=sys.stderr)
                         pm.complete_operation(op_id, error=error_detail)
-                        msg = json.dumps({'error': f'Setup failed: {error_detail}', 'status': 'failed'})
+                        msg = json.dumps({
+                            "error": f"Setup failed: {error_detail}",
+                            "status": "failed",
+                        })
                         yield f"data: {msg}\n\n"
                         return
 
                     # Update operation progress
                     pm.update_operation(
-                        op_id,
-                        progress=50,
-                        status=OperationStatus.IN_PROGRESS,
+                        op_id, progress=50, status=OperationStatus.IN_PROGRESS
                     )
 
-                    msg = json.dumps({'progress': 50, 'status': 'running', 'message': 'Configuring OK Gateway...'})
+                    msg = json.dumps({
+                        "progress": 50,
+                        "status": "running",
+                        "message": "Configuring OK Gateway...",
+                    })
                     yield f"data: {msg}\n\n"
 
                     steps = result.get("steps", [])
@@ -559,12 +597,20 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
 
                     for step in steps:
                         # Use json.dumps for proper escaping
-                        msg = json.dumps({'progress': 70, 'status': 'running', 'message': f'✅ {step}'})
+                        msg = json.dumps({
+                            "progress": 70,
+                            "status": "running",
+                            "message": f"✅ {step}",
+                        })
                         yield f"data: {msg}\n\n"
 
                     for warn in warnings:
                         # Use json.dumps for proper escaping
-                        msg = json.dumps({'progress': 80, 'status': 'warning', 'message': f'⚠️ {warn}'})
+                        msg = json.dumps({
+                            "progress": 80,
+                            "status": "warning",
+                            "message": f"⚠️ {warn}",
+                        })
                         yield f"data: {msg}\n\n"
 
                     pm.complete_operation(op_id)
@@ -574,21 +620,28 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                         "status": "complete",
                         "message": "✅ OK Setup completed",
                         "steps_count": len(steps),
-                        "warnings_count": len(warnings)
+                        "warnings_count": len(warnings),
                     }
                     msg = json.dumps(summary)
                     yield f"data: {msg}\n\n"
                 except Exception as exc:
-                    error_detail = f"{exc.__class__.__name__}: {str(exc)}"
-                    print(f"[ERROR] ok-setup outer error: {error_detail}", file=sys.stderr)
+                    error_detail = f"{exc.__class__.__name__}: {exc!s}"
+                    print(
+                        f"[ERROR] ok-setup outer error: {error_detail}", file=sys.stderr
+                    )
                     traceback.print_exc(file=sys.stderr)
                     pm.complete_operation(op_id, error=error_detail)
-                    msg = json.dumps({'error': f'Setup failed: {error_detail}', 'status': 'failed'})
+                    msg = json.dumps({
+                        "error": f"Setup failed: {error_detail}",
+                        "status": "failed",
+                    })
                     yield f"data: {msg}\n\n"
 
-            return StreamingResponse(generate_progress(), media_type="text/event-stream")
+            return StreamingResponse(
+                generate_progress(), media_type="text/event-stream"
+            )
         except Exception as exc:
-            error_detail = f"{exc.__class__.__name__}: {str(exc)}"
+            error_detail = f"{exc.__class__.__name__}: {exc!s}"
             print(f"[ERROR] ok-setup handler error: {error_detail}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
             raise HTTPException(status_code=500, detail=error_detail)
@@ -599,6 +652,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
         from fastapi.responses import StreamingResponse
 
         try:
+
             async def generate_progress():
                 pm = get_port_manager()
 
@@ -619,21 +673,34 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                     processed = 0
 
                     # Use json.dumps for proper escaping
-                    msg = json.dumps({'progress': 0, 'status': 'authenticating', 'message': 'Authenticating with Noun Project...'})
+                    msg = json.dumps({
+                        "progress": 0,
+                        "status": "authenticating",
+                        "message": "Authenticating with Noun Project...",
+                    })
                     yield f"data: {msg}\n\n"
 
                     client = _nounproject_client()
                     try:
                         await client.authenticate()
                     except Exception as exc:
-                        error_detail = f"{exc.__class__.__name__}: {str(exc)}"
-                        print(f"[ERROR] noun auth error: {error_detail}", file=sys.stderr)
+                        error_detail = f"{exc.__class__.__name__}: {exc!s}"
+                        print(
+                            f"[ERROR] noun auth error: {error_detail}", file=sys.stderr
+                        )
                         pm.complete_operation(op_id, error=error_detail)
-                        msg = json.dumps({'error': f'Auth failed: {error_detail}', 'status': 'failed'})
+                        msg = json.dumps({
+                            "error": f"Auth failed: {error_detail}",
+                            "status": "failed",
+                        })
                         yield f"data: {msg}\n\n"
                         return
 
-                    msg = json.dumps({'progress': 5, 'status': 'seeding', 'message': 'Starting icon download...'})
+                    msg = json.dumps({
+                        "progress": 5,
+                        "status": "seeding",
+                        "message": "Starting icon download...",
+                    })
                     yield f"data: {msg}\n\n"
 
                     added = []
@@ -649,7 +716,11 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                             progress = int(5 + (processed / total_terms) * 85)
 
                             # Use json.dumps for proper escaping
-                            msg = json.dumps({'progress': progress, 'status': 'seeding', 'message': f'Searching {category}: {term}...'})
+                            msg = json.dumps({
+                                "progress": progress,
+                                "status": "seeding",
+                                "message": f"Searching {category}: {term}...",
+                            })
                             yield f"data: {msg}\n\n"
 
                             # Update operation progress
@@ -663,7 +734,11 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                                 result = await client.search(term=term, limit=10)
                             except Exception as exc:
                                 errors.append(f"{category}:{term} search failed: {exc}")
-                                msg = json.dumps({'progress': progress, 'status': 'warning', 'message': f'⚠️ Search failed: {term}'})
+                                msg = json.dumps({
+                                    "progress": progress,
+                                    "status": "warning",
+                                    "message": f"⚠️ Search failed: {term}",
+                                })
                                 yield f"data: {msg}\n\n"
                                 continue
 
@@ -673,10 +748,14 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                                 if not icon_id:
                                     continue
                                 try:
-                                    download = await client.download(icon_id=int(icon_id), format="svg")
+                                    download = await client.download(
+                                        icon_id=int(icon_id), format="svg"
+                                    )
                                     src_path = Path(download.get("path", ""))
                                     if not src_path.exists():
-                                        errors.append(f"{category}:{term} {icon_id} missing cache file")
+                                        errors.append(
+                                            f"{category}:{term} {icon_id} missing cache file"
+                                        )
                                         continue
                                     file_name = f"{_slugify(term)}-{icon_id}.svg"
                                     dest_path = cat_dir / file_name
@@ -686,7 +765,9 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                                     shutil.copyfile(src_path, dest_path)
                                     added.append(str(dest_path))
                                 except Exception as exc:
-                                    errors.append(f"{category}:{term} {icon_id} download failed: {exc}")
+                                    errors.append(
+                                        f"{category}:{term} {icon_id} download failed: {exc}"
+                                    )
 
                     # Final summary
                     pm.complete_operation(op_id)
@@ -697,23 +778,34 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                         "added_count": len(added),
                         "skipped_count": len(skipped),
                         "error_count": len(errors),
-                        "root": str(dest_root)
+                        "root": str(dest_root),
                     }
                     msg = json.dumps(summary)
                     yield f"data: {msg}\n\n"
                 except Exception as exc:
-                    error_detail = f"{exc.__class__.__name__}: {str(exc)}"
-                    print(f"[ERROR] nounproject/seed error: {error_detail}", file=sys.stderr)
+                    error_detail = f"{exc.__class__.__name__}: {exc!s}"
+                    print(
+                        f"[ERROR] nounproject/seed error: {error_detail}",
+                        file=sys.stderr,
+                    )
                     traceback.print_exc(file=sys.stderr)
                     pm.complete_operation(op_id, error=error_detail)
                     # Use json.dumps for proper escaping
-                    msg = json.dumps({'error': f'Seeding failed: {error_detail}', 'status': 'failed'})
+                    msg = json.dumps({
+                        "error": f"Seeding failed: {error_detail}",
+                        "status": "failed",
+                    })
                     yield f"data: {msg}\n\n"
 
-            return StreamingResponse(generate_progress(), media_type="text/event-stream")
+            return StreamingResponse(
+                generate_progress(), media_type="text/event-stream"
+            )
         except Exception as exc:
-            error_detail = f"{exc.__class__.__name__}: {str(exc)}"
-            print(f"[ERROR] nounproject/seed handler error: {error_detail}", file=sys.stderr)
+            error_detail = f"{exc.__class__.__name__}: {exc!s}"
+            print(
+                f"[ERROR] nounproject/seed handler error: {error_detail}",
+                file=sys.stderr,
+            )
             traceback.print_exc(file=sys.stderr)
             raise HTTPException(status_code=500, detail=error_detail)
 

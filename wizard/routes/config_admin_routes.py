@@ -19,6 +19,7 @@ from wizard.services.secret_store import (
     SecretStoreError,
     get_secret_store,
 )
+from core.services.unified_config_loader import get_config
 
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost"}
 EXPORT_DIR = Path(__file__).parent.parent.parent / "memory" / "config_exports"
@@ -72,7 +73,7 @@ def create_admin_token_routes() -> APIRouter:
             except Exception:
                 pass
 
-        wizard_key = os.getenv("WIZARD_KEY")
+        wizard_key = get_config("WIZARD_KEY", "")
         key_created = False
         if not wizard_key:
             wizard_key = secrets.token_urlsafe(32)

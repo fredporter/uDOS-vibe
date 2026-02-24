@@ -28,6 +28,7 @@ from typing import Optional, Tuple, List, Dict, Any
 from datetime import datetime
 from wizard.services.logging_api import get_logger
 from wizard.services.path_utils import get_repo_root
+from core.services.unified_config_loader import get_config
 
 
 class PDFOCRService:
@@ -45,7 +46,7 @@ class PDFOCRService:
         self.processed_path.mkdir(parents=True, exist_ok=True)
 
         # API key from environment
-        self.api_key = os.getenv("MISTRAL_API_KEY")
+        self.api_key = get_config("MISTRAL_API_KEY", "")
         if not self.api_key:
             self.logger.warning("[WIZ] MISTRAL_API_KEY not set in environment")
 

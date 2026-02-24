@@ -6,6 +6,8 @@ import json
 import os
 from typing import Any, Dict, Optional
 
+from core.services.unified_config_loader import get_bool_config
+
 
 def load_ai_modes_config() -> Dict[str, Any]:
     try:
@@ -28,7 +30,7 @@ def write_ok_modes_config(config: Dict[str, Any]) -> None:
 
 
 def is_dev_mode_active() -> bool:
-    env_active = os.getenv("UDOS_DEV_MODE") in ("1", "true", "yes")
+    env_active = get_bool_config("UDOS_DEV_MODE", False)
     try:
         from wizard.services.dev_mode_service import get_dev_mode_service
 

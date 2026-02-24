@@ -14,6 +14,8 @@ import time
 from typing import Any, Dict
 from urllib.parse import urlparse
 
+from core.services.unified_config_loader import get_config, get_bool_config
+
 import requests
 
 
@@ -21,8 +23,8 @@ class WizardGateway:
     """HTTP client wrapper for Wizard services."""
 
     def __init__(self, base_url: str | None = None, admin_token: str | None = None):
-        self.base_url = (base_url or os.getenv("WIZARD_BASE_URL", "http://localhost:8765")).rstrip("/")
-        self.admin_token = admin_token or os.getenv("WIZARD_ADMIN_TOKEN")
+        self.base_url = (base_url or get_config("WIZARD_BASE_URL", "http://localhost:8765")).rstrip("/")
+        self.admin_token = admin_token or get_config("WIZARD_ADMIN_TOKEN", "")
         self._repo_root = Path(__file__).resolve().parents[2]
         self._wizardd = self._repo_root / "bin" / "wizardd"
 
@@ -59,18 +61,14 @@ class WizardGateway:
             return
         except Exception:
             pass
-        auto_start = os.getenv("WIZARD_MCP_AUTOSTART", "1").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-        }
+        auto_start = get_bool_config("WIZARD_MCP_AUTOSTART", True)
         if not auto_start:
             raise RuntimeError(
                 f"Wizard API unavailable at {self.base_url}. "
                 "Start server: `uv run wizard/server.py --no-interactive`."
             )
         self._start_local_wizard()
-        wait_seconds = float(os.getenv("WIZARD_MCP_AUTOSTART_WAIT_SEC", "8"))
+        wait_seconds = float(get_config("WIZARD_MCP_AUTOSTART_WAIT_SEC", "8"))
         deadline = time.monotonic() + max(wait_seconds, 1.0)
         while time.monotonic() < deadline:
             try:

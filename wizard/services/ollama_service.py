@@ -17,6 +17,8 @@ import threading
 import urllib.request
 from typing import Any, Dict, List, Optional
 
+from core.services.unified_config_loader import get_config
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # Ollama Host & API
@@ -25,7 +27,7 @@ from typing import Any, Dict, List, Optional
 
 def ollama_host() -> str:
     """Return Ollama API host from env or default."""
-    return (os.getenv("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
+    return (get_config("OLLAMA_HOST", "http://localhost:11434")).rstrip("/")
 
 
 def ollama_api_request(

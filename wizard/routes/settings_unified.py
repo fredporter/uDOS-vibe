@@ -18,6 +18,8 @@ import secrets
 import subprocess
 import sys
 import venv
+
+from core.services.unified_config_loader import get_config
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
@@ -226,8 +228,8 @@ def get_secrets_config() -> Dict[str, List[SecretConfig]]:
             or _get_nested(legacy_config["github"], ["webhooks", "secret"])
         ),
     }
-    legacy_values["nounproject_api_key"] = os.getenv("NOUNPROJECT_API_KEY") or None
-    legacy_values["nounproject_api_secret"] = os.getenv("NOUNPROJECT_API_SECRET") or None
+    legacy_values["nounproject_api_key"] = get_config("NOUNPROJECT_API_KEY", None) or None
+    legacy_values["nounproject_api_secret"] = get_config("NOUNPROJECT_API_SECRET", None) or None
 
     oauth_client_id = None
     oauth_client_secret = None

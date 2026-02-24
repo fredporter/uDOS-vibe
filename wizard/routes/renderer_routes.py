@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from core.services.permission_handler import get_permission_handler
+from core.services.unified_config_loader import get_config
 from core.tools.contract_validator import (
     validate_theme_pack,
     validate_vault_contract,
@@ -33,7 +34,7 @@ from wizard.services.spatial_store import fetch_spatial_rows, get_spatial_db_pat
 
 
 def _themes_root() -> Path:
-    env_root = os.getenv("THEMES_ROOT") or os.getenv("UDOS_THEMES_ROOT")
+    env_root = get_config("THEMES_ROOT", "") or get_config("UDOS_THEMES_ROOT", "")
     if env_root:
         return Path(env_root)
     return get_repo_root() / "themes"

@@ -18,6 +18,7 @@ import re
 from pathlib import Path
 
 from core.tui.ui_elements import format_table
+from core.services.unified_config_loader import get_config, get_bool_config
 from core.tui.output import OutputToolkit
 from core.tui.stdout_guard import atomic_stdout_write
 
@@ -216,16 +217,16 @@ class GridRenderer:
 
     @staticmethod
     def _supports_ansi() -> bool:
-        if os.getenv("UDOS_NO_ANSI") == "1" or os.getenv("NO_COLOR"):
+        if get_bool_config("UDOS_NO_ANSI", False) or get_bool_config("NO_COLOR", False):
             return False
-        term = os.getenv("TERM", "").strip().lower()
+        term = get_config("TERM", "").strip().lower()
         if term in {"dumb", "unknown"}:
             return False
         return sys.stdout.isatty()
 
     def stream_text(self, text: str, prefix: str = "vibe> ") -> None:
         """Stream text line-by-line with a prefix (used for Vibe-style output)."""
-        delay_ms = int(os.getenv("VIBE_STREAM_DELAY_MS", "0") or "0")
+        delay_ms = int(get_config("VIBE_STREAM_DELAY_MS", "0") or "0")
         lines = text.splitlines() if text else [""]
         for line in lines:
             rendered = self._apply_emoji(line)
@@ -240,7 +241,7 @@ class GridRenderer:
         self._load_emoji_set()
         if not self._emoji_set:
             return text
-        mode = os.getenv("UDOS_EMOJI_TUI_RENDER", "plain").strip().lower()
+        mode = get_config("UDOS_EMOJI_TUI_RENDER", "plain").strip().lower()
         pattern = re.compile(r":[a-z0-9_+\-]+:", re.IGNORECASE)
 
         def replace(match: re.Match) -> str:

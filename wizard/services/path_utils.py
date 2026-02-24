@@ -1,11 +1,14 @@
-import os
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Any
 
-from core.services.path_service import find_repo_root as _find_repo_root
-from core.services.path_service import get_repo_root as _get_repo_root
-from wizard.services.wizard_config import load_wizard_config_data
+from core.services.path_service import (
+    find_repo_root as _find_repo_root,
+    get_repo_root as _get_repo_root,
+)
 from core.services.unified_config_loader import get_config
+from wizard.services.wizard_config import load_wizard_config_data
 
 
 def find_repo_root(start_path: Path | None = None) -> Path:

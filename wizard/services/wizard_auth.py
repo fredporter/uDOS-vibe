@@ -10,6 +10,7 @@ from typing import Dict, TYPE_CHECKING
 
 from wizard.services.secret_store import get_secret_store, SecretStoreError
 from wizard.services.device_auth import get_device_auth
+from core.services.unified_config_loader import get_config
 
 if TYPE_CHECKING:  # pragma: no cover
     from fastapi import Request
@@ -78,7 +79,7 @@ class WizardAuthService:
         if not token or len(token) < 8:
             raise HTTPException(status_code=401, detail="Invalid token format")
 
-        env_token = os.getenv("WIZARD_ADMIN_TOKEN", "").strip()
+        env_token = get_config("WIZARD_ADMIN_TOKEN", "").strip()
         if env_token and hmac.compare_digest(token, env_token):
             return
 

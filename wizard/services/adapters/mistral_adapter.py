@@ -35,6 +35,8 @@ import os
 
 import aiohttp
 
+from core.services.unified_config_loader import get_config
+
 logger = logging.getLogger("vibe.mistral-adapter")
 
 
@@ -58,7 +60,7 @@ class MistralAdapter:
             api_key: Mistral API key (or uses MISTRAL_API_KEY env var)
             config: MistralConfig or None for defaults
         """
-        effective_api_key = api_key or os.getenv("MISTRAL_API_KEY", "")
+        effective_api_key = api_key or get_config("MISTRAL_API_KEY", "")
         if not effective_api_key:
             raise ValueError(
                 "Mistral API key required. Set MISTRAL_API_KEY env var or pass api_key parameter."
