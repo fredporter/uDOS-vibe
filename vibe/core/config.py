@@ -29,6 +29,12 @@ from vibe.core.paths.global_paths import (
 from vibe.core.prompts import SystemPrompt
 from vibe.core.tools.base import BaseToolConfig
 
+try:
+    from core.services.unified_config_loader import get_dynamic_config
+except Exception:
+    def get_dynamic_config(key_name: str | None, default: str = "") -> str:
+        return os.getenv(key_name, default) if key_name else default
+
 
 def load_dotenv_values(
     env_path: Path = GLOBAL_ENV_FILE.path,
@@ -204,7 +210,7 @@ class _MCPHttpFields(BaseModel):
     def http_headers(self) -> dict[str, str]:
         hdrs = dict(self.headers or {})
         env_var = (self.api_key_env or "").strip()
-        if env_var and (token := os.getenv(env_var)):
+        if env_var and (token := get_dynamic_config(env_var)):
             target = (self.api_key_header or "").strip() or "Authorization"
             if not any(h.lower() == target.lower() for h in hdrs):
                 try:
@@ -421,7 +427,7 @@ class VibeConfig(BaseSettings):
 
     @property
     def nuage_api_key(self) -> str:
-        return os.getenv(self.nuage_api_key_env_var, "")
+        return get_dynamic_config(self.nuage_api_key_env_var, "")
 
     @property
     def system_prompt(self) -> str:
@@ -486,7 +492,7 @@ class VibeConfig(BaseSettings):
             active_model = self.get_active_model()
             provider = self.get_provider_for_model(active_model)
             api_key_env = provider.api_key_env_var
-            if api_key_env and not os.getenv(api_key_env):
+            if api_key_env and not get_dynamic_config(api_key_env):
                 raise MissingAPIKeyError(api_key_env, provider.name)
         except ValueError:
             pass

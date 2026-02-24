@@ -682,8 +682,6 @@ class AdvancedFormField:
 
     def clear_screen(self) -> None:
         """Clear the terminal screen."""
-        import os
-
         os.system("clear" if os.name != "nt" else "cls")
 
     def disable_colors(self) -> None:

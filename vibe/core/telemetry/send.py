@@ -12,6 +12,12 @@ from vibe.core.config import Backend, VibeConfig
 from vibe.core.llm.format import ResolvedToolCall
 from vibe.core.utils import get_user_agent
 
+try:
+    from core.services.unified_config_loader import get_dynamic_config
+except Exception:
+    def get_dynamic_config(key_name: str | None, default: str = "") -> str:
+        return os.getenv(key_name, default) if key_name else default
+
 if TYPE_CHECKING:
     from vibe.core.agent_loop import ToolDecision
 
@@ -46,7 +52,7 @@ class TelemetryClient:
             if provider.backend != Backend.MISTRAL:
                 return None
             env_var = provider.api_key_env_var
-            return os.getenv(env_var) if env_var else None
+            return get_dynamic_config(env_var) if env_var else None
         except ValueError:
             return None
 

@@ -21,6 +21,7 @@ from datetime import datetime
 from enum import Enum
 
 from core.services.viewport_service import ViewportService
+from core.services.unified_config_loader import get_bool_config
 from core.utils.text_width import truncate_to_width
 from core.tui.output import OutputToolkit
 
@@ -134,7 +135,7 @@ class TUIStatusBar:
                 [OutputToolkit.progress_block(int(minutes + hours * 60), 240, label="Session")],
             )
         )
-        if os.getenv("UDOS_TUI_FULL_METERS", "").strip().lower() in {"1", "true", "yes"}:
+        if get_bool_config("UDOS_TUI_FULL_METERS", False):
             lines.append(
                 OutputToolkit.progress_block_full(int(mem.percent), 100, label="Memory")
             )

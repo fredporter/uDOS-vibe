@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Dict, Optional, List, Any
 
 from wizard.services.logging_api import get_logger
+from core.services.unified_config_loader import get_dynamic_config
 
 logger = get_logger("secret-store")
 
@@ -97,8 +98,8 @@ class SecretStore:
         """Unlock the tomb and load secrets into memory."""
         if self._loaded:
             return
-        env_key = key_material or os.getenv(self.config.key_env)
-        fallback_key = os.getenv(self.config.secondary_key_env) if not env_key else None
+        env_key = key_material or get_dynamic_config(self.config.key_env)
+        fallback_key = get_dynamic_config(self.config.secondary_key_env) if not env_key else None
         file_key = None
         if self.config.key_file_path.exists():
             try:

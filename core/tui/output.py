@@ -1,18 +1,23 @@
-"""
-Output Toolkit for Core TUI
+"""Output Toolkit for Core TUI
 
 Provides consistent ASCII formatting for banners, alerts, checklists,
 tables, and sectioned output.
 """
 
-from typing import Iterable, List, Sequence, Tuple, Optional
-import os
+from __future__ import annotations
 
-from core.utils.text_width import display_width, pad_to_width, truncate_to_width, truncate_ansi_to_width
-from core.services.viewport_service import ViewportService
-from core.services.tui_genre_manager import get_tui_genre_manager
-from core.services.unified_config_loader import get_config, get_bool_config
+from collections.abc import Sequence
 import time
+
+from core.services.tui_genre_manager import get_tui_genre_manager
+from core.services.unified_config_loader import get_bool_config, get_config
+from core.services.viewport_service import ViewportService
+from core.utils.text_width import (
+    display_width,
+    pad_to_width,
+    truncate_ansi_to_width,
+    truncate_to_width,
+)
 
 
 class OutputToolkit:
@@ -21,7 +26,7 @@ class OutputToolkit:
     RESET = "\033[0m"
     INVERT = "\033[7m"
     DIM = "\033[2m"
-    
+
     @staticmethod
     def _get_genre_manager():
         """Get the TUI GENRE manager instance."""
@@ -29,6 +34,7 @@ class OutputToolkit:
             return get_tui_genre_manager()
         except:
             return None
+
     SYMBOLS = {
         "info": "•",
         "ok": "✓",
@@ -44,7 +50,7 @@ class OutputToolkit:
     RETHEME_MARKER = "[RETHEME-CANDIDATE]"
 
     @staticmethod
-    def banner(title: str, width: Optional[int] = None, pad: str = "=") -> str:
+    def banner(title: str, width: int | None = None, pad: str = "=") -> str:
         cols = ViewportService().get_cols()
         w = min(cols, width or cols)
         line = pad * max(1, w)
@@ -61,13 +67,13 @@ class OutputToolkit:
         return f"{OutputToolkit.DIM}{text}{OutputToolkit.RESET}"
 
     @staticmethod
-    def rule(char: str = "─", width: Optional[int] = None) -> str:
+    def rule(char: str = "─", width: int | None = None) -> str:
         cols = ViewportService().get_cols()
         w = min(cols, width or cols)
         return char * max(1, w)
 
     @staticmethod
-    def box(title: str, body: str, width: Optional[int] = None) -> str:
+    def box(title: str, body: str, width: int | None = None) -> str:
         cols = ViewportService().get_cols()
         w = min(cols, width or cols)
         inner = max(10, w - 4)
@@ -81,7 +87,7 @@ class OutputToolkit:
         return OutputToolkit._clamp("\n".join(lines))
 
     @staticmethod
-    def invert_section(text: str, width: Optional[int] = None) -> str:
+    def invert_section(text: str, width: int | None = None) -> str:
         cols = ViewportService().get_cols()
         w = min(cols, width or cols)
         lines = (text or "").splitlines() or [""]
@@ -92,7 +98,7 @@ class OutputToolkit:
         return OutputToolkit._clamp("\n".join(out))
 
     @staticmethod
-    def columns(left_lines: List[str], right_lines: List[str], gap: int = 2) -> str:
+    def columns(left_lines: list[str], right_lines: list[str], gap: int = 2) -> str:
         cols = ViewportService().get_cols()
         left_w = max(12, int(cols * 0.48))
         right_w = max(12, cols - left_w - gap)
@@ -109,7 +115,9 @@ class OutputToolkit:
         return OutputToolkit._clamp("\n".join(out))
 
     @staticmethod
-    def progress_block(current: int, total: int, width: Optional[int] = None, label: Optional[str] = None) -> str:
+    def progress_block(
+        current: int, total: int, width: int | None = None, label: str | None = None
+    ) -> str:
         cols = ViewportService().get_cols()
         w = min(cols, width or max(20, int(cols * 0.6)))
         w = max(10, w)
@@ -125,13 +133,15 @@ class OutputToolkit:
         return f"{prefix}[{bar}] {pct}%"
 
     @staticmethod
-    def progress_block_full(current: int, total: int, label: Optional[str] = None) -> str:
+    def progress_block_full(current: int, total: int, label: str | None = None) -> str:
         cols = ViewportService().get_cols()
         inner = max(10, cols - 10)
         return OutputToolkit.progress_block(current, total, width=inner, label=label)
 
     @staticmethod
-    def stat_block(label: str, value: str, width: Optional[int] = None, invert: bool = False) -> str:
+    def stat_block(
+        label: str, value: str, width: int | None = None, invert: bool = False
+    ) -> str:
         cols = ViewportService().get_cols()
         w = min(cols, width or max(18, int(cols * 0.22)))
         w = max(12, w)
@@ -142,7 +152,12 @@ class OutputToolkit:
         return line
 
     @staticmethod
-    def present_frames(frames: Sequence[str], interval: float = 0.8, repeat: int = 1, clear: bool = True) -> None:
+    def present_frames(
+        frames: Sequence[str],
+        interval: float = 0.8,
+        repeat: int = 1,
+        clear: bool = True,
+    ) -> None:
         """Present full-screen frames with clears between (presentation-style)."""
         if not frames:
             return
@@ -161,9 +176,8 @@ class OutputToolkit:
         return OutputToolkit._clamp(f"[{prefix}] {tagged}")
 
     @staticmethod
-    def line(message: str, level: str = "info", mood: Optional[str] = None) -> str:
-        """
-        Render a single consistently-prefixed line.
+    def line(message: str, level: str = "info", mood: str | None = None) -> str:
+        """Render a single consistently-prefixed line.
 
         mood is optional and should be used sparingly for milestone outputs.
         """
@@ -194,19 +208,14 @@ class OutputToolkit:
         if level in {"warn", "error"}:
             return True
         normalized = text.lower().strip()
-        raw_prefixes = get_config(
-            "UDOS_RETHEME_INFO_PREFIX",
-            "error:,warn:,warning:",
-        )
+        raw_prefixes = get_config("UDOS_RETHEME_INFO_PREFIX", "error:,warn:,warning:")
         prefixes = tuple(
-            token.strip().lower()
-            for token in raw_prefixes.split(",")
-            if token.strip()
+            token.strip().lower() for token in raw_prefixes.split(",") if token.strip()
         )
         return bool(prefixes) and normalized.startswith(prefixes)
 
     @staticmethod
-    def checklist(items: Sequence[Tuple[str, bool]]) -> str:
+    def checklist(items: Sequence[tuple[str, bool]]) -> str:
         lines = []
         for label, ok in items:
             status = "[x]" if ok else "[ ]"
@@ -221,7 +230,9 @@ class OutputToolkit:
                 widths[i] = max(widths[i], display_width(str(cell)))
 
         def fmt_row(row_vals):
-            return " | ".join(pad_to_width(str(val), widths[i]) for i, val in enumerate(row_vals))
+            return " | ".join(
+                pad_to_width(str(val), widths[i]) for i, val in enumerate(row_vals)
+            )
 
         sep = "-+-".join("-" * w for w in widths)
         output = [fmt_row(headers), sep]
@@ -249,59 +260,59 @@ class OutputToolkit:
         return OutputToolkit._clamp(renderer.render(location))
 
     @staticmethod
-    def genre_banner(title: str, genre: Optional[str] = None) -> str:
+    def genre_banner(title: str, genre: str | None = None) -> str:
         """Create a GENRE-themed banner."""
         manager = OutputToolkit._get_genre_manager()
         if manager and genre:
             manager.set_active_genre(genre)
-        
+
         return OutputToolkit.banner(title)
 
     @staticmethod
-    def genre_box(title: str, body: str, genre: Optional[str] = None) -> str:
+    def genre_box(title: str, body: str, genre: str | None = None) -> str:
         """Create a GENRE-themed box."""
         manager = OutputToolkit._get_genre_manager()
         if manager:
             if genre:
                 manager.set_active_genre(genre)
             return manager.create_box(title, body)
-        
+
         # Fallback to standard box
         return OutputToolkit.box(title, body)
 
     @staticmethod
-    def genre_error(message: str, genre: Optional[str] = None) -> str:
+    def genre_error(message: str, genre: str | None = None) -> str:
         """Format an error message with GENRE theming."""
         manager = OutputToolkit._get_genre_manager()
         if manager:
             if genre:
                 manager.set_active_genre(genre)
             return manager.format_error(message)
-        
+
         # Fallback to standard error format
         return f"ERROR: {message}"
 
     @staticmethod
-    def genre_warning(message: str, genre: Optional[str] = None) -> str:
+    def genre_warning(message: str, genre: str | None = None) -> str:
         """Format a warning message with GENRE theming."""
         manager = OutputToolkit._get_genre_manager()
         if manager:
             if genre:
                 manager.set_active_genre(genre)
             return manager.format_warning(message)
-        
+
         # Fallback to standard warning format
         return f"WARNING: {message}"
 
     @staticmethod
-    def genre_success(message: str, genre: Optional[str] = None) -> str:
+    def genre_success(message: str, genre: str | None = None) -> str:
         """Format a success message with GENRE theming."""
         manager = OutputToolkit._get_genre_manager()
         if manager:
             if genre:
                 manager.set_active_genre(genre)
             return manager.format_success(message)
-        
+
         # Fallback to standard success format
         return f"SUCCESS: {message}"
 

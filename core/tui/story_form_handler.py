@@ -25,6 +25,7 @@ from core.tui.form_fields import (
     SmartNumberPicker,
 )
 from core.services.logging_api import get_logger
+from core.services.unified_config_loader import get_bool_config
 from core.utils.tty import interactive_tty_status
 from core.input.confirmation_utils import normalize_default, parse_confirmation, format_prompt, format_error
 
@@ -292,7 +293,7 @@ class StoryFormHandler:
         try:
             # Inline-first default: keep fullscreen/raw form mode opt-in only.
             # Set UDOS_STORY_FORM_TUI=1 to force the rich TUI form renderer.
-            if os.getenv("UDOS_STORY_FORM_TUI", "0").strip().lower() not in {"1", "true", "yes", "on"}:
+            if not get_bool_config("UDOS_STORY_FORM_TUI", False):
                 return False
             if not self._is_interactive():
                 return False

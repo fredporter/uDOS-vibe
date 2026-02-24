@@ -26,6 +26,12 @@ from vibe.core.utils import async_generator_retry, async_retry
 if TYPE_CHECKING:
     from vibe.core.config import ModelConfig, ProviderConfig
 
+try:
+    from core.services.unified_config_loader import get_dynamic_config
+except Exception:
+    def get_dynamic_config(key_name: str | None, default: str = "") -> str:
+        return os.getenv(key_name, default) if key_name else default
+
 
 class OpenAIAdapter(APIAdapter):
     endpoint: ClassVar[str] = "/chat/completions"
@@ -219,7 +225,7 @@ class GenericBackend:
         extra_headers: dict[str, str] | None = None,
     ) -> LLMChunk:
         api_key = (
-            os.getenv(self._provider.api_key_env_var)
+            get_dynamic_config(self._provider.api_key_env_var)
             if self._provider.api_key_env_var
             else None
         )
@@ -287,7 +293,7 @@ class GenericBackend:
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncGenerator[LLMChunk, None]:
         api_key = (
-            os.getenv(self._provider.api_key_env_var)
+            get_dynamic_config(self._provider.api_key_env_var)
             if self._provider.api_key_env_var
             else None
         )

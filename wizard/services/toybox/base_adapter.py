@@ -21,6 +21,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from core.services.logging_api import get_repo_root
+from core.services.unified_config_loader import get_dynamic_config
 
 
 class InputRequest(BaseModel):
@@ -77,7 +78,7 @@ class PTYAdapter:
         return datetime.now(timezone.utc).isoformat()
 
     def _resolve_command(self) -> List[str]:
-        env_cmd = os.getenv(self.env_cmd_var, "").strip()
+        env_cmd = get_dynamic_config(self.env_cmd_var, "").strip()
         if env_cmd:
             return shlex.split(env_cmd)
 

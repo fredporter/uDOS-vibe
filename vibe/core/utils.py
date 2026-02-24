@@ -22,11 +22,13 @@ from vibe.core.types import BaseEvent, ToolResultEvent
 
 try:
     from core.services.logging_api import get_logger as get_udos_logger
-    from core.services.unified_config_loader import get_config, get_bool_config
+    from core.services.unified_config_loader import get_bool_config, get_config
 except Exception:
     get_udos_logger = None
+
     def get_config(key: str, default: str = "") -> str:
         return os.getenv(key, default)
+
     def get_bool_config(key: str, default: bool = False) -> bool:
         raw = os.getenv(key, "").strip().lower()
         if raw in {"1", "true", "yes", "on"}:
@@ -34,6 +36,7 @@ except Exception:
         if raw in {"0", "false", "no", "off"}:
             return False
         return default
+
 
 CANCELLATION_TAG = "user_cancellation"
 TOOL_ERROR_TAG = "tool_error"
@@ -226,12 +229,7 @@ def apply_logging_config(_target_logger: logging.Logger | Any = None) -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file.touch(exist_ok=True)
     handler_cls = getattr(logging.handlers, "Rotating" + "FileHandler")
-    handler = handler_cls(
-        log_file,
-        maxBytes=max_bytes,
-        backupCount=5,
-        encoding="utf-8",
-    )
+    handler = handler_cls(log_file, maxBytes=max_bytes, backupCount=5, encoding="utf-8")
     handler.setLevel(logging._nameToLevel[configured_level])
     handler.setFormatter(StructuredLogFormatter())
     target_logger.addHandler(handler)

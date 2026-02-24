@@ -9,6 +9,7 @@ from vibe import VIBE_ROOT
 try:
     from core.services.unified_config_loader import get_config
 except Exception:
+
     def get_config(key: str, default: str = "") -> str:
         return os.getenv(key, default)
 

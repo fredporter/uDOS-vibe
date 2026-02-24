@@ -210,6 +210,37 @@ class UnifiedConfigLoader:
 
         return Path(expanded)
 
+    def get_dynamic(self, key_name: str | None, default: str = "") -> str:
+        """Get configuration value using a dynamic key name.
+
+        Useful for cases where the environment variable name is stored
+        in another variable (e.g., self.config.key_env, self._provider.api_key_env_var).
+
+        Args:
+            key_name: The environment variable name to look up
+            default: Default value if key_name is None or not found
+
+        Returns:
+            Configuration value or default
+        """
+        if not key_name:
+            return default
+        return self.get_str(key_name, default)
+
+    def get_dynamic_bool(self, key_name: str | None, default: bool = False) -> bool:
+        """Get boolean configuration value using a dynamic key name.
+
+        Args:
+            key_name: The environment variable name to look up
+            default: Default value if key_name is None or not found
+
+        Returns:
+            Boolean value or default
+        """
+        if not key_name:
+            return default
+        return self.get_bool(key_name, default)
+
     def get_section(self, section: str) -> dict[str, Any]:
         """Get all configuration values in a section.
 
@@ -488,3 +519,34 @@ def get_path_config(key: str, default: Path | None = None) -> Path | None:
         Path configuration value
     """
     return get_config_loader().get_path(key, default)
+
+
+def get_dynamic_config(key_name: str | None, default: str = "") -> str:
+    """Get config using a dynamic key name.
+
+    Use this when the environment variable name is stored in another variable,
+    such as self.config.key_env or self._provider.api_key_env_var.
+
+    Args:
+        key_name: The environment variable name to look up
+        default: Default value if key_name is None or not found
+
+    Returns:
+        Configuration value or default
+    """
+    return get_config_loader().get_dynamic(key_name, default)
+
+
+def get_dynamic_bool_config(key_name: str | None, default: bool = False) -> bool:
+    """Get boolean config using a dynamic key name.
+
+    Use this when the environment variable name is stored in another variable.
+
+    Args:
+        key_name: The environment variable name to look up
+        default: Default value if key_name is None or not found
+
+    Returns:
+        Boolean value or default
+    """
+    return get_config_loader().get_dynamic_bool(key_name, default)

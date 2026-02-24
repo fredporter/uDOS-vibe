@@ -92,6 +92,7 @@ from core.services.stdlib_http import HTTPError, http_get, http_post
 from core.services.system_script_runner import SystemScriptRunner
 from core.services.theme_service import get_theme_service
 from core.services.todo_reminder_service import get_reminder_service
+from core.services.unified_config_loader import get_config
 from core.services.todo_service import (
     CalendarGridRenderer as TodoCalendarGridRenderer,
     GanttGridRenderer as TodoGanttGridRenderer,
@@ -439,7 +440,7 @@ class UCODE:
 
         # Try registering Mistral (cloud)
         try:
-            api_key = os.getenv("MISTRAL_API_KEY")
+            api_key = get_config("MISTRAL_API_KEY", "")
             if api_key:
                 mistral = MistralAdapter(api_key=api_key)
                 if asyncio.run(mistral.is_available()):
