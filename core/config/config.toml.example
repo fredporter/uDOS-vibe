@@ -16,7 +16,9 @@ destination = "file"        # file, syslog, console
 format = "json"            # json, text
 payloads = false           # Log request/response bodies
 redact = true              # Mask sensitive data
-root = "${UDOS_ROOT}/memory/logs"
+# root path will be auto-computed from UDOS_ROOT env var
+# Do NOT edit below - code expands UDOS_ROOT automatically
+root = ""                  # Leave empty to auto-compute: memory/logs
 
 # Advanced logging (usually disabled)
 ring_buffer = false        # Keep rolling in-memory log
