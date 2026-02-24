@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import contextvars
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -19,7 +19,7 @@ import traceback
 from typing import Any
 
 from core.services.id_utils import generate_runtime_id
-from core.services.path_service import get_repo_root as _resolve_repo_root
+from core.services.path_service import get_repo_root
 
 LOG_SCHEMA_ID = "udos-log-v1.3"
 
@@ -76,7 +76,7 @@ class LogTags:
 
 
 def _now_iso() -> str:
-    return datetime.now().astimezone().isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _mono_ms() -> int:
@@ -127,11 +127,6 @@ def _default_log_root() -> Path:
         return get_repo_root() / "memory" / "logs" / "udos"
     except Exception:
         return Path.home() / "memory" / "logs" / "udos"
-
-
-def get_repo_root() -> Path:
-    """Get repository root, honoring UDOS_ROOT when provided."""
-    return _resolve_repo_root(marker="uDOS.py")
 
 
 def get_subprocess_env(base_env: dict[str, str] | None = None) -> dict[str, str]:

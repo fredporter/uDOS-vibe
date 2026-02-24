@@ -2,30 +2,28 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
+from core.services.json_utils import read_json_file, write_json_file
+from core.services.logging_api import get_repo_root
 from core.services.unified_config_loader import get_bool_config
+
+_OK_MODES_PATH_SEGMENTS = ("core", "config", "ok_modes.json")
+
+
+def _ok_modes_path():
+    return get_repo_root().joinpath(*_OK_MODES_PATH_SEGMENTS)
 
 
 def load_ai_modes_config() -> dict[str, Any]:
     try:
-        from core.services.logging_api import get_repo_root
-
-        path = get_repo_root() / "core" / "config" / "ok_modes.json"
-        if not path.exists():
-            return {"modes": {}}
-        return json.loads(path.read_text())
+        return read_json_file(_ok_modes_path(), default={"modes": {}})
     except Exception:
         return {"modes": {}}
 
 
 def write_ok_modes_config(config: dict[str, Any]) -> None:
-    from core.services.logging_api import get_repo_root
-
-    path = get_repo_root() / "core" / "config" / "ok_modes.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(config, indent=2))
+    write_json_file(_ok_modes_path(), config)
 
 
 def is_dev_mode_active() -> bool:

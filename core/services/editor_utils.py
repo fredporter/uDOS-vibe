@@ -13,13 +13,9 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 
-from core.services.path_service import get_memory_root as get_path_memory_root
+from core.services.path_service import get_memory_root
 from core.services.path_service import get_repo_root
 from core.services.workspace_ref import parse_workspace_name
-
-
-def get_memory_root() -> Path:
-    return get_path_memory_root()
 
 
 def _is_executable(path: Path) -> bool:
