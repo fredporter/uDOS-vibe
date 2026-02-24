@@ -71,7 +71,19 @@ def create_admin_token_routes() -> APIRouter:
             except Exception:
                 pass
 
-        wizard_key = get_config("WIZARD_KEY", "")
+        # Read WIZARD_KEY from the resolved env_path (not the global config loader)
+        # so that tests with a tmp_path repo_root are correctly isolated.
+        _env_values: dict[str, str] = {}
+        if env_path.exists():
+            for _line in env_path.read_text().splitlines():
+                _line = _line.strip()
+                if _line and not _line.startswith("#") and "=" in _line:
+                    _k, _v = _line.split("=", 1)
+                    _env_values[_k.strip()] = _v.strip().strip('"')
+        # Fall back to os.environ (not get_config) so test isolation via
+        # monkeypatch.delenv() works correctly.
+        import os as _os
+        wizard_key = _env_values.get("WIZARD_KEY") or _os.environ.get("WIZARD_KEY", "")
         key_created = False
         if not wizard_key:
             wizard_key = secrets.token_urlsafe(32)

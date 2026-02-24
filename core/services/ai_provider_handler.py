@@ -160,38 +160,63 @@ class AIProviderHandler:
         )
 
     def check_cloud_provider(self) -> ProviderStatus:
-        """Check cloud (Mistral) provider status.
+        """Check cloud provider status across all configured providers.
+
+        Checks the full provider chain (Mistral, OpenRouter, OpenAI, Anthropic, Gemini).
+        Returns status for the first available (configured) provider.
 
         Returns:
-            ProviderStatus indicating Mistral API availability
+            ProviderStatus for cloud capability (any provider)
         """
-        provider_id = ProviderType.MISTRAL_CLOUD.value
+        from core.services.cloud_provider_policy import (
+            canonical_cloud_provider_contracts,
+            resolve_cloud_provider_chain,
+            resolve_provider_api_key,
+        )
+        from core.services.unified_config_loader import get_config
 
-        # Check 1: Is Mistral configured?
-        is_configured = self._check_mistral_configured()
+        provider_id = ProviderType.MISTRAL_CLOUD.value  # kept for backward compat
 
-        # Check 2: Can we reach Mistral?
-        is_running, api_models, check_issue = self._check_mistral_running()
+        def _env(key: str) -> str:
+            return get_config(key, "") or ""
 
-        # Combined: available = configured AND running
-        is_available = is_configured and is_running
+        chain = resolve_cloud_provider_chain(_env)
+        contracts = canonical_cloud_provider_contracts()
+
+        available_providers: list[str] = []
+        primary_provider = None
+        primary_model = None
+
+        for provider in chain:
+            contract = contracts[provider]
+            api_key = resolve_provider_api_key(contract, _env)
+            if api_key:
+                available_providers.append(provider.value)
+                if primary_provider is None:
+                    primary_provider = provider
+                    primary_model = contract.default_model
+
+        is_configured = bool(available_providers)
+        # is_running: True if any key is present (we don't do live ping for cloud)
+        is_running = is_configured
+        is_available = is_configured
 
         issue = None
         if not is_available:
-            if not is_configured:
-                issue = "mistral api key not configured"
-            elif not is_running:
-                issue = check_issue or "mistral api unreachable"
+            issue = "no cloud provider API keys configured (set MISTRAL_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY)"
 
         return ProviderStatus(
             provider_id=provider_id,
             is_configured=is_configured,
             is_running=is_running,
             is_available=is_available,
-            loaded_models=api_models,
-            default_model="mistral-small",  # Mistral provides predefined models
+            loaded_models=available_providers,
+            default_model=primary_model,
             issue=issue,
-            details={"api_endpoint": "api.mistral.ai"},
+            details={
+                "available_providers": available_providers,
+                "primary": primary_provider.value if primary_provider else None,
+            },
         )
 
     # ===== Private helpers: Configuration checks =====

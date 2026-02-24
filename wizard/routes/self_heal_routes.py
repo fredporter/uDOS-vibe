@@ -103,26 +103,16 @@ def _ollama_models() -> list[str]:
 
 
 def _normalize_model_name(name: str) -> str:
-    return name.split(":")[0]
+    from wizard.services.ollama_tier_service import normalize_model_name
+    return normalize_model_name(name)
 
 
 def _required_ollama_models() -> list[str]:
+    from wizard.services.ollama_tier_service import get_required_models
+
     recommended = get_config("VIBE_OLLAMA_RECOMMENDED_MODELS", "").strip()
-    if recommended:
-        return [item.strip() for item in recommended.split(",") if item.strip()]
     tier = get_config("VIBE_INSTALL_TIER", "").strip().lower()
-    if tier == "tier3":
-        return [
-            "mistral",
-            "devstral-small-2",
-            "llama3.2",
-            "qwen3",
-            "codellama",
-            "phi3",
-            "gemma2",
-            "deepseek-coder",
-        ]
-    return ["mistral", "devstral-small-2", "llama3.2", "qwen3"]
+    return get_required_models(tier=tier or None, override=recommended or None)
 
 
 def _configured_ollama_default_model() -> str:

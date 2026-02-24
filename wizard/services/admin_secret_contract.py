@@ -105,10 +105,14 @@ def collect_admin_secret_contract(repo_root: Path | None = None) -> dict[str, An
     config_path = root / "wizard" / "config" / "wizard.json"
 
     env_values = _read_env_vars(env_path)
-    wizard_key = env_values.get("WIZARD_KEY") or get_config("WIZARD_KEY", "").strip()
-    admin_token = (
-        env_values.get("WIZARD_ADMIN_TOKEN")
-        or get_config("WIZARD_ADMIN_TOKEN", "").strip()
+    # When a custom repo_root is provided (e.g. in tests), read only from that
+    # path's .env — do not fall back to get_config() which would read the live env.
+    use_live_config = repo_root is None
+    wizard_key = env_values.get("WIZARD_KEY") or (
+        get_config("WIZARD_KEY", "").strip() if use_live_config else ""
+    )
+    admin_token = env_values.get("WIZARD_ADMIN_TOKEN") or (
+        get_config("WIZARD_ADMIN_TOKEN", "").strip() if use_live_config else ""
     )
 
     config = load_wizard_config_data(path=config_path)

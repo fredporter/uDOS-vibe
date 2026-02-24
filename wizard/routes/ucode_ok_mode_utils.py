@@ -148,11 +148,8 @@ def get_ok_local_status() -> dict[str, Any]:
 
 def get_ok_cloud_status() -> dict[str, Any]:
     try:
-        from wizard.services.mistral_api import MistralAPI
+        from wizard.services.cloud_provider_executor import get_cloud_availability
 
-        client = MistralAPI()
-        if client.available():
-            return {"ready": True, "issue": None}
-        return {"ready": False, "issue": "mistral api key missing"}
+        return get_cloud_availability()
     except Exception as exc:
         return {"ready": False, "issue": str(exc)}

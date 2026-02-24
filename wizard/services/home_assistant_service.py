@@ -112,13 +112,12 @@ class HomeAssistantService:
         if command not in _COMMAND_ALLOWLIST:
             raise ValueError(f"Command not in allowlist: {command!r}")
 
-        # Dispatch table — extended as real uHOME services are wired in.
         if command == "system.info":
             return self._system_info()
         if command == "system.capabilities":
             return self._system_capabilities()
         if command.startswith("uhome."):
-            return self._uhome_stub(command, params)
+            return self._uhome_dispatch(command, params)
 
         raise ValueError(f"Unhandled allowlisted command: {command!r}")
 
@@ -135,11 +134,16 @@ class HomeAssistantService:
             "result": {"allowlist": sorted(_COMMAND_ALLOWLIST)},
         }
 
-    def _uhome_stub(self, command: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Placeholder for uHOME commands until the full uHOME service is wired."""
-        return {
-            "command": command,
-            "status": "stub",
-            "note": "uHOME service not yet connected; command accepted and queued.",
-            "params": params,
-        }
+    def _uhome_dispatch(self, command: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Dispatch uHOME commands to the real handler implementations."""
+        from wizard.services.uhome_command_handlers import dispatch
+        try:
+            return dispatch(command, params)
+        except KeyError:
+            # Graceful fallback for any allowlisted command without a handler yet
+            return {
+                "command": command,
+                "status": "unimplemented",
+                "note": f"Handler for {command!r} not yet wired.",
+                "params": params,
+            }

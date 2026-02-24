@@ -110,13 +110,9 @@ def create_ucode_routes(auth_guard=None):
     router.include_router(create_ucode_user_routes(logger=logger))
 
     def _run_ok_cloud(prompt: str) -> tuple[str, str]:
-        from wizard.services.mistral_api import MistralAPI
+        from wizard.services.cloud_provider_executor import run_cloud_with_fallback
 
-        config = _load_ai_modes_config()
-        mode = (config.get("modes") or {}).get("onvibe", {})
-        model = mode.get("default_model") or "mistral-small-latest"
-        client = MistralAPI()
-        return client.chat(prompt, model=model), model
+        return run_cloud_with_fallback(prompt)
 
     def _run_ok_local(prompt: str, model: str | None = None) -> str:
         from wizard.services.ai_profile_service import render_system_prompt
@@ -140,9 +136,9 @@ def create_ucode_routes(auth_guard=None):
         )
 
     def _ok_cloud_available() -> bool:
-        from wizard.services.mistral_api import MistralAPI
+        from wizard.services.cloud_provider_executor import get_cloud_availability
 
-        return bool(MistralAPI().available())
+        return get_cloud_availability()["ready"]
 
     def _run_ok_local_stream(prompt: str, model: str):
         from wizard.services.ai_profile_service import render_system_prompt
