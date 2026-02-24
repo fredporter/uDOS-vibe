@@ -1,9 +1,23 @@
 """Provider Engine - Async Provider Interaction Layer
 
+.. deprecated::
+    This module's cloud provider adapters (_call_mistral, _call_openai,
+    _call_anthropic, _call_gemini) are unimplemented stubs superseded by
+    the production fallback chain in v1.4.7.
+
+    **Canonical replacements (as of v1.4.7):**
+
+    - Cloud multi-provider fallback:
+      ``wizard.services.cloud_provider_executor.run_cloud_with_fallback()``
+    - Multi-provider availability check:
+      ``wizard.services.cloud_provider_executor.get_cloud_availability()``
+    - Provider policy contracts (auth, request/response shape, failover):
+      ``core.services.cloud_provider_policy``
+    - Ollama local provider (still active, no replacement needed):
+      ``_call_ollama()`` in this module remains valid.
+
 Handles all interactions with OK Providers (Ollama, Mistral, OpenAI, Anthropic, Gemini).
 Enforces timeout guards, stream handling, response normalisation, and error recovery.
-
-This is the canonical provider abstraction layer for Vibe-CLI.
 
 Architecture Rules (from vibe/AGENTS.md):
 - NO direct execution of responses (normalisation only)
@@ -11,23 +25,6 @@ Architecture Rules (from vibe/AGENTS.md):
 - Proper stream closing
 - Provider capability respect
 - Error recovery with fallback chain
-
-Usage:
-    from vibe.core.provider_engine import ProviderEngine
-    from vibe.core.response_normaliser import ResponseNormaliser
-
-    normaliser = ResponseNormaliser()
-    engine = ProviderEngine(normaliser=normaliser, timeout=30)
-
-    result = await engine.call_provider(
-        provider_type="ollama",
-        model="devstral-small-2",
-        prompt="explain this code",
-        system="You are a coding assistant."
-    )
-
-    if result.success:
-        print(result.normalised.text)
 
 Version: 1.0.0
 Milestone: v1.4.6 Architecture Stabilisation
@@ -291,10 +288,17 @@ class ProviderEngine:
         timeout: int,
         **kwargs,
     ) -> str:
-        """Call Mistral API provider."""
-        # TODO: Implement Mistral API integration
-        # Requires wizard/services/adapters/mistral_adapter.py
-        raise NotImplementedError("Mistral provider adapter pending implementation")
+        """Call Mistral API provider.
+
+        .. deprecated::
+            Use ``wizard.services.cloud_provider_executor.run_cloud_with_fallback()``
+            which supports Mistral, OpenRouter, OpenAI, Anthropic, and Gemini with
+            automatic failover. This stub will not be implemented here.
+        """
+        raise NotImplementedError(
+            "Mistral adapter not implemented here. "
+            "Use wizard.services.cloud_provider_executor.run_cloud_with_fallback() instead."
+        )
 
     async def _call_openai(
         self,
@@ -305,9 +309,15 @@ class ProviderEngine:
         timeout: int,
         **kwargs,
     ) -> str:
-        """Call OpenAI API provider."""
-        # TODO: Implement OpenAI integration
-        raise NotImplementedError("OpenAI provider adapter pending implementation")
+        """Call OpenAI API provider.
+
+        .. deprecated::
+            Use ``wizard.services.cloud_provider_executor.run_cloud_with_fallback()``.
+        """
+        raise NotImplementedError(
+            "OpenAI adapter not implemented here. "
+            "Use wizard.services.cloud_provider_executor.run_cloud_with_fallback() instead."
+        )
 
     async def _call_anthropic(
         self,
@@ -318,9 +328,15 @@ class ProviderEngine:
         timeout: int,
         **kwargs,
     ) -> str:
-        """Call Anthropic API provider."""
-        # TODO: Implement Anthropic integration
-        raise NotImplementedError("Anthropic provider adapter pending implementation")
+        """Call Anthropic API provider.
+
+        .. deprecated::
+            Use ``wizard.services.cloud_provider_executor.run_cloud_with_fallback()``.
+        """
+        raise NotImplementedError(
+            "Anthropic adapter not implemented here. "
+            "Use wizard.services.cloud_provider_executor.run_cloud_with_fallback() instead."
+        )
 
     async def _call_gemini(
         self,
@@ -331,9 +347,15 @@ class ProviderEngine:
         timeout: int,
         **kwargs,
     ) -> str:
-        """Call Google Gemini API provider."""
-        # TODO: Implement Gemini integration
-        raise NotImplementedError("Gemini provider adapter pending implementation")
+        """Call Google Gemini API provider.
+
+        .. deprecated::
+            Use ``wizard.services.cloud_provider_executor.run_cloud_with_fallback()``.
+        """
+        raise NotImplementedError(
+            "Gemini adapter not implemented here. "
+            "Use wizard.services.cloud_provider_executor.run_cloud_with_fallback() instead."
+        )
 
     async def call_with_fallback(
         self,
