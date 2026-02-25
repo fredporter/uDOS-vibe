@@ -48,16 +48,14 @@ class RepairHandler(BaseCommandHandler, HandlerLoggingMixin):
         if "--help" in flags or "-h" in flags:
             return self._show_help()
 
-        import logging
-
+        from core.services.logging_api import get_logger as _get_logger
         from core.services.user_service import get_user_manager, is_ghost_mode
 
         user_mgr = get_user_manager()
         user = user_mgr.current()
 
         if is_ghost_mode():
-            logger = logging.getLogger(__name__)
-            logger.warning(
+            _get_logger("core", category="repair").warning(
                 "[TESTING ALERT] Ghost Mode active: REPAIR executing in demo mode (v1.5). "
                 "Enforcement will be added before v1.5 release."
             )

@@ -8,11 +8,11 @@ TUI integration endpoints for Tauri app: viewport, predictor, pager, keypad, bro
 
 from flask import Blueprint, jsonify, request, g
 from datetime import datetime
-import logging
 
 from ..services import execute_command, init_udos_systems
 
-api_logger = logging.getLogger("uDOS.API")
+from ..services import get_api_logger
+api_logger = get_api_logger()
 
 # Create blueprint
 tui_bp = Blueprint("tui", __name__, url_prefix="/api")

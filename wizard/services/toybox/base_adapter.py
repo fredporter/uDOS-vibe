@@ -6,6 +6,7 @@ from collections import deque
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+import fcntl
 import json
 import os
 import pty
@@ -304,7 +305,11 @@ class PTYAdapter:
             "payload": payload,
         }
         with self.event_file.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row) + "\n")
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            try:
+                fh.write(json.dumps(row) + "\n")
+            finally:
+                fcntl.flock(fh, fcntl.LOCK_UN)
 
     def _health_level(self) -> str:
         if self.state == "running" and self._probe_pid_alive(self.proc_pid):

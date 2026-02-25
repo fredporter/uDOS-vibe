@@ -7,13 +7,13 @@ Supports knowledge, logs, notifications, and other feed sources.
 """
 
 from flask import Blueprint, jsonify, request
-import logging
 import os
 from pathlib import Path
 from datetime import datetime
 import uuid
 
-api_logger = logging.getLogger("uDOS.API")
+from ..services import get_api_logger
+api_logger = get_api_logger()
 
 # Create blueprint
 feed_bp = Blueprint("feed", __name__, url_prefix="/api/feed")

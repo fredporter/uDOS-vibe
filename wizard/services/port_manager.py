@@ -38,6 +38,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Any, Callable
 from datetime import datetime, timedelta
 
+from wizard.services.logging_api import get_logger as _get_logger
+
+_log = _get_logger("wizard", category="port-manager")
+
 
 class ServiceEnvironment(Enum):
     """Service environment classification."""
@@ -288,7 +292,7 @@ class PortManager:
                         )
                         self.services[service.name] = service
             except Exception as e:
-                print(f"⚠️  Failed to load port registry: {e}")
+                _log.warning("Failed to load port registry", err=e)
                 self._create_default_registry()
         else:
             self._create_default_registry()
@@ -642,7 +646,7 @@ class PortManager:
                 json.dump(data, f, indent=2)
             return True
         except Exception as e:
-            print(f"❌ Failed to save port registry: {e}")
+            _log.error("Failed to save port registry", err=e)
             return False
 
     def is_port_open(self, port: int) -> bool:
@@ -910,13 +914,13 @@ class PortManager:
         results = {}
 
         for svc_name, occupant in conflicts:
-            print(f"  Healing {svc_name} (port {self.services[svc_name].port})...")
+            _log.info("Healing port conflict", ctx={"service": svc_name, "port": self.services[svc_name].port})
             success = self.kill_service(svc_name)
             results[svc_name] = success
             if success:
-                print(f"    ✅ Freed port {self.services[svc_name].port}")
+                _log.info("Freed port", ctx={"service": svc_name, "port": self.services[svc_name].port})
             else:
-                print(f"    ❌ Failed to free port {self.services[svc_name].port}")
+                _log.warning("Failed to free port", ctx={"service": svc_name, "port": self.services[svc_name].port})
 
         return results
 

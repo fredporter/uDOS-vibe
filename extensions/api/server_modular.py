@@ -25,10 +25,8 @@ import os
 import sys
 import uuid
 import json
-import logging
 from pathlib import Path
 from datetime import datetime
-from logging.handlers import RotatingFileHandler
 
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
@@ -69,36 +67,11 @@ CORS(
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # ============================================================================
-# LOGGING SETUP
+# LOGGING SETUP — canonical structured sink (memory/logs/udos/wizard/)
 # ============================================================================
 
-LOG_DIR = project_root / "memory" / "logs"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = LOG_DIR / "api_server.log"
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-
-file_handler = RotatingFileHandler(LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=5)
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(
-    logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-)
-
-app.logger.addHandler(file_handler)
-app.logger.setLevel(logging.DEBUG)
-
-api_logger = logging.getLogger("uDOS.API")
-api_logger.addHandler(file_handler)
-api_logger.setLevel(logging.DEBUG)
-
-api_logger.info("=" * 70)
+api_logger = get_api_logger()
 api_logger.info("uDOS API Server Starting (Modular)")
-api_logger.info(f"Log file: {LOG_FILE}")
-api_logger.info("=" * 70)
 
 # ============================================================================
 # REQUEST/RESPONSE LOGGING MIDDLEWARE
@@ -338,7 +311,7 @@ def main():
 🔌 WebSocket: Enabled
 🎨 CORS: Enabled
 🔧 Debug: {debug}
-📝 Logging: {LOG_FILE}
+📝 Logging: memory/logs/udos/wizard/
 
 Blueprints:
   - system   (/api/system/*, /api/health, /api/assist/*)

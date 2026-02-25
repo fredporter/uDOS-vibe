@@ -12,9 +12,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import sys
 import time
-import traceback
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -28,8 +26,11 @@ from wizard.providers.nounproject_client import (
     QuotaExceededError,
     RateLimitError,
 )
+from wizard.services.logging_api import get_logger as _get_logger
 from wizard.services.path_utils import get_repo_root
 from wizard.services.port_manager import OperationStatus, get_port_manager
+
+_log = _get_logger("wizard", category="self-heal")
 
 DEFAULT_CATEGORIES = {
     "ui": ["check", "close", "menu", "plus", "minus"],
@@ -403,8 +404,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                         yield f"data: {msg}\n\n"
                 except Exception as exc:
                     error_detail = f"{exc.__class__.__name__}: {exc!s}"
-                    print(f"[ERROR] ollama/pull error: {error_detail}", file=sys.stderr)
-                    traceback.print_exc(file=sys.stderr)
+                    _log.error("ollama/pull error", err=exc)
                     pm.complete_operation(op_id, error=error_detail)
                     msg = json.dumps({"error": error_detail, "status": "failed"})
                     yield f"data: {msg}\n\n"
@@ -414,8 +414,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
             )
         except Exception as exc:
             error_detail = f"{exc.__class__.__name__}: {exc!s}"
-            print(f"[ERROR] ollama/pull handler error: {error_detail}", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
+            _log.error("ollama/pull handler error", err=exc)
             raise HTTPException(status_code=500, detail=error_detail)
 
     @router.post("/port-conflicts")
@@ -558,10 +557,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                         result = run_ok_setup(get_repo_root())
                     except Exception as exc:
                         error_detail = f"{exc.__class__.__name__}: {exc!s}"
-                        print(
-                            f"[ERROR] ok_setup error: {error_detail}", file=sys.stderr
-                        )
-                        traceback.print_exc(file=sys.stderr)
+                        _log.error("ok_setup error", err=exc)
                         pm.complete_operation(op_id, error=error_detail)
                         msg = json.dumps({
                             "error": f"Setup failed: {error_detail}",
@@ -616,10 +612,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                     yield f"data: {msg}\n\n"
                 except Exception as exc:
                     error_detail = f"{exc.__class__.__name__}: {exc!s}"
-                    print(
-                        f"[ERROR] ok-setup outer error: {error_detail}", file=sys.stderr
-                    )
-                    traceback.print_exc(file=sys.stderr)
+                    _log.error("ok-setup outer error", err=exc)
                     pm.complete_operation(op_id, error=error_detail)
                     msg = json.dumps({
                         "error": f"Setup failed: {error_detail}",
@@ -632,8 +625,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
             )
         except Exception as exc:
             error_detail = f"{exc.__class__.__name__}: {exc!s}"
-            print(f"[ERROR] ok-setup handler error: {error_detail}", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
+            _log.error("ok-setup handler error", err=exc)
             raise HTTPException(status_code=500, detail=error_detail)
 
     @router.post("/nounproject/seed")
@@ -675,9 +667,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                         await client.authenticate()
                     except Exception as exc:
                         error_detail = f"{exc.__class__.__name__}: {exc!s}"
-                        print(
-                            f"[ERROR] noun auth error: {error_detail}", file=sys.stderr
-                        )
+                        _log.error("noun auth error", err=exc)
                         pm.complete_operation(op_id, error=error_detail)
                         msg = json.dumps({
                             "error": f"Auth failed: {error_detail}",
@@ -774,11 +764,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                     yield f"data: {msg}\n\n"
                 except Exception as exc:
                     error_detail = f"{exc.__class__.__name__}: {exc!s}"
-                    print(
-                        f"[ERROR] nounproject/seed error: {error_detail}",
-                        file=sys.stderr,
-                    )
-                    traceback.print_exc(file=sys.stderr)
+                    _log.error("nounproject/seed error", err=exc)
                     pm.complete_operation(op_id, error=error_detail)
                     # Use json.dumps for proper escaping
                     msg = json.dumps({
@@ -792,11 +778,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
             )
         except Exception as exc:
             error_detail = f"{exc.__class__.__name__}: {exc!s}"
-            print(
-                f"[ERROR] nounproject/seed handler error: {error_detail}",
-                file=sys.stderr,
-            )
-            traceback.print_exc(file=sys.stderr)
+            _log.error("nounproject/seed handler error", err=exc)
             raise HTTPException(status_code=500, detail=error_detail)
 
     return router

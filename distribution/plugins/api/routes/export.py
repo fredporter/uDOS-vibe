@@ -10,7 +10,6 @@ Integrates with markdown-to-pdf and marp libraries.
 
 from flask import Blueprint, jsonify, request, g, send_file, Response
 from pathlib import Path
-import logging
 import subprocess
 import tempfile
 import os
@@ -19,7 +18,8 @@ from datetime import datetime
 
 from ..services import get_project_root
 
-api_logger = logging.getLogger("uDOS.API")
+from ..services import get_api_logger
+api_logger = get_api_logger()
 project_root = get_project_root()
 
 # Create blueprint

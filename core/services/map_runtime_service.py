@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -128,7 +129,11 @@ class MapRuntimeService:
             "payload": payload,
         }
         with self.events_file.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row) + "\n")
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            try:
+                fh.write(json.dumps(row) + "\n")
+            finally:
+                fcntl.flock(fh, fcntl.LOCK_UN)
 
     def _chunk_meta(self, place: Dict[str, Any]) -> Dict[str, Any]:
         place_ref = str(place.get("placeRef") or "")

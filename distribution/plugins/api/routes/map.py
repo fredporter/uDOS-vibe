@@ -7,11 +7,11 @@ Map/GeoTile endpoints: world, cities, tile operations, layers.
 """
 
 from flask import Blueprint, jsonify, request, g
-import logging
 
 from ..services import init_udos_systems
 
-api_logger = logging.getLogger("uDOS.API")
+from ..services import get_api_logger
+api_logger = get_api_logger()
 
 # Create blueprint
 map_bp = Blueprint("map", __name__, url_prefix="/api/map")

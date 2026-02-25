@@ -9,11 +9,11 @@ Configuration and settings endpoints: unified settings, env, user config, extens
 from flask import Blueprint, jsonify, request, g
 from pathlib import Path
 import json
-import logging
 
 from ..services import execute_command, init_udos_systems, get_project_root
 
-api_logger = logging.getLogger("uDOS.API")
+from ..services import get_api_logger
+api_logger = get_api_logger()
 project_root = get_project_root()
 
 # Create blueprint

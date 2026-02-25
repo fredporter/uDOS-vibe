@@ -6,13 +6,13 @@ from typing import Any, Dict, List, Optional
 
 from core.services.time_utils import utc_now_iso
 from wizard.services.logging_api import get_logger
+from wizard.services.path_utils import get_repo_root
 
 logger = get_logger("wizard", category="provider-load", name="provider-load")
 
 
 def _get_log_path() -> Path:
-    root = Path(__file__).resolve().parents[2]
-    logs_dir = root / "memory" / "logs"
+    logs_dir = get_repo_root() / "memory" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     return logs_dir / "provider-load.log"
 

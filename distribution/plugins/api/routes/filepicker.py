@@ -7,11 +7,11 @@ File picker service endpoints: workspaces, list, recent, bookmarks, search.
 """
 
 from flask import Blueprint, jsonify, request, g
-import logging
 
 from ..services import init_udos_systems
 
-api_logger = logging.getLogger("uDOS.API")
+from ..services import get_api_logger
+api_logger = get_api_logger()
 
 # Create blueprint
 filepicker_bp = Blueprint("filepicker", __name__, url_prefix="/api/filepicker")

@@ -7,11 +7,11 @@ Knowledge bank endpoints: stats, search, view, add, tiers.
 """
 
 from flask import Blueprint, jsonify, request, g
-import logging
 
 from ..services import execute_command, init_udos_systems
 
-api_logger = logging.getLogger("uDOS.API")
+from ..services import get_api_logger
+api_logger = get_api_logger()
 
 # Create blueprint
 knowledge_bp = Blueprint("knowledge", __name__, url_prefix="/api/knowledge")

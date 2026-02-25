@@ -113,13 +113,11 @@ class DestroyHandler(BaseCommandHandler):
         # Check permissions
         user_mgr = get_user_manager()
         user = user_mgr.current()
-        import logging
 
         from core.services.user_service import is_ghost_mode
 
         if is_ghost_mode():
-            warn_logger = logging.getLogger(__name__)
-            warn_logger.warning(
+            logger.warning(
                 "[TESTING ALERT] Ghost Mode active: DESTROY in demo mode (v1.5). "
                 "Enforcement will be added before v1.5 release."
             )

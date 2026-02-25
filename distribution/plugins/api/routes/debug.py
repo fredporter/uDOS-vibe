@@ -8,13 +8,13 @@ Debug/logging endpoints: logs, debug TUI, log files.
 
 from flask import Blueprint, jsonify, request, g
 from pathlib import Path
-import logging
 import subprocess
 import platform
 
 from ..services import get_project_root
 
-api_logger = logging.getLogger("uDOS.API")
+from ..services import get_api_logger
+api_logger = get_api_logger()
 project_root = get_project_root()
 
 # Create blueprint

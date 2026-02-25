@@ -8,11 +8,11 @@ Webhook management: register, list, delete, receive, test, events, analytics.
 
 from flask import Blueprint, jsonify, request, g
 import time
-import logging
 
 from ..services import execute_command, init_udos_systems, get_project_root
 
-api_logger = logging.getLogger("uDOS.API")
+from ..services import get_api_logger
+api_logger = get_api_logger()
 
 # Create blueprint
 webhooks_bp = Blueprint("webhooks", __name__, url_prefix="/api/webhooks")

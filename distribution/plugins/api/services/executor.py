@@ -7,7 +7,6 @@ Provides init_udos_systems() and execute_command() used by all routes.
 """
 
 import sys
-import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
@@ -16,8 +15,10 @@ from typing import Dict, Optional
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# API logger
-api_logger = logging.getLogger("uDOS.API")
+# API logger — canonical structured sink
+from core.services.logging_api import get_logger as _get_canonical_logger
+
+api_logger = _get_canonical_logger("wizard", category="api", name="uDOS.API")
 
 # Try to import uDOS core modules
 try:

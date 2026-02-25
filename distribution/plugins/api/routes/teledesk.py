@@ -8,11 +8,12 @@ Pages 900-999: System reference (builtin in frontend)
 """
 
 from flask import Blueprint, jsonify, request
-import logging
 from pathlib import Path
 import re
 
-logger = logging.getLogger("api.teledesk")
+from ..services import get_api_logger
+
+logger = get_api_logger()
 
 teledesk_bp = Blueprint("teledesk", __name__, url_prefix="/api/teledesk")
 

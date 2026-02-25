@@ -42,10 +42,8 @@ class SeedHandler(BaseCommandHandler):
         from core.services.user_service import is_ghost_mode
 
         if subcommand == "INSTALL" and is_ghost_mode():
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(
+            from core.services.logging_api import get_logger as _get_logger
+            _get_logger("core", category="seed").warning(
                 "[TESTING ALERT] Ghost Mode active: SEED INSTALL in demo mode (v1.5). "
                 "Enforcement will be added before v1.5 release."
             )

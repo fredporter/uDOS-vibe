@@ -7,11 +7,11 @@ Dashboard data endpoints: status, missions, workflows, checklists, XP, system.
 """
 
 from flask import Blueprint, jsonify, g
-import logging
 
 from ..services import init_udos_systems
 
-api_logger = logging.getLogger("uDOS.API")
+from ..services import get_api_logger
+api_logger = get_api_logger()
 
 # Create blueprint
 dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/api/dashboard")

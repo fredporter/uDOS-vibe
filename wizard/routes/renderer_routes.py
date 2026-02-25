@@ -13,7 +13,6 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import sys
 from typing import Any
 import uuid
 
@@ -29,9 +28,12 @@ from core.tools.contract_validator import (
     validate_world_contract,
 )
 from wizard.services.contribution_service import ContributionService
+from wizard.services.logging_api import get_logger as _get_logger
 from wizard.services.path_utils import get_repo_root, get_vault_dir
 from wizard.services.spatial_parser import scan_vault_places
 from wizard.services.spatial_store import fetch_spatial_rows, get_spatial_db_path
+
+_log = _get_logger("wizard", category="renderer")
 
 
 def _themes_root() -> Path:
@@ -330,10 +332,7 @@ def _write_mission_output(report: dict[str, Any]) -> Path | None:
         report_path.write_text(json.dumps(report, indent=2))
         return report_path
     except Exception as e:
-        import traceback
-
-        print(f"[WARN] Failed to write mission output: {e}", file=sys.stderr)
-        traceback.print_exc()
+        _log.warning("Failed to write mission output", err=e)
         return None
 
 
