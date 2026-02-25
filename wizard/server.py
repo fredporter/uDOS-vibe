@@ -286,6 +286,18 @@ class WizardServer:
         app.include_router(dashboard_events_router)
 
         # Register Setup wizard routes
+        from wizard.routes.setup_routes import create_setup_routes
+
+        setup_router = create_setup_routes(auth_guard=self._authenticate)
+        app.include_router(setup_router)
+
+        # Register Dashboard summary + health routes
+        from wizard.routes.dashboard_summary_routes import create_dashboard_summary_routes
+
+        dashboard_summary_router = create_dashboard_summary_routes(
+            auth_guard=self._authenticate
+        )
+        app.include_router(dashboard_summary_router)
 
         # Register Workflow manager routes
         from wizard.routes.workflow_routes import create_workflow_routes
