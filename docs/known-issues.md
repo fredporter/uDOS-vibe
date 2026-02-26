@@ -74,10 +74,11 @@
 
 ---
 
-## Resolved Issues (Closed at v1.5 GA)
+## Resolved Issues (Closed post-GA)
 
 | Issue | Resolution |
 |---|---|
+| `reset_corr_id` ContextVar cross-context ValueError (24x/day in stream dispatch) | Fixed 2026-02-27 — token moved inside `event_stream()` generator |
 | P-series architecture convergence (P1–P7) | All resolved 2026-02-26 |
 | `.env` secrets exposure incident | Resolved 2026-02-24 — .env removed from git, CI gate added |
 | Notification history silo (core JSONL vs wizard SQLite) | Unified via Protocol + Adapter (P3) |

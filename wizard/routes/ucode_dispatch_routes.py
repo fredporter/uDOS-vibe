@@ -66,14 +66,18 @@ def create_ucode_dispatch_routes(
             raise HTTPException(status_code=500, detail="uCODE dispatcher unavailable")
 
         corr_id = new_corr_id("C")
-        token = set_corr_id(corr_id)
         command = (payload.command or "").strip()
         if not command:
             logger.warn("Empty stream command rejected", ctx={"corr_id": corr_id})
-            reset_corr_id(token)
             raise HTTPException(status_code=400, detail="command is required")
 
         async def event_stream() -> Generator[bytes, None, None]:
+            # set_corr_id/reset_corr_id must both execute in the same asyncio
+            # Context.  The token is created here (inside the generator task)
+            # so the reset in the finally block is guaranteed to be in the same
+            # Context, preventing "ContextVar was created in a different Context"
+            # ValueErrors that fired when the token was set in the outer coroutine.
+            token = set_corr_id(corr_id)
             yield sse_event("start", {"command": command})
             try:
                 logger.info(
