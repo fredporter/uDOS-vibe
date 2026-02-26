@@ -251,20 +251,29 @@ cd uDOS-vibe
 uv sync --extra udos-wizard
 cp .env.example .env       # User edits: MISTRAL_API_KEY, OS_TYPE
 
-# 3. SETUP story (interactive, creates memory/, .env updates, WIZARD_KEY)
+# 3. Patch vibe + set up tools/skills (one-time per vibe install)
+./bin/setup-vibe.sh        # Symlinks tools/skills AND patches global vibe app.py
+
+# 4. SETUP story (interactive, creates memory/, .env updates, WIZARD_KEY)
 uv run ./uDOS.py SETUP     # Runs setup story and seeds runtime state
 
-# 4. Start vibe (reads .vibe/config.toml, discovers tools/skills)
+# 5. Start vibe (reads .vibe/config.toml, discovers tools/skills)
 vibe trust                 # Trust current folder (one-time)
 vibe                       # Launch interactive agent
 ```
 
 **What happens inside:**
-1. `python uDOS.py` → `from core.tui.ucode import main; main()`
-2. SETUP story collects identity, writes `.env`
-3. REPAIR --check auto-heals missing directories
-4. SeedInstaller seeds `memory/vault/` from `core/framework/seed/vault/`
-5. `vibe` reads `.vibe/config.toml`, discovers tools/skills, starts agent
+1. `bin/setup-vibe.sh` creates `.vibe/tools` and `.vibe/skills` symlinks
+2. `bin/setup-vibe.sh` calls `bin/patch-vibe-app.sh` → symlinks global vibe's
+   `app.py` to our repo's version so `:command` / `/command` dispatch works
+3. `python uDOS.py` → `from core.tui.ucode import main; main()`
+4. SETUP story collects identity, writes `.env`
+5. REPAIR --check auto-heals missing directories
+6. SeedInstaller seeds `memory/vault/` from `core/framework/seed/vault/`
+7. `vibe` reads `.vibe/config.toml`, discovers tools/skills, starts agent
+
+**After a `vibe` global update:** Re-run `./bin/setup-vibe.sh` (or just
+`./bin/patch-vibe-app.sh`) to restore the `app.py` symlink.
 
 **No separate installer needed.** Self-healing architecture handles bootstrap.
 

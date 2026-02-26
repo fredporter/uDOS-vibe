@@ -47,6 +47,19 @@ else
 fi
 
 echo ""
+# ── Patch global vibe app.py ─────────────────────────────────
+# Symlinks the globally-installed vibe's app.py to our repo's version
+# so that ucode direct dispatch (: / prefix) works inside vibe CLI.
+# Must be re-run after `curl … | sh` vibe updates.
+echo "🔧 Patching global vibe app.py for ucode dispatch..."
+if bash "$REPO_ROOT/bin/patch-vibe-app.sh"; then
+    echo "✓ Global vibe app.py patched"
+else
+    echo "⚠️  patch-vibe-app.sh failed — ucode : / prefixes may not work in vibe"
+    echo "   Re-run manually: ./bin/patch-vibe-app.sh"
+fi
+
+echo ""
 echo "✅ Setup complete!"
 echo ""
 echo "📖 To use uDOS commands (recommended):"
