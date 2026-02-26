@@ -1,7 +1,7 @@
 # uCODE Command Reference
 
-Version: Core v1.3.20+
-Updated: 2026-02-22
+Version: Core v1.5+
+Updated: 2026-02-26
 
 This guide covers uDOS commands (ucode) which are **backend services**, not UI features.
 
@@ -10,23 +10,89 @@ Offline operations runbook:
 
 ## Multi-Context Command Execution
 
-uDOS commands execute in multiple contexts:
+uDOS commands execute in multiple contexts. Commands are **case-insensitive** —
+outputs appear in CAPS for display clarity only.
 
-### 1. Vibe CLI Interactive (Primary)
+### 1. Vibe CLI Direct Commands (v1.5+ — Primary Interactive Path)
+
+Run ucode commands directly from the Vibe CLI input bar without leaving the
+chat. Three input styles are supported:
+
+#### `:command` — Colon prefix (recommended, always ucode)
+```
+:map
+:health
+:find tokyo
+:status
+:help
+:sonic status
+:file select --workspace @vault
+```
+The colon prefix **always routes to ucode**, bypassing vibe built-ins. Use this
+for commands that share a name with a vibe slash command (`help`, `config`,
+`status`) or whenever you want unambiguous ucode dispatch regardless of casing.
+
+#### `/command` — Slash prefix (complementary, vibe built-ins take priority)
+```
+/map
+/health
+/find tokyo
+/sonic status
+/library list
+```
+The slash prefix follows the existing vibe priority chain: vibe built-in
+commands are checked first (`/help`, `/config`, `/status`), then ucode picks up
+the rest. Works for 57 of the 60 ucode commands without any conflict.
+
+| Slash input | Routes to | Reason |
+|---|---|---|
+| `/map` | ucode MAP | Not a vibe built-in |
+| `/health` | ucode HEALTH | Not a vibe built-in |
+| `/sonic` | ucode SONIC | Not a vibe built-in |
+| `/help` | **vibe /help** | Vibe built-in wins |
+| `/config` | **vibe /config** | Vibe built-in wins |
+| `/status` | **vibe /status** | Vibe built-in wins |
+
+Use `:help`, `:config`, `:status` to reach the ucode versions of those three.
+
+#### Plain command (no prefix)
+```
+map
+health
+FIND tokyo
+MAP --list
+STATUS
+```
+- **Single-word input** (any case): dispatched to ucode if the word exactly
+  matches a command — `health`, `Health`, `HEALTH` all work.
+- **Multi-word input**: the first word must be ALL-CAPS to prevent natural
+  language from being accidentally intercepted. Use `:` or `/` prefix for
+  lowercase multi-word commands.
+
+| Input | Routes to | Reason |
+|---|---|---|
+| `health` | ucode HEALTH | Single word — unambiguous |
+| `map` | ucode MAP | Single word |
+| `FIND tokyo` | ucode FIND | Multi-word, first word ALL-CAPS |
+| `:find tokyo` | ucode FIND | Colon prefix |
+| `find me a file` | **AI** | Multi-word, lowercase first word — natural language |
+| `help me with this` | **AI** | Multi-word, lowercase — goes to AI |
+
+### 2. Vibe CLI Interactive (AI-Mediated)
 ```bash
 vibe
 # User: "show me the map"
-# → Routes to ucode_map skill via MCP
+# → AI infers intent → routes to ucode MAP via MCP skill
 ```
 
-### 2. Vibe Bash Tool
+### 3. Vibe Bash Tool
 ```bash
 vibe
-# User: "/bash ucode MAP"
-# → Executes shell command via Vibe
+# User: "!ucode MAP"
+# → Executes shell command via Vibe bash tool
 ```
 
-### 3. Shell/Script Execution
+### 4. Shell/Script Execution
 ```bash
 # Direct execution
 ucode MAP
@@ -39,7 +105,7 @@ ucode SETUP CHECK --vibe
 ucode STATUS TASK_ID
 ```
 
-### 4. Python API (Internal)
+### 5. Python API (Internal)
 ```python
 from core.services.command_dispatch_service import CommandDispatchService
 dispatcher = CommandDispatchService()
@@ -214,6 +280,22 @@ Migration targets:
 - `DATASET ...` -> `RUN DATA ...`
 - `INTEGRATION ...` -> `WIZARD INTEG ...`
 - `PROVIDER ...` -> `WIZARD PROV ...`
+
+## Vibe CLI Prefix Cheat Sheet
+
+| Prefix | Example | Behaviour |
+|---|---|---|
+| `:` | `:map tokyo` | Always ucode — any case, any word count |
+| `/` | `/map tokyo` | Vibe built-ins first, ucode fallthrough |
+| `!` | `!ls -la` | Bash shell passthrough |
+| (none, single word) | `health` | ucode if exact match — any case |
+| (none, multi-word ALL-CAPS) | `MAP tokyo` | ucode if first word exact match |
+| (none, multi-word lower) | `help me` | AI — natural language preserved |
+
+**Three commands use vibe's `/` and need `:` for ucode access:**
+- `:help` → ucode HELP (command reference) vs `/help` → vibe help
+- `:config` → ucode CONFIG (wizard config) vs `/config` → vibe config editor
+- `:status` → ucode STATUS (system status) vs `/status` → vibe agent stats
 
 ## Quick Checks
 

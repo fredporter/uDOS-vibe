@@ -84,10 +84,15 @@ uDOS-vibe/
 - Progress tracking
 
 **Command execution contexts**:
-1. **Vibe interactive**: Skills route to MCP → uDOS commands
-2. **Vibe bash tool**: `/bash ucode COMMAND` for shell execution
-3. **Shell/scripts**: Direct `ucode COMMAND` for automation/background tasks
-4. **Python API**: Internal `CommandDispatchService` for programmatic access
+1. **Vibe direct commands (v1.5+)**: Type ucode commands directly in the Vibe
+   CLI input bar using `:command`, `/command`, or plain `COMMAND` — dispatched
+   in-process via `core.tui.ucode_runner`, no subprocess or TTY required.
+   See `docs/howto/UCODE-COMMAND-REFERENCE.md §1` for the full prefix guide.
+2. **Vibe interactive (AI-mediated)**: Natural language → AI infers intent →
+   routes to uDOS commands via MCP skill
+3. **Vibe bash tool**: `!ucode COMMAND` for shell execution via Vibe
+4. **Shell/scripts**: Direct `ucode COMMAND` for automation/background tasks
+5. **Python API**: Internal `CommandDispatchService` for programmatic access
 
 Legacy pre-`vibe-cli` interactive planning docs were composted to:
 - `docs/.compost/tui-legacy-2026-02/TUI-MIGRATION-PLAN.md`
@@ -270,27 +275,37 @@ vibe                       # Launch interactive agent
 ### ✅ Safe to Modify (Our Addon Code)
 
 ```
-vibe/core/tools/ucode/*.py         ← Tool implementations
-vibe/core/skills/ucode/*.md        ← Skill definitions
-core/**/*.py                       ← uDOS core (untouched by vibe)
-wizard/**/*.py                     ← Wizard server
-.vibe/config.toml                  ← Configuration
-.env.example                       ← Environment template
-pyproject.toml [ucode-*]           ← uDOS optional deps
-docs/**/*.md                       ← Our documentation
+vibe/core/tools/ucode/*.py              ← Tool implementations
+vibe/core/skills/ucode/*.md             ← Skill definitions
+vibe/cli/textual_ui/app.py             ← Vibecli dispatch (ucode integration point)
+                                           _handle_ucode_command() + dispatch chain
+core/**/*.py                            ← uDOS core (untouched by vibe)
+wizard/**/*.py                          ← Wizard server
+.vibe/config.toml                       ← Configuration
+.env.example                            ← Environment template
+pyproject.toml [ucode-*]                ← uDOS optional deps
+docs/**/*.md                            ← Our documentation
 ```
 
 ### ❌ Never Modify (Vibe Upstream)
 
 ```
-vibe/cli/**              ← CLI entry point (not our code)
-vibe/core/tools/base.py  ← BaseTool API (not our code)
-vibe/core/skills/base.py ← Skill loader (not our code)
+vibe/cli/**  (except app.py — see above) ← CLI entry point (not our code)
+vibe/core/tools/base.py                  ← BaseTool API (not our code)
+vibe/core/skills/base.py                 ← Skill loader (not our code)
 vibe/core/tools/[anything except ucode/] ← Built-in tools
-vibe/core/skills/[anything except ucode/] ← Built-in skills
+vibe/core/skills/[anything except ucode/]← Built-in skills
 ```
 
-**If you need to extend vibe behavior**, create a symlink to `.vibe/tools/` or `.vibe/skills/` pointing to our addon directories.
+**Note on `app.py`**: The single-file exception to the no-touch rule. The vibecli
+dispatch chain (`on_chat_input_container_submitted`) is the only viable intercept
+point for direct ucode commands. Changes are isolated to `_handle_ucode_command()`
+and the dispatch ordering block — no internal Vibe APIs are modified. When pulling
+upstream Vibe updates, check for changes to `on_chat_input_container_submitted`
+and re-integrate the ucode block if needed.
+
+**If you need to extend vibe behavior** beyond command dispatch, create a symlink
+to `.vibe/tools/` or `.vibe/skills/` pointing to our addon directories.
 
 ---
 
@@ -349,10 +364,10 @@ pyproject.udos.toml:
 
 | Temptation | Why It's Bad | Our Answer |
 |------------|-------------|-----------|
-| "Modify vibe/ to add our feature" | Forces fork → diverges from external runtime | Use `.vibe/config.toml` + symlinks to extend |
+| "Modify vibe/ to add our feature" | Forces fork → diverges from external runtime | Use `.vibe/config.toml` + symlinks to extend; `app.py` is the only sanctioned exception (dispatch intercept only) |
 | "Keep our own copy of Vibe" | Duplicates code, misses security updates | Keep global Vibe updated via official installer |
 | "Patch vibe locally via monkey-patching" | Fragile, breaks on updates | Implement in addon layer (BaseTool subclass) |
-| "Commit secrets to git" | Leaks credentials | `.gitignore` `, `.env` example-only, runtime `.env` ignored |
+| "Commit secrets to git" | Leaks credentials | `.gitignore`, `.env` example-only, runtime `.env` ignored |
 
 **The cost of a fork:**
 - 10-50 commits diverged per quarter
