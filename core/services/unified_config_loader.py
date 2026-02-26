@@ -373,7 +373,7 @@ class UnifiedConfigLoader:
     def _load_json_configs(self) -> None:
         """Load JSON config files (wizard.json, ok_modes.json, etc.)."""
         json_files = [
-            ("wizard", self._repo_root / "wizard" / "config" / "wizard.json"),
+            # wizard.json is owned by WizardConfig.load() — not surfaced here.
             ("ok_modes", self._repo_root / "core" / "config" / "ok_modes.json"),
             (
                 "provider_flags",
