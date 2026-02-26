@@ -23,7 +23,7 @@ from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-_BRIDGE_VERSION = "1.4.7"
+from wizard.version_utils import get_wizard_server_version
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +97,32 @@ def _sync_status() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def health_probe(services: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """Return the canonical wizard health payload.
+
+    Called by both ``GET /health`` (server.py) and ``GET /api/dashboard/health``
+    so both surfaces stay in sync without duplicating logic.
+
+    Args:
+        services: Optional config-derived dict
+            ``{plugin_repo, web_proxy, ok_gateway}`` — included only when the
+            caller has access to WizardServerConfig.  Absent from the dashboard
+            probe which has no config reference.
+    """
+    ollama = _probe(_ollama_status, "ollama")
+    result: dict[str, Any] = {
+        "status": "healthy",
+        "ok": True,
+        "bridge": "udos-wizard",
+        "version": get_wizard_server_version(),
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "ollama_running": ollama.get("ok", False) and ollama.get("running", False),
+    }
+    if services is not None:
+        result["services"] = services
+    return result
+
+
 def create_dashboard_summary_routes(auth_guard: Optional[Callable] = None) -> APIRouter:
     """Create aggregated dashboard summary routes."""
     dependencies = [Depends(auth_guard)] if auth_guard else []
@@ -108,14 +134,7 @@ def create_dashboard_summary_routes(auth_guard: Optional[Callable] = None) -> AP
 
         No auth required. Safe to poll from load-balancers and uptime monitors.
         """
-        ollama = _probe(_ollama_status, "ollama")
-        return {
-            "ok": True,
-            "bridge": "udos-wizard",
-            "version": _BRIDGE_VERSION,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "ollama_running": ollama.get("ok", False) and ollama.get("running", False),
-        }
+        return health_probe()
 
     @router.get("/summary", dependencies=dependencies)
     async def dashboard_summary():
@@ -145,7 +164,7 @@ def create_dashboard_summary_routes(auth_guard: Optional[Callable] = None) -> AP
         return {
             "ok": overall_ok,
             "bridge": "udos-wizard",
-            "version": _BRIDGE_VERSION,
+            "version": get_wizard_server_version(),
             "timestamp": ts,
             "subsystems": subsystems,
             "summary": {

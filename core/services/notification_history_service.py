@@ -19,6 +19,15 @@ def _ensure_log_path() -> Path:
 
 
 def _append_entry(entry: Dict) -> None:
+    # Prefer wizard SQLite backend when registered.
+    try:
+        from core.services.provider_registry import ProviderType, is_provider_available, get_provider
+        if is_provider_available(ProviderType.NOTIFICATION_HISTORY):
+            get_provider(ProviderType.NOTIFICATION_HISTORY).record(entry)
+            return
+    except Exception as exc:
+        logger.warning("[NotificationHistory] Protocol call failed, falling back to JSONL: %s", exc)
+    # Fallback: append to local JSONL log.
     try:
         with open(_ensure_log_path(), "a") as handle:
             handle.write(json.dumps(entry) + "\n")

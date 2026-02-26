@@ -50,6 +50,12 @@ class AutomationMonitor:
         return self._read_recent_events(self.provider_log, limit=limit)
 
     def notification_history(self, limit: int = 5) -> List[Dict[str, Any]]:
+        try:
+            from core.services.provider_registry import ProviderType, is_provider_available, get_provider
+            if is_provider_available(ProviderType.NOTIFICATION_HISTORY):
+                return get_provider(ProviderType.NOTIFICATION_HISTORY).get_recent(limit)
+        except Exception as exc:
+            logger.warning("[AutomationMonitor] Notification Protocol failed, falling back to JSONL: %s", exc)
         return self._read_recent_events(self.notification_log, limit=limit)
 
     def summary(self) -> Dict[str, Any]:

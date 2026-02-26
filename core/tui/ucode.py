@@ -2177,6 +2177,12 @@ class UCODE:
     def _read_notification_history(
         self, memory_root: Path, limit: int = 5
     ) -> list[dict[str, Any]]:
+        try:
+            from core.services.provider_registry import ProviderType, is_provider_available, get_provider
+            if is_provider_available(ProviderType.NOTIFICATION_HISTORY):
+                return get_provider(ProviderType.NOTIFICATION_HISTORY).get_recent(limit)
+        except Exception as exc:
+            self.logger.warning("[Notification] Protocol failed, falling back to JSONL: %s", exc)
         log_path = memory_root / "logs" / "notification-history.log"
         if not log_path.exists():
             return []

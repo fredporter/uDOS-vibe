@@ -78,28 +78,8 @@ REPO_ROOT = get_repo_root()
 WIZARD_DATA_PATH = REPO_ROOT / "memory" / "wizard"
 PLUGIN_REPO_PATH = REPO_ROOT / "distribution" / "plugins"
 CONFIG_PATH = Path(__file__).parent / "config"
-VERSION_PATH = Path(__file__).parent / "version.json"
 
-
-def get_wizard_server_version() -> str:
-    """Return semantic wizard server version from wizard/version.json."""
-    try:
-        data = json.loads(VERSION_PATH.read_text(encoding="utf-8"))
-        version = data.get("version")
-        if isinstance(version, dict):
-            major = int(version.get("major", 1))
-            minor = int(version.get("minor", 0))
-            patch = int(version.get("patch", 0))
-            return f"{major}.{minor}.{patch}"
-        display = str(data.get("display", "")).strip()
-        if display.startswith("v"):
-            display = display[1:]
-        if re.match(r"^\d+\.\d+\.\d+$", display):
-            return display
-    except Exception:
-        logger.warning("Falling back to default wizard server version")
-    return "1.0.0"
-
+from wizard.version_utils import get_wizard_server_version  # noqa: E402
 
 WIZARD_SERVER_VERSION = get_wizard_server_version()
 
@@ -229,6 +209,20 @@ class WizardServer:
         history_service = NotificationHistoryService()
         history_router = create_notification_history_routes(history_service)
         app.include_router(history_router)
+
+        # Register notification history provider so Core writes to SQLite.
+        try:
+            from wizard.services.notification_history_adapter import NotificationHistoryAdapter
+            from core.services.provider_registry import CoreProviderRegistry, ProviderType
+            CoreProviderRegistry.register(
+                ProviderType.NOTIFICATION_HISTORY,
+                NotificationHistoryAdapter(history_service),
+                name="NotificationHistory",
+                description="SQLite-backed notification history (Wizard)",
+                version=WIZARD_SERVER_VERSION,
+            )
+        except Exception as _exc:
+            self.logger.warning("Failed to register NotificationHistory provider: %s", _exc)
 
         # Register Dev Mode routes
         from wizard.routes.dev_routes import create_dev_routes
@@ -619,17 +613,13 @@ class WizardServer:
         @app.get("/health")
         async def health_check():
             """Health check endpoint."""
+            from wizard.routes.dashboard_summary_routes import health_probe
             self.logger.debug("Health check requested")
-            return {
-                "status": "healthy",
-                "version": WIZARD_SERVER_VERSION,
-                "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-                "services": {
-                    "plugin_repo": self.config.plugin_repo_enabled,
-                    "web_proxy": self.config.web_proxy_enabled,
-                    "ok_gateway": self.config.ok_gateway_enabled,
-                },
-            }
+            return health_probe(services={
+                "plugin_repo": self.config.plugin_repo_enabled,
+                "web_proxy": self.config.web_proxy_enabled,
+                "ok_gateway": self.config.ok_gateway_enabled,
+            })
 
         @app.get("/api/index")
         async def dashboard_index():

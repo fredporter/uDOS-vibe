@@ -42,6 +42,7 @@ class ProviderType(Enum):
     SECRET_STORE = "secret_store"
     RATE_LIMITER = "rate_limiter"
     PROVIDER_LOAD_LOGGER = "provider_load_logger"
+    NOTIFICATION_HISTORY = "notification_history"
 
 
 @dataclass
