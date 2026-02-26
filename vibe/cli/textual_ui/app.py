@@ -379,17 +379,26 @@ class VibeApp(App):  # noqa: PLR0904
             if await self._handle_ucode_command(value[1:].strip(), min_confidence=0.95):
                 return
 
-        # Plain ALL-CAPS first-word → ucode exact-match only.
-        # Only fires when the user typed the command in all-caps ("MAP tokyo",
-        # "HEALTH", "FIND --list").  Mixed-case input ("help me", "Health?")
-        # flows through to AI so natural language is never accidentally
-        # swallowed by the ucode dispatcher.
-        first_word = value.split()[0] if value.split() else ""
-        if (
-            first_word
-            and first_word.isalpha()
-            and first_word == first_word.upper()
-        ):
+        # Plain-text ucode dispatch — case-insensitive, exact match only.
+        #
+        # ucode commands are case-insensitive (outputs are CAPS for clarity).
+        # Two safety tiers protect against natural-language collision:
+        #
+        # • Single-word input ("map", "health", "help"):
+        #     Dispatched unconditionally — a lone alpha word is almost always
+        #     a command intent, not a sentence.
+        #
+        # • Multi-word input ("map tokyo", "find --list", "HEALTH --verbose"):
+        #     Only dispatched when the first word is ALL-CAPS.  This preserves
+        #     natural language like "help me with this" or "find me a file"
+        #     for the AI while still accepting programmatic multi-word calls
+        #     typed in caps.  Use `:map tokyo` or `/map tokyo` for a
+        #     case-insensitive multi-word shorthand.
+        words = value.split()
+        first_word = words[0] if words else ""
+        is_single_word = len(words) == 1
+        is_all_caps_first = first_word == first_word.upper() and first_word.isalpha()
+        if first_word and first_word.isalpha() and (is_single_word or is_all_caps_first):
             if await self._handle_ucode_command(value, min_confidence=1.0):
                 return
 
