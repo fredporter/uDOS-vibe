@@ -629,6 +629,18 @@ class VibeApp(App):  # noqa: PLR0904
             ``False`` otherwise (caller should continue the dispatch chain).
         """
         # Late imports keep startup time low.
+        #
+        # When vibe runs as a globally-installed binary it uses its own Python
+        # environment, which does not include the project root on sys.path.
+        # Insert the CWD (= the project root that vibe was launched from, set
+        # by entrypoint.py via os.chdir) so that `core.*` modules resolve
+        # correctly without requiring the user to set PYTHONPATH manually.
+        import sys as _sys
+        from pathlib import Path as _Path
+        _project_root = str(_Path.cwd())
+        if _project_root not in _sys.path:
+            _sys.path.insert(0, _project_root)
+
         from core.services.command_dispatch_service import match_ucode_command
         from core.tui.ucode_runner import format_ucode_result, run_ucode_command
 
