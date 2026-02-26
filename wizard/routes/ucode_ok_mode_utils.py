@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.services.ai_provider_handler import get_ai_provider_handler
 from core.services.json_utils import read_json_file, write_json_file
 from core.services.logging_api import get_repo_root
 from core.services.unified_config_loader import get_bool_config
@@ -78,69 +79,37 @@ def get_ok_context_window() -> int:
         return 8192
 
 
-def fetch_ollama_models(endpoint: str) -> dict[str, Any]:
-    url = endpoint.rstrip("/") + "/api/tags"
-    try:
-        import requests
-
-        resp = requests.get(url, timeout=2)
-        if resp.status_code != 200:
-            return {"reachable": False, "error": f"HTTP {resp.status_code}"}
-        payload = resp.json()
-        models = [m.get("name") for m in payload.get("models", []) if m.get("name")]
-        return {"reachable": True, "models": models}
-    except Exception as exc:
-        return {"reachable": False, "error": str(exc)}
-
-
-def _normalize_model_names(names: list[str]) -> set[str]:
-    """Return canonical model names including both tagged and base forms."""
-    normalized: set[str] = set()
-    for raw in names:
-        name = (raw or "").strip()
-        if not name:
-            continue
-        normalized.add(name)
-        base = name.split(":", 1)[0].strip()
-        if base:
-            normalized.add(base)
-    return normalized
-
-
 def get_ok_local_status() -> dict[str, Any]:
+    """Check local Ollama status via the unified AI provider handler.
+
+    Delegates to ``AIProviderHandler.check_local_provider()`` — the single
+    source of truth for local-provider health — and maps its result back to
+    the established dict contract consumed by ``ucode_ok_routes``.
+    """
     config = load_ai_modes_config()
     mode = (config.get("modes") or {}).get("ofvibe", {})
     endpoint = mode.get("ollama_endpoint", "http://127.0.0.1:11434")
-    model = get_ok_default_model()
-    tags = fetch_ollama_models(endpoint)
-    if not tags.get("reachable"):
-        return {
-            "ready": False,
-            "issue": "ollama down",
-            "model": model,
-            "ollama_endpoint": endpoint,
-            "detail": tags.get("error"),
-            "models": [],
-        }
-    models = tags.get("models") or []
-    normalized_models = _normalize_model_names(models)
-    normalized_target = _normalize_model_names([model]) if model else set()
-    if model and normalized_target.isdisjoint(normalized_models):
-        return {
-            "ready": False,
-            "issue": "missing model",
-            "model": model,
-            "ollama_endpoint": endpoint,
-            "detail": None,
-            "models": models,
-        }
+
+    status = get_ai_provider_handler().check_local_provider()
+    model = status.default_model or get_ok_default_model()
+
+    # Normalise issue strings to the established API contract so callers
+    # (including the Vue dashboard) don't need updating.
+    issue: str | None = None
+    if not status.is_available:
+        raw = status.issue or ""
+        if "model" in raw and ("not loaded" in raw or "missing" in raw):
+            issue = "missing model"
+        else:
+            issue = "ollama down"
+
     return {
-        "ready": True,
-        "issue": None,
+        "ready": status.is_available,
+        "issue": issue,
         "model": model,
         "ollama_endpoint": endpoint,
         "detail": None,
-        "models": models,
+        "models": status.loaded_models,
     }
 
 

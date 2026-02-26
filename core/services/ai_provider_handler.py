@@ -253,7 +253,7 @@ class AIProviderHandler:
         Returns:
             True if Mistral API key found
         """
-        from core.services.admin_secret_contract import SecureVault
+        from core.services.secret_vault import SecureVault
         from core.services.unified_config_loader import get_config
 
         # Check 1: Environment variable

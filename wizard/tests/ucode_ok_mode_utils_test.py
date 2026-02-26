@@ -37,6 +37,10 @@ def test_ok_auto_fallback_defaults_to_true(monkeypatch):
 
 
 def test_get_ok_local_status_variants(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from core.services.ai_provider_handler import ProviderStatus
+
     monkeypatch.setattr(
         utils,
         "load_ai_modes_config",
@@ -44,34 +48,71 @@ def test_get_ok_local_status_variants(monkeypatch):
     )
     monkeypatch.setattr(utils, "get_ok_default_model", lambda: "model-a")
 
-    monkeypatch.setattr(utils, "fetch_ollama_models", lambda endpoint: {"reachable": False, "error": "down"})
+    def _handler(ps: ProviderStatus):
+        h = MagicMock()
+        h.check_local_provider.return_value = ps
+        return h
+
+    # Ollama unreachable → "ollama down"
+    monkeypatch.setattr(
+        utils,
+        "get_ai_provider_handler",
+        lambda: _handler(ProviderStatus(
+            provider_id="ollama_local", is_configured=True, is_running=False,
+            is_available=False, issue="ollama not running", loaded_models=[], default_model="model-a",
+        )),
+    )
     down = utils.get_ok_local_status()
     assert down["ready"] is False
     assert down["issue"] == "ollama down"
 
-    monkeypatch.setattr(utils, "fetch_ollama_models", lambda endpoint: {"reachable": True, "models": ["other"]})
+    # Running but required model absent → "missing model"
+    monkeypatch.setattr(
+        utils,
+        "get_ai_provider_handler",
+        lambda: _handler(ProviderStatus(
+            provider_id="ollama_local", is_configured=True, is_running=True,
+            is_available=False, issue="model not loaded: model-a", loaded_models=["other"], default_model="model-a",
+        )),
+    )
     missing = utils.get_ok_local_status()
     assert missing["ready"] is False
     assert missing["issue"] == "missing model"
 
-    monkeypatch.setattr(utils, "fetch_ollama_models", lambda endpoint: {"reachable": True, "models": ["model-a"]})
+    # Fully ready
+    monkeypatch.setattr(
+        utils,
+        "get_ai_provider_handler",
+        lambda: _handler(ProviderStatus(
+            provider_id="ollama_local", is_configured=True, is_running=True,
+            is_available=True, issue=None, loaded_models=["model-a"], default_model="model-a",
+        )),
+    )
     ready = utils.get_ok_local_status()
     assert ready["ready"] is True
     assert ready["issue"] is None
 
 
 def test_get_ok_local_status_accepts_tagged_alias(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from core.services.ai_provider_handler import ProviderStatus
+
     monkeypatch.setattr(
         utils,
         "load_ai_modes_config",
         lambda: {"modes": {"ofvibe": {"ollama_endpoint": "http://ollama"}}},
     )
     monkeypatch.setattr(utils, "get_ok_default_model", lambda: "devstral-small-2")
-    monkeypatch.setattr(
-        utils,
-        "fetch_ollama_models",
-        lambda endpoint: {"reachable": True, "models": ["devstral-small-2:latest"]},
+
+    h = MagicMock()
+    h.check_local_provider.return_value = ProviderStatus(
+        provider_id="ollama_local", is_configured=True, is_running=True,
+        is_available=True, issue=None,
+        loaded_models=["devstral-small-2:latest"], default_model="devstral-small-2",
     )
+    monkeypatch.setattr(utils, "get_ai_provider_handler", lambda: h)
+
     ready = utils.get_ok_local_status()
     assert ready["ready"] is True
     assert ready["issue"] is None

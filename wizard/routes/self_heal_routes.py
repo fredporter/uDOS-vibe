@@ -6,6 +6,8 @@ Expose diagnostics and guided repair actions for Wizard setup.
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import json
 import os
 from pathlib import Path
@@ -301,6 +303,22 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
         if noun_auth_ok is False:
             next_steps.append("Verify Noun Project credentials; auth failed.")
 
+        # Run core offline diagnostics (blocking I/O → threadpool, auto_repair=False
+        # to avoid any stdin interaction in a server context).
+        core_diagnostics: dict = {}
+        try:
+            from core.services.self_healer import collect_self_heal_summary
+
+            loop = asyncio.get_event_loop()
+            core_diagnostics = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    collect_self_heal_summary, component="wizard", auto_repair=False
+                ),
+            )
+        except Exception as _exc:
+            core_diagnostics = {"error": str(_exc)}
+
         return {
             "admin_token_present": bool(env_admin_token),
             "ollama": {
@@ -320,6 +338,7 @@ def create_self_heal_routes(auth_guard=None) -> APIRouter:
                 "error": noun_error,
             },
             "next_steps": next_steps,
+            "core_diagnostics": core_diagnostics,
         }
 
     @router.post("/ollama/pull")
