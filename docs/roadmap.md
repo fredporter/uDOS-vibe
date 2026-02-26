@@ -1,6 +1,6 @@
 # uDOS Roadmap (Canonical)
 
-Last updated: 2026-02-24
+Last updated: 2026-02-26
 
 This roadmap tracks active execution and planned development.
 
@@ -12,6 +12,33 @@ This roadmap tracks active execution and planned development.
 
 Previous roadmap snapshot is archived at:
 - `/.compost/2026-02-22/archive/docs/roadmap-pre-cycle-d-2026-02-22.md`
+
+---
+
+## Architecture Convergence Sprint (2026-02-26) ✅
+
+**Primary Focus:** Pre-release parallel-stack cleanup and service consolidation.
+See full details: `docs/decisions/ARCHITECTURE-DEFERRED-MILESTONES.md`
+
+### Completed
+- ✅ Entry point & call graph audit — 6 entry points mapped, 8 parallel-stack problems (P1–P8) identified
+- ✅ P2: Removed dead `wizard.json` read from `UnifiedConfigLoader`
+- ✅ P4: `get_ok_local_status()` delegates to `AIProviderHandler.check_local_provider()` — single AI status path
+- ✅ P5: Lazy imports in `core/tui/ucode.py` — eliminates Core→Wizard circular import
+- ✅ P6: `/api/self-heal/status` wired to `collect_self_heal_summary()` via `run_in_executor`
+- ✅ P7: `admin_secret_contract.py` → `secret_vault.py` — naming collision resolved
+- ✅ P1: `GET /health` and `GET /api/dashboard/health` merged via `health_probe()` in `wizard/version_utils.py` + `dashboard_summary_routes.py`
+- ✅ P3: Notification history unified — `NotificationHistoryProtocol` in core; `NotificationHistoryAdapter` registered in `CoreProviderRegistry` at Wizard startup; core writes to SQLite backend when Wizard is running, falls back to JSONL offline
+
+### Key Commits
+| Commit | Description |
+|---|---|
+| `a03facd` | Dead routes wired in wizard/server.py |
+| `b85406c` | Duplicate method defs + unused imports removed |
+| `07ce276` | P4/P6/P7 convergence |
+| `6c4c953` | P2 dead config read + deferred milestones doc |
+| `4e05561` | P5 circular import fix |
+| `007b042` | P1 + P3 health consolidation + notification history |
 
 ---
 

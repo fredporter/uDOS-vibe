@@ -1,8 +1,19 @@
 # Architecture — Deferred Convergence Milestones
 
 **Context:** Pre-release cleanup audit (2026-02-26).
-**Completed commits:** `a03facd` (dead routes), `b85406c` (dup defs), `07ce276` (P4/P6/P7 convergence).
-**Status:** 4 items deferred — each is a self-contained session.
+**Status:** All 7 milestones complete ✅
+
+| Milestone | Description | Commit |
+|---|---|---|
+| P2 | Remove dead `wizard.json` read | `6c4c953` |
+| P4 | AI provider consolidation | `07ce276` |
+| P5 | Circular import fix (`ucode.py`) | `4e05561` |
+| P6 | Self-heal wiring in `/api/self-heal/status` | `07ce276` |
+| P7 | `admin_secret_contract` → `secret_vault` rename | `07ce276` |
+| P1 | Consolidate `/health` + `/api/dashboard/health` | `007b042` |
+| P3 | Unify notification history (JSONL → SQLite via Protocol) | `007b042` |
+
+Supporting commits: `a03facd` (dead routes wired), `b85406c` (dup defs removed).
 
 ---
 
@@ -19,7 +30,7 @@ The unified loader's read is pure startup I/O waste.
 
 ---
 
-## P5 — Fix circular import: `core/tui/ucode.py` → `wizard.services.provider_registry`
+## P5 — Fix circular import: `core/tui/ucode.py` → `wizard.services.provider_registry` ✅
 
 **File:** `core/tui/ucode.py` line 125
 **Finding:** The two "provider registries" are *not* convergence candidates — they serve
@@ -40,7 +51,7 @@ registers at startup via `CoreProviderRegistry.auto_register_vibe()`.
 
 ---
 
-## P1 — Consolidate `/health` and `/api/dashboard/health`
+## P1 — Consolidate `/health` and `/api/dashboard/health` ✅
 
 **Files:**
 - `wizard/server.py` lines 619–632 — inline `GET /health` inside `_register_routes()`
@@ -74,7 +85,7 @@ the shape. If any external monitor/LB depends on `{"status": "healthy"}`, add a 
 
 ---
 
-## P3 — Unify notification history (own session — highest risk)
+## P3 — Unify notification history ✅
 
 **Current state:** Two independent silos, incompatible storage.
 
