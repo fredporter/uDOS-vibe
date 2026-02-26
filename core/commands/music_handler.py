@@ -503,34 +503,6 @@ Use:  MUSIC HELP <command>  for detailed syntax
             "message": message or help_text,
         }
 
-    def _help(self, message: str = None) -> Dict:
-        """Return help text."""
-        help_text = """MUSIC Command Structure:
-
-Patterns:
-  MUSIC LIST              - List all patterns
-  MUSIC SHOW <id>         - Display pattern
-  MUSIC SAVE <id>         - Save pattern
-  MUSIC EXPORT <id> --format midi|wav|pdf
-
-Playback (pending):
-  MUSIC PLAY <id>         - Play pattern
-  MUSIC STOP              - Stop playback
-
-Transcription (pending):
-  MUSIC TRANSCRIBE <file> - Transcribe audio
-
-Utility:
-  MUSIC STATUS            - Check status
-  MUSIC HELP [cmd]        - Show help
-
-Use:  MUSIC HELP <command>  for detailed syntax
-"""
-        return {
-            "status": "ok",
-            "message": message or help_text,
-        }
-
     def _pattern_to_songscribe(self, pattern_data: Dict) -> str:
         """Convert stored pattern to Songscribe markdown."""
         lines = [

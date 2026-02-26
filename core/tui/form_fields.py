@@ -399,13 +399,6 @@ class DatePicker:
             picker._finalize_input()
 
     def get_value(self) -> str:
-        """Get selected date as YYYY-MM-DD."""
-        year = self.year_picker.get_value()
-        month = self.month_picker.get_value()
-        day = self.day_picker.get_value()
-        return f"{year:04d}-{month:02d}-{day:02d}"
-
-    def get_value(self) -> str:
         """Get date as YYYY-MM-DD string."""
         self._finalize()
         year = self.year_picker.get_value()

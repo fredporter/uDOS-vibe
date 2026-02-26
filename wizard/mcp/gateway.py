@@ -110,13 +110,6 @@ class WizardGateway:
         resp.raise_for_status()
         return resp.json()
 
-    def providers_list(self) -> dict[str, Any]:
-        resp = requests.get(
-            f"{self.base_url}/api/providers", headers=self._headers(), timeout=10
-        )
-        resp.raise_for_status()
-        return resp.json()
-
     def plugin_command(self, command: str) -> dict[str, Any]:
         payload = {"command": command}
         resp = requests.post(
