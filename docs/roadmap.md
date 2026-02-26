@@ -8,7 +8,7 @@ This roadmap tracks active execution and planned development.
 
 - macOS Swift thin UI source is not part of this repository and is maintained as an independent commercial companion application.
 - Alpine-core thin UI remained conceptual and was not developed as an active implementation lane in this repository.
-- Sonic work is tracked as a dedicated pending-round stream and must be completed before uDOS v1.5 milestone closure.
+- Sonic work was tracked as a dedicated pending-round stream — completed 2026-02-23 (I6 schema contract parity + alias retirement, GA3 uHOME packaging). 55 sonic tests passing at v1.5 GA.
 
 Previous roadmap snapshot is archived at:
 - `/.compost/2026-02-22/archive/docs/roadmap-pre-cycle-d-2026-02-22.md`
