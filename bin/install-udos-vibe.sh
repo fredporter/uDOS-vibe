@@ -746,8 +746,6 @@ function setup_env_file() {
             info "Keeping existing .env file"
             return
         fi
-        cp "$env_file" "$env_file.backup.$(date +%Y%m%d_%H%M%S)"
-        info "Backed up existing .env"
     fi
 
     if [[ ! -f "$env_example" ]]; then
