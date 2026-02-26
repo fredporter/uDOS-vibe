@@ -351,6 +351,11 @@ class VibeApp(App):  # noqa: PLR0904
         if self._agent_running:
             await self._interrupt_agent_loop()
 
+        # `:command` → always ucode (colon prefix = explicit ucode, no conflicts).
+        if value.startswith(":"):
+            await self._handle_ucode_command(value[1:].strip(), min_confidence=0.95)
+            return
+
         if value.startswith("!"):
             await self._handle_bash_command(value[1:])
             return
@@ -360,11 +365,33 @@ class VibeApp(App):  # noqa: PLR0904
                 await self._handle_teleport_command(value[1:])
                 return
 
+        # Vibe built-ins (/help, /config, /status …) take priority.
         if await self._handle_command(value):
             return
 
+        # Named skills (/skill-name) are checked next.
         if await self._handle_skill(value):
             return
+
+        # `/command` that didn't match a built-in or skill → try ucode.
+        # e.g. /map, /find, /health, /sonic all fall through here.
+        if value.startswith("/"):
+            if await self._handle_ucode_command(value[1:].strip(), min_confidence=0.95):
+                return
+
+        # Plain ALL-CAPS first-word → ucode exact-match only.
+        # Only fires when the user typed the command in all-caps ("MAP tokyo",
+        # "HEALTH", "FIND --list").  Mixed-case input ("help me", "Health?")
+        # flows through to AI so natural language is never accidentally
+        # swallowed by the ucode dispatcher.
+        first_word = value.split()[0] if value.split() else ""
+        if (
+            first_word
+            and first_word.isalpha()
+            and first_word == first_word.upper()
+        ):
+            if await self._handle_ucode_command(value, min_confidence=1.0):
+                return
 
         await self._handle_user_message(value)
 
@@ -564,6 +591,64 @@ class VibeApp(App):  # noqa: PLR0904
             await self._mount_and_scroll(
                 ErrorMessage(f"Command failed: {e}", collapsed=self._tools_collapsed)
             )
+
+    async def _handle_ucode_command(
+        self, raw: str, *, min_confidence: float = 1.0
+    ) -> bool:
+        """Try to execute *raw* as a ucode command.
+
+        Lookup is performed via :func:`~core.services.command_dispatch_service.match_ucode_command`.
+        Execution is delegated to :func:`~core.tui.ucode_runner.run_ucode_command`
+        running in a thread pool (``asyncio.to_thread``) so the event loop is
+        never blocked.
+
+        Prefix convention displayed to the user:
+        - `:COMMAND args`  for colon-prefixed input
+        - `COMMAND args`   for plain uppercase input
+
+        Args:
+            raw:            Command text with any leading ``/`` or ``:`` already
+                            stripped by the caller.
+            min_confidence: Minimum match confidence required (0.0-1.0).
+                            ``1.0`` means exact matches only (safe for plain
+                            uppercase dispatch). ``0.95`` accepts high-confidence
+                            fuzzy matches (appropriate for explicit ``:``,``/``
+                            prefixes where the user clearly intended ucode).
+
+        Returns:
+            ``True`` if a ucode command was recognised and dispatched;
+            ``False`` otherwise (caller should continue the dispatch chain).
+        """
+        # Late imports keep startup time low.
+        from core.services.command_dispatch_service import match_ucode_command
+        from core.tui.ucode_runner import format_ucode_result, run_ucode_command
+
+        if not raw:
+            return False
+
+        command, confidence = match_ucode_command(raw)
+        if confidence < min_confidence:
+            return False
+
+        # Build a readable display label.
+        parts = raw.strip().split(None, 1)
+        args = parts[1] if len(parts) > 1 else ""
+        display = f":{command}" + (f" {args}" if args else "")
+        await self._mount_and_scroll(UserCommandMessage(display))
+
+        try:
+            result = await asyncio.to_thread(run_ucode_command, raw)
+            formatted = format_ucode_result(result)
+            exit_code = 0 if result.get("status") == "success" else 1
+            await self._mount_and_scroll(
+                BashOutputMessage(command, "", formatted, exit_code)
+            )
+        except Exception as exc:
+            await self._mount_and_scroll(
+                ErrorMessage(f"ucode: {exc}", collapsed=self._tools_collapsed)
+            )
+
+        return True
 
     async def _handle_user_message(self, message: str) -> None:
         user_message = UserMessage(message)
