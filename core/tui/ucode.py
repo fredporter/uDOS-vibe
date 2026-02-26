@@ -115,14 +115,6 @@ from core.tui.ui_elements import ProgressBar
 from core.tui.vibe_dispatch_adapter import get_vibe_adapter
 from core.ui.command_selector import CommandSelector
 from core.utils.text_width import truncate_ansi_to_width
-from vibe.core.command_engine import CommandEngine
-
-# New imports for v1.4.6 architecture fix
-from vibe.core.input_router import InputRouter
-from vibe.core.provider_engine import ProviderEngine, ProviderType
-from vibe.core.response_normaliser import ResponseNormaliser
-from wizard.services.adapters import MistralAdapter, OllamaAdapter
-from wizard.services.provider_registry import get_provider_registry
 
 
 class ComponentState(Enum):
@@ -369,7 +361,14 @@ class UCODE:
         self._io_phase_lock = threading.RLock()
 
         # Initialize routing components (v1.4.6 architecture fix)
+        # Lazy imports keep core/ free of top-level wizard/vibe dependencies.
         try:
+            from vibe.core.command_engine import CommandEngine
+            from vibe.core.input_router import InputRouter
+            from vibe.core.provider_engine import ProviderEngine
+            from vibe.core.response_normaliser import ResponseNormaliser
+            from wizard.services.provider_registry import get_provider_registry
+
             self.input_router = InputRouter(
                 shell_enabled=True, ucode_confidence_threshold=0.80
             )
@@ -423,6 +422,8 @@ class UCODE:
     def _register_providers(self) -> None:
         """Register available providers with registry (v1.4.6)."""
         import asyncio
+        from vibe.core.provider_engine import ProviderType
+        from wizard.services.adapters import MistralAdapter, OllamaAdapter
 
         # Try registering Ollama (local)
         try:
