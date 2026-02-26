@@ -33,6 +33,12 @@ def test_user_facing_command_tokens_map_to_dispatch_catalog() -> None:
         "ROADMAP",
         "README",
         "MCP",
+        # HTTP methods — valid in API/route documentation, not uDOS commands
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "PATCH",
     }
     known = UCODE_COMMANDS | set(SUBCOMMAND_ALIASES.keys())
 

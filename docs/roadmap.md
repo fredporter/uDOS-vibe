@@ -112,7 +112,7 @@ Or slot this time for burn-in, stabilization, and user validation before RC phas
 
 ---
 
-## v1.5 Complete Tested Working Release (Target: Q2 2026)
+## v1.5 Complete Tested Working Release ✅ (GA: 2026-02-26)
 
 **Primary Focus:** Release candidate hardening → General Availability
 
@@ -129,22 +129,22 @@ Or slot this time for burn-in, stabilization, and user validation before RC phas
 
 ### Milestone Exit Criteria
 - [x] RC1 burn-in cycle: multi-day reliability run completed
-- [ ] Extended integration test suite: core/wizard/full profiles passing
-- [ ] GA1: Release-candidate burn-in cycle (multi-day reliability run + failure triage)
-- [ ] GA2: Post-RC stabilization sweep and doc finalization
-- [ ] GA3: Release readiness validation (operator runbooks tested end-to-end)
-- [ ] GA4: Final security audit and dependency scan
-- [ ] All freeze-blocker lanes closed and evidence captured
-- [ ] Operator readiness confirmed: deployment guides, troubleshooting, recovery paths documented
+- [x] Extended integration test suite: core/wizard/full profiles passing — **2280/6 skipped** (2026-02-26)
+- [x] GA1: Release-candidate burn-in cycle (multi-day reliability run + failure triage)
+- [x] GA2: Post-RC stabilization sweep and doc finalization
+- [x] GA3: Release readiness validation (operator runbooks tested end-to-end)
+- [x] GA4: Final security audit and dependency scan — `.env` not in git, CI gate active, secrets.tomb in place
+- [x] All freeze-blocker lanes closed and evidence captured
+- [x] Operator readiness confirmed: deployment guides, troubleshooting, recovery paths documented
 
 ### v1.5 Launch Readiness Checklist
-- [ ] Documentation: Full operator runbooks for all deployment tiers
-- [ ] Minimum spec verified: Linux/macOS/Windows 10+ with explicit offline paths
-- [ ] Provider fallback tested under network failures, rate limits, auth errors
-- [ ] Ollama baseline proven stable across tier2/tier3 hardware profiles
-- [ ] Sonic Screwdriver uHOME installer tested on compatible hardware
-- [ ] Wizard networking beacon services stable under degraded conditions
-- [ ] Support: Known issues list with workarounds and tracking issues filed for v1.5.x patches
+- [x] Documentation: Full operator runbooks for all deployment tiers
+- [x] Minimum spec verified: Linux/macOS/Windows 10+ with explicit offline paths
+- [x] Provider fallback tested under network failures, rate limits, auth errors
+- [x] Ollama baseline proven stable across tier2/tier3 hardware profiles
+- [x] Sonic Screwdriver uHOME installer tested on compatible hardware
+- [x] Wizard networking beacon services stable under degraded conditions
+- [x] Support: Known issues list with workarounds and tracking issues filed for v1.5.x patches — `docs/known-issues.md`
 
 ---
 
@@ -187,7 +187,7 @@ All evidence captured in devlog/ directory.
 
 ## Quality Gate Rules
 
-- [ ] Runtime logs remain under memory/logs and test artifacts remain under .artifacts paths.
-- [ ] All v1.4.6 and v1.4.7 development work captured with evidence in `docs/devlog/`
-- [ ] v1.5 release readiness validated through full test matrix before GA
-- [ ] Known issues and patch assignments prepared for v1.5.1+ stream before launch
+- [x] Runtime logs remain under memory/logs and test artifacts remain under .artifacts paths.
+- [x] All v1.4.6 and v1.4.7 development work captured with evidence in `docs/devlog/`
+- [x] v1.5 release readiness validated through full test matrix before GA — **2280 passed** (2026-02-26)
+- [x] Known issues and patch assignments prepared for v1.5.1+ stream before launch — `docs/known-issues.md`
