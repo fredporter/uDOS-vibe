@@ -47,9 +47,18 @@ def test_workspace_roots_include_aliases():
     res = client.get("/api/workspace/roots")
     assert res.status_code == 200
     roots = res.json().get("roots", {})
+    # All WORKSPACE_CONFIG types + memory root should appear under @key
     assert "@vault" in roots
     assert "@sandbox" in roots
-    assert "@workspace/vault" in roots
+    assert "@inbox" in roots
+    assert "@memory" in roots
+    # Each entry is a rich object, not a plain string
+    vault_entry = roots["@vault"]
+    assert "abs_path" in vault_entry
+    assert "exists" in vault_entry
+    assert "description" in vault_entry
+    # @workspace/<key> alias is listed inside the entry
+    assert "@workspace/vault" in vault_entry.get("aliases", [])
 
 
 def test_workspace_resolve_with_workspace_prefix():

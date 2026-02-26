@@ -28,16 +28,30 @@ class MkdirRequest(BaseModel):
 
 
 def _resolve_workspace_root() -> dict[str, Path]:
-    env_root = get_config("UDOS_ROOT", "")
-    base_root = Path(env_root).expanduser() if env_root else get_repo_root()
-    root_map: dict[str, Path] = {"memory": get_memory_dir().resolve()}
+    """Build a map of workspace-key → resolved absolute Path.
+
+    All ``memory/``-prefixed workspace paths are resolved relative to
+    ``get_memory_dir()`` so that a custom ``file_locations.memory_root``
+    in wizard.json is honoured consistently across every workspace.
+    Non-memory paths (``knowledge``, ``dev``) fall back to ``get_repo_root()``.
+    """
+    memory_root = get_memory_dir().resolve()
+    repo_root = get_repo_root().resolve()
+
+    root_map: dict[str, Path] = {"memory": memory_root}
 
     for ws_type, config in WORKSPACE_CONFIG.items():
         rel_path = config.get("path")
         if not isinstance(rel_path, str):
             continue
-        root_map[ws_type.value] = (base_root / rel_path).resolve()
+        if rel_path.startswith("memory/"):
+            # Use the resolved memory root so customised paths stay coherent.
+            tail = rel_path[len("memory/"):]
+            root_map[ws_type.value] = (memory_root / tail).resolve()
+        else:
+            root_map[ws_type.value] = (repo_root / rel_path).resolve()
 
+    # Canonical vault alias always mirrors the resolved vault workspace.
     root_map["vault"] = get_vault_dir().resolve()
     return root_map
 
@@ -54,7 +68,9 @@ def _resolve_path(relative_path: str) -> Path:
     root_key, rel = _split_root(relative_path)
     root_dir = root_map[root_key]
     candidate = (root_dir / rel).resolve()
-    if not str(candidate).startswith(str(root_dir)):
+    try:
+        candidate.relative_to(root_dir)
+    except ValueError:
         raise ValueError(f"Path must be within {root_key}/")
     return candidate
 
@@ -65,16 +81,33 @@ def create_workspace_routes(auth_guard=None, prefix="/api/workspace") -> APIRout
 
     @router.get("/roots")
     async def get_roots():
+        """Return all workspace roots with resolved absolute paths and metadata.
+
+        Each entry exposes:
+        - ``ref``        — canonical ``@key`` reference for the GUI
+        - ``abs_path``   — resolved filesystem path
+        - ``exists``     — whether the directory currently exists on disk
+        - ``description``— human-readable label from WORKSPACE_CONFIG
+        - ``aliases``    — additional ``@workspace/<key>`` form
+        """
         root_map = _resolve_workspace_root()
-        roots = {
-            "memory": "memory",
-            "memory/sandbox": "memory/sandbox",
-            "memory/inbox": "memory/inbox",
-            "vault": "vault",
+        ws_descriptions: dict[str, str] = {
+            ws_type.value: cfg.get("description", "")
+            for ws_type, cfg in WORKSPACE_CONFIG.items()
         }
+
+        roots: dict[str, dict] = {}
         for key in sorted(root_map):
-            roots[f"@{key}"] = f"@{key}"
-            roots[f"@workspace/{key}"] = f"@workspace/{key}"
+            abs_path = root_map[key]
+            roots[f"@{key}"] = {
+                "ref": f"@{key}",
+                "key": key,
+                "abs_path": str(abs_path),
+                "exists": abs_path.exists(),
+                "description": ws_descriptions.get(key, ""),
+                "aliases": [f"@workspace/{key}"],
+            }
+
         return {"success": True, "roots": roots}
 
     @router.get("/resolve")
