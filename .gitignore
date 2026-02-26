@@ -234,3 +234,7 @@ README 2.md
 # ── node_modules inside core/ (uDOS grid-runtime) ──
 core/node_modules/
 core/grid-runtime/node_modules/
+
+# Auto-generated / secret backups
+.env.backup*
+snapshot_report.html
